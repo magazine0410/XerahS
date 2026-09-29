@@ -3,6 +3,7 @@
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              xmlns:vm="using:XerahS.UI.ViewModels"
+             xmlns:local="using:XerahS.UI.Views.Controls"
              mc:Ignorable="d" d:DesignWidth="500" d:DesignHeight="40"
              x:Class="XerahS.UI.Views.Controls.HotkeySelectionControl"
              x:DataType="vm:HotkeyItemViewModel">
@@ -86,24 +87,11 @@
             </Border>
 
             <!-- Linux: Alt + Print Screen produces SysRq, so the desktop never delivers the shortcut -->
-            <TextBlock Grid.Row="1"
-                       Grid.Column="3"
-                       Grid.ColumnSpan="2"
-                       Margin="5,4,10,2"
-                       FontSize="12"
-                       TextWrapping="Wrap"
-                       Foreground="{DynamicResource SystemFillColorCautionBrush}"
-                       IsVisible="{Binding ShowSysRqWarning}">
-                <Run Text="Alt + Print Screen cannot be used as a shortcut: the combination is used for "/>
-                <InlineUIContainer BaselineAlignment="TextBottom">
-                    <HyperlinkButton Content="SysRq"
-                                     NavigateUri="https://en.wikipedia.org/wiki/Magic_SysRq_key"
-                                     Padding="0"
-                                     FontSize="12"
-                                     AutomationProperties.Name="SysRq on Wikipedia"/>
-                </InlineUIContainer>
-                <Run Text=" requests, so the desktop never receives it. Choose another combination."/>
-            </TextBlock>
+            <local:SysRqWarning Grid.Row="1"
+                                Grid.Column="3"
+                                Grid.ColumnSpan="2"
+                                Margin="5,4,10,2"
+                                IsVisible="{Binding ShowSysRqWarning}"/>
         </Grid>
     </Border>
 </UserControl>

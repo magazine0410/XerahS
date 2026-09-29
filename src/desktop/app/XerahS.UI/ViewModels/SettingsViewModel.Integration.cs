@@ -212,6 +212,10 @@ namespace XerahS.UI.ViewModels
 
         public string AssistantHotkeyText => SettingsManager.Settings.AssistantHotkey.GetDisplayString();
 
+        /// <summary>Linux: Alt + Print Screen is the SysRq key, which the desktop never delivers as a shortcut.</summary>
+        public bool AssistantShowSysRqWarning =>
+            OperatingSystem.IsLinux() && SettingsManager.Settings.AssistantHotkey.IsSysRqCombination;
+
         public bool CaptureCommandPaletteEnabled
         {
             get => SettingsManager.Settings.CaptureCommandPaletteEnabled;
@@ -228,6 +232,10 @@ namespace XerahS.UI.ViewModels
         }
 
         public string CaptureCommandPaletteHotkeyText => SettingsManager.Settings.CaptureCommandPaletteHotkey.GetDisplayString();
+
+        /// <summary>Linux: Alt + Print Screen is the SysRq key, which the desktop never delivers as a shortcut.</summary>
+        public bool CaptureCommandPaletteShowSysRqWarning =>
+            OperatingSystem.IsLinux() && SettingsManager.Settings.CaptureCommandPaletteHotkey.IsSysRqCombination;
 
         public bool AssistantProviderNeedsApiKey => SelectedAssistantProvider?.Id != "ollama";
 

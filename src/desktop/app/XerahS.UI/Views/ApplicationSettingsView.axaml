@@ -515,6 +515,8 @@
                                                 AutomationProperties.Name="Test Capture Command Palette Shortcut"/>
                                     </Grid>
 
+                                    <viewcontrols:SysRqWarning IsVisible="{Binding CaptureCommandPaletteShowSysRqWarning}"/>
+
                                     <TextBlock Text="{Binding CaptureCommandPaletteStatusText}"
                                                FontSize="12"
                                                Foreground="{DynamicResource SystemControlForegroundBaseMediumBrush}"
@@ -550,6 +552,8 @@
                                                 Command="{Binding TestAssistantShortcutCommand}"
                                                 AutomationProperties.Name="Test Assistant Shortcut"/>
                                     </Grid>
+
+                                    <viewcontrols:SysRqWarning IsVisible="{Binding AssistantShowSysRqWarning}"/>
 
                                     <TextBlock Text="{Binding AssistantHotkeyStatusText}"
                                                FontSize="12"

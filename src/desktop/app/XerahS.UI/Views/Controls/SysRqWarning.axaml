@@ -1,0 +1,21 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             mc:Ignorable="d" d:DesignWidth="500" d:DesignHeight="20"
+             x:Class="XerahS.UI.Views.Controls.SysRqWarning">
+    <!-- Linux: Alt + Print Screen produces SysRq, so the desktop never delivers the shortcut. -->
+    <TextBlock FontSize="12"
+               TextWrapping="Wrap"
+               Foreground="{DynamicResource SystemFillColorCautionBrush}">
+        <Run Text="Alt + Print Screen cannot be used as a shortcut: the combination is used for "/>
+        <InlineUIContainer BaselineAlignment="TextBottom">
+            <HyperlinkButton Content="SysRq"
+                             NavigateUri="https://en.wikipedia.org/wiki/Magic_SysRq_key"
+                             Padding="0"
+                             FontSize="12"
+                             AutomationProperties.Name="SysRq on Wikipedia"/>
+        </InlineUIContainer>
+        <Run Text=" requests, so the desktop never receives it. Choose another combination."/>
+    </TextBlock>
+</UserControl>
