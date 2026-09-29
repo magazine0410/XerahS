@@ -83,13 +83,32 @@ public class LinuxHotkeyServiceTests
     }
 
     [Test]
-    public void WaylandPortalHotkeyService_BuildPreferredTrigger_UsesGtkKeypadNames()
+    public void WaylandPortalHotkeyService_BuildPreferredTrigger_UsesXdgShortcutsFormat()
     {
-        var hotkey = new HotkeyInfo(Key.NumPad5, KeyModifiers.Control | KeyModifiers.Alt);
+        Assert.Multiple(() =>
+        {
+            Assert.That(WaylandPortalHotkeyService.BuildPreferredTrigger(new HotkeyInfo(Key.NumPad5, KeyModifiers.Control | KeyModifiers.Alt)),
+                Is.EqualTo("CTRL+ALT+KP_5"));
+            Assert.That(WaylandPortalHotkeyService.BuildPreferredTrigger(new HotkeyInfo(Key.PrintScreen, KeyModifiers.Control)),
+                Is.EqualTo("CTRL+Print"));
+            Assert.That(WaylandPortalHotkeyService.BuildPreferredTrigger(new HotkeyInfo(Key.Print, KeyModifiers.Control)),
+                Is.EqualTo("CTRL+Print"));
+            Assert.That(WaylandPortalHotkeyService.BuildPreferredTrigger(new HotkeyInfo(Key.R, KeyModifiers.Control | KeyModifiers.Shift | KeyModifiers.Meta)),
+                Is.EqualTo("CTRL+SHIFT+LOGO+r"));
+            Assert.That(WaylandPortalHotkeyService.BuildPreferredTrigger(new HotkeyInfo(Key.PrintScreen)),
+                Is.EqualTo("Print"));
+        });
+    }
 
-        string trigger = WaylandPortalHotkeyService.BuildPreferredTrigger(hotkey);
-
-        Assert.That(trigger, Is.EqualTo("<Primary><Alt>KP_5"));
+    [Test]
+    public void WaylandPortalHotkeyService_GetShortcutId_UsesStableBindingId()
+    {
+        Assert.Multiple(() =>
+        {
+            Assert.That(WaylandPortalHotkeyService.GetShortcutId(new HotkeyInfo(Key.A) { Id = 7, BindingId = "d18a0750" }),
+                Is.EqualTo("d18a0750"));
+            Assert.That(WaylandPortalHotkeyService.GetShortcutId(new HotkeyInfo(Key.A) { Id = 7 }), Is.EqualTo("7"));
+        });
     }
 
     [Test]

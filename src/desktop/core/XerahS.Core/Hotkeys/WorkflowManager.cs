@@ -158,10 +158,7 @@ public class WorkflowManager : IDisposable
         if (FindConflictingWorkflow(settings) is { } conflict)
         {
             settings.HotkeyInfo.Status = HotkeyStatus.Failed;
-            string conflictName = string.IsNullOrWhiteSpace(conflict.Name)
-                ? XerahS.Common.EnumExtensions.GetDescription(conflict.Job)
-                : conflict.Name;
-            settings.HotkeyInfo.NativeTriggerDescription = $"{settings.HotkeyInfo} (also used by \"{conflictName}\")";
+            settings.HotkeyInfo.NativeTriggerDescription = $"{settings.HotkeyInfo} (also used by \"{GetWorkflowName(conflict)}\")";
             XerahS.Common.DebugHelper.WriteLine($"Hotkey not registered: {settings} uses the same keys as {conflict}");
 
             if (!Workflows.Contains(settings))
@@ -172,6 +169,9 @@ public class WorkflowManager : IDisposable
 
             return false;
         }
+
+        settings.HotkeyInfo.BindingId = string.IsNullOrWhiteSpace(settings.Id) ? null : settings.Id;
+        settings.HotkeyInfo.BindingName = GetWorkflowName(settings);
 
         // Hyprland-managed keybindings (XIP0088): the compositor owns the key; registering it through
         // the portal or evdev as well would trigger the workflow twice.
@@ -208,6 +208,11 @@ public class WorkflowManager : IDisposable
 
         return result;
     }
+
+    private static string GetWorkflowName(WorkflowSettings settings) =>
+        string.IsNullOrWhiteSpace(settings.Name)
+            ? XerahS.Common.EnumExtensions.GetDescription(settings.Job)
+            : settings.Name;
 
     /// <summary>
     /// Returns the enabled workflow whose registered hotkey uses the same keys, if any.

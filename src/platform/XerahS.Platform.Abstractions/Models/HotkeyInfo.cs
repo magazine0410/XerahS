@@ -62,6 +62,19 @@ public class HotkeyInfo
     public string? NativeTriggerDescription { get; set; }
 
     /// <summary>
+    /// Stable identifier for desktop shortcut registries such as the GlobalShortcuts portal, which store
+    /// the user's assigned keys by this ID. Set to the workflow ID; <see cref="Id"/> changes on every registration.
+    /// </summary>
+    [System.Runtime.Serialization.IgnoreDataMember]
+    public string? BindingId { get; set; }
+
+    /// <summary>
+    /// Name shown for this shortcut in desktop shortcut settings (the workflow name).
+    /// </summary>
+    [System.Runtime.Serialization.IgnoreDataMember]
+    public string? BindingName { get; set; }
+
+    /// <summary>
     /// Whether this is a valid hotkey (has a key assigned)
     /// </summary>
     public bool IsValid => Key != Key.None && !IsOnlyModifiers;

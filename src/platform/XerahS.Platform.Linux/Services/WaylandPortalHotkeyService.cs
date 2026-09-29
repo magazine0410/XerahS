@@ -579,7 +579,7 @@ public sealed class WaylandPortalHotkeyService : IHotkeyService
         {
             foreach (var hotkey in _registered.Values)
             {
-                var description = hotkey.ToString();
+                var description = string.IsNullOrWhiteSpace(hotkey.BindingName) ? hotkey.ToString() : hotkey.BindingName;
                 var trigger = BuildPreferredTrigger(hotkey);
                 var entry = new Dictionary<string, object>
                 {
@@ -587,7 +587,7 @@ public sealed class WaylandPortalHotkeyService : IHotkeyService
                     ["preferred_trigger"] = trigger
                 };
 
-                var shortcutId = hotkey.Id.ToString();
+                var shortcutId = GetShortcutId(hotkey);
                 shortcuts.Add(ValueTuple.Create(shortcutId, (IDictionary<string, object>)entry));
                 map[shortcutId] = hotkey;
                 DebugHelper.WriteLine($"WaylandPortalHotkeyService: Prepared binding id={shortcutId}, trigger={trigger}, description={description}");
@@ -779,30 +779,38 @@ public sealed class WaylandPortalHotkeyService : IHotkeyService
         }
     }
 
+    /// <summary>
+    /// Portal shortcut ID: the workflow ID when known, so the keys a user assigns in the desktop's
+    /// shortcut settings stay with the same workflow across restarts and workflow edits.
+    /// </summary>
+    internal static string GetShortcutId(HotkeyInfo hotkeyInfo) =>
+        string.IsNullOrWhiteSpace(hotkeyInfo.BindingId) ? hotkeyInfo.Id.ToString() : hotkeyInfo.BindingId;
+
     internal static string BuildPreferredTrigger(HotkeyInfo hotkeyInfo)
     {
-        // XDG GlobalShortcuts portal uses GLib/GTK accelerator format:
-        // modifiers are <Primary>, <Alt>, <Shift>, <Super> with no separator,
-        // followed by the lowercase key name. E.g. "<Primary><Shift>f", not "Ctrl+Shift+F".
+        // preferred_trigger uses the XDG "shortcuts" specification format: upper-case modifier names
+        // (CTRL, ALT, SHIFT, LOGO) and an XKB keysym name joined with "+", e.g. "CTRL+SHIFT+f".
+        // KDE (XdgShortcut::parse) and GNOME (portal_trigger_to_settings) accept only this format;
+        // a GTK accelerator such as "<Primary>Print" leaves the shortcut unassigned.
         var parts = new List<string>(5);
         if (hotkeyInfo.HasControl)
         {
-            parts.Add("<Primary>");
+            parts.Add("CTRL");
         }
 
         if (hotkeyInfo.HasAlt)
         {
-            parts.Add("<Alt>");
+            parts.Add("ALT");
         }
 
         if (hotkeyInfo.HasShift)
         {
-            parts.Add("<Shift>");
+            parts.Add("SHIFT");
         }
 
         if (hotkeyInfo.HasMeta)
         {
-            parts.Add("<Super>");
+            parts.Add("LOGO");
         }
 
         var keyName = MapKeyName(hotkeyInfo.Key);
@@ -811,7 +819,7 @@ public sealed class WaylandPortalHotkeyService : IHotkeyService
             parts.Add(keyName);
         }
 
-        return string.Concat(parts);
+        return string.Join("+", parts);
     }
 
     private void WaitForRebindOperationsToDrain()
@@ -895,8 +903,8 @@ public sealed class WaylandPortalHotkeyService : IHotkeyService
         {
             foreach (var entry in _registered)
             {
-                string shortcutId = entry.Key.ToString();
                 var hotkeyInfo = entry.Value;
+                string shortcutId = GetShortcutId(hotkeyInfo);
 
                 if (shortcutsById.TryGetValue(shortcutId, out var metadata))
                 {

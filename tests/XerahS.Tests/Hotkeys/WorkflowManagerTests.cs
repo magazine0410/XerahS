@@ -79,6 +79,29 @@ public class WorkflowManagerTests
     }
 
     [Test]
+    public void RegisterHotkey_PassesWorkflowIdAndNameForDesktopShortcutSettings()
+    {
+        var service = new FakeHotkeyService();
+        using var manager = new WorkflowManager(service);
+        var named = new WorkflowSettings(WorkflowType.RectangleRegion, new HotkeyInfo(Key.Print, KeyModifiers.Control))
+        {
+            Id = "d18a0750",
+            Name = "Region capture"
+        };
+        var unnamed = new WorkflowSettings(WorkflowType.OCR, new HotkeyInfo(Key.PrintScreen, KeyModifiers.Shift)) { Id = "65d6ae03" };
+
+        manager.UpdateHotkeys([named, unnamed]);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(named.HotkeyInfo.BindingId, Is.EqualTo("d18a0750"));
+            Assert.That(named.HotkeyInfo.BindingName, Is.EqualTo("Region capture"));
+            Assert.That(unnamed.HotkeyInfo.BindingId, Is.EqualTo("65d6ae03"));
+            Assert.That(unnamed.HotkeyInfo.BindingName, Is.EqualTo(XerahS.Common.EnumExtensions.GetDescription(WorkflowType.OCR)));
+        });
+    }
+
+    [Test]
     public void HotkeyInfo_ConflictsWith_TreatsPrintAndPrintScreenAsOneKey()
     {
         var printScreen = new HotkeyInfo(Key.PrintScreen, KeyModifiers.Control);
