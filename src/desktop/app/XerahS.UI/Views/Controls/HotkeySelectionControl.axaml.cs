@@ -227,7 +227,7 @@ public partial class HotkeySelectionControl : UserControl
         // Mark as handled to prevent bubbling
         e.Handled = true;
 
-        var key = e.Key;
+        var key = NormalizeRecordedKey(e);
         var modifiers = e.KeyModifiers;
 
         // Escape cancels recording
@@ -263,10 +263,25 @@ public partial class HotkeySelectionControl : UserControl
         e.Handled = true;
 
         // PrintScreen and some media keys only fire on KeyUp
-        if (e.Key == Key.PrintScreen || e.Key == Key.Snapshot)
+        var key = NormalizeRecordedKey(e);
+        if (key == Key.PrintScreen)
         {
-            CommitHotkey(e.Key, e.KeyModifiers);
+            CommitHotkey(key, e.KeyModifiers);
         }
+    }
+
+    /// <summary>
+    /// Records the Print Screen key as <see cref="Key.PrintScreen"/> however the platform reports it:
+    /// Linux reports <see cref="Key.Print"/>, and with Alt held the key produces SysRq instead.
+    /// </summary>
+    private static Key NormalizeRecordedKey(global::Avalonia.Input.KeyEventArgs e)
+    {
+        if (e.PhysicalKey == PhysicalKey.PrintScreen)
+        {
+            return Key.PrintScreen;
+        }
+
+        return XerahS.Platform.Abstractions.HotkeyInfo.NormalizeKey(e.Key);
     }
 
     #endregion
@@ -473,6 +488,8 @@ public partial class HotkeySelectionControl : UserControl
             {
                 HotkeyButton.Content = "None";
             }
+
+            _viewModel.Refresh();
         }
     }
 

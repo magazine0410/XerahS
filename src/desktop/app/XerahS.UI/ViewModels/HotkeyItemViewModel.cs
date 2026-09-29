@@ -49,6 +49,9 @@ public partial class HotkeyItemViewModel : ViewModelBase
     /// </summary>
     public string FullDescription => Model.ToString();
 
+    /// <summary>Linux: Alt + Print Screen is the SysRq key, which the desktop never delivers as a shortcut.</summary>
+    public bool ShowSysRqWarning => OperatingSystem.IsLinux() && Model.HotkeyInfo.IsSysRqCombination;
+
     // Expose Status for binding - reads from Model.HotkeyInfo.Status
     public Platform.Abstractions.HotkeyStatus Status => Model.HotkeyInfo.Status;
 
@@ -65,6 +68,7 @@ public partial class HotkeyItemViewModel : ViewModelBase
         OnPropertyChanged(nameof(KeyString));
         OnPropertyChanged(nameof(FullDescription));
         OnPropertyChanged(nameof(Status));
+        OnPropertyChanged(nameof(ShowSysRqWarning));
     }
 
     [ObservableProperty]

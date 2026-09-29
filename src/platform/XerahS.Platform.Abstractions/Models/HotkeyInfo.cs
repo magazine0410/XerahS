@@ -142,6 +142,12 @@ public class HotkeyInfo
     public static Key NormalizeKey(Key key) => key == Key.Print ? Key.PrintScreen : key;
 
     /// <summary>
+    /// Alt + Print Screen. With Alt held, the Print Screen key produces SysRq (XKB "Sys_Req"; the
+    /// kernel's Magic SysRq key), so Linux desktops cannot deliver it as a shortcut.
+    /// </summary>
+    public bool IsSysRqCombination => IsValid && HasAlt && NormalizeKey(Key) == Key.PrintScreen;
+
+    /// <summary>
     /// True when both hotkeys are valid and press the same physical key combination.
     /// </summary>
     public bool ConflictsWith(HotkeyInfo? other)
