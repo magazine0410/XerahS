@@ -67,6 +67,10 @@ public sealed class AssistantOverlayCoordinator : IDisposable
             return;
         }
 
+        // Stable ID and name for desktop shortcut settings (GlobalShortcuts portal).
+        hotkey.BindingId = "assistant";
+        hotkey.BindingName = "Assistant";
+
         try
         {
             bool registered = PlatformServices.Hotkey.RegisterHotkey(hotkey);

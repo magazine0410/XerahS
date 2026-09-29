@@ -78,6 +78,10 @@ public sealed class CaptureCommandPaletteCoordinator : IDisposable
             return;
         }
 
+        // Stable ID and name for desktop shortcut settings (GlobalShortcuts portal).
+        hotkey.BindingId = "capture-command-palette";
+        hotkey.BindingName = "Capture command palette";
+
         try
         {
             bool registered = PlatformServices.Hotkey.RegisterHotkey(hotkey);
