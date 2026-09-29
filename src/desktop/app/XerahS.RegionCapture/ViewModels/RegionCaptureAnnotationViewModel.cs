@@ -154,8 +154,27 @@ public partial class RegionCaptureAnnotationViewModel : ObservableObject, IAnnot
     [ObservableProperty]
     private EditorTool _activeTool = EditorTool.Select;
 
+    [ObservableProperty]
+    private bool _isRegionToolActive;
+
+    private EditorTool _lastAnnotationTool = EditorTool.Rectangle;
+
+    public void ActivateRegionTool()
+    {
+        ActiveTool = EditorTool.Select;
+        IsRegionToolActive = true;
+    }
+
+    public void ActivateLastAnnotationTool() => SelectTool(_lastAnnotationTool);
+
     partial void OnActiveToolChanged(EditorTool value)
     {
+        if (value != EditorTool.Select)
+        {
+            _lastAnnotationTool = value;
+            IsRegionToolActive = false;
+        }
+
         _editorCore.ActiveTool = value;
         UpdateVisibleToolbarActiveStates();
 
@@ -184,6 +203,7 @@ public partial class RegionCaptureAnnotationViewModel : ObservableObject, IAnnot
     [RelayCommand]
     private void SelectTool(EditorTool tool)
     {
+        IsRegionToolActive = false;
         ActiveTool = tool;
     }
 

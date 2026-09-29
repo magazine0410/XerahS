@@ -70,6 +70,8 @@ public partial class OverlayWindow : Window
     private readonly RegionCaptureAnnotationViewModel _viewModel;
     private readonly RegionCaptureAnnotationToolCoordinator? _annotationToolCoordinator;
     private readonly SKBitmap? _backgroundBitmap;
+    private readonly RegionCaptureOptions _options = new();
+    private readonly PixelRect _captureBounds;
     private Canvas? _annotationCanvas;
     private AvPixelPoint _targetPosition;
     private double _targetWidth;
@@ -120,6 +122,10 @@ public partial class OverlayWindow : Window
         RegionCaptureAnnotationToolCoordinator? annotationToolCoordinator = null)
     {
         _monitor = monitor;
+        _options = options ?? new RegionCaptureOptions();
+        _captureBounds = _options.CaptureBounds ?? (_options.ActiveMonitorMode
+            ? monitor.PhysicalBounds
+            : new CoordinateTranslationService().GetVirtualScreenBounds().Union(monitor.PhysicalBounds));
         _completionSource = completionSource;
         _backgroundBitmap = options?.BackgroundImage;
         _annotationToolCoordinator = annotationToolCoordinator;
@@ -193,7 +199,21 @@ public partial class OverlayWindow : Window
 
         // Subscribe to ActiveTool changes to toggle canvas hit testing
         _viewModel.PropertyChanged += OnViewModelPropertyChanged;
-        _annotationToolCoordinator?.Register(_viewModel);
+        if (_options.EnableAnnotations)
+            _annotationToolCoordinator?.Register(_viewModel);
+
+        UpdateAnnotationCanvasHitTesting();
+        if (!_options.EnableAnnotations)
+            HideAnnotationToolbar();
+
+        // The capture pointer handlers also apply the active monitor mode state; see OverlayWindow.ActiveMonitor.cs.
+        AddHandler(PointerWheelChangedEvent, OnMonitorStatePointerEvent, Avalonia.Interactivity.RoutingStrategies.Tunnel);
+        Activated += (_, _) => UpdateCursorConfinement();
+        Deactivated += (_, _) => UpdateCursorConfinement();
+
+        AddHandler(PointerPressedEvent, OnCapturePointerPressed, Avalonia.Interactivity.RoutingStrategies.Tunnel);
+        AddHandler(PointerMovedEvent, OnCapturePointerMoved, Avalonia.Interactivity.RoutingStrategies.Tunnel);
+        AddHandler(PointerReleasedEvent, OnCapturePointerReleased, Avalonia.Interactivity.RoutingStrategies.Tunnel);
 
         // Ensure window can receive keyboard input
         Focusable = true;
@@ -211,6 +231,7 @@ public partial class OverlayWindow : Window
         ThemeManager.ThemeChanged -= OnThemeChanged;
         _annotationToolCoordinator?.Unregister(_viewModel);
         _windowClosed = true;
+        UpdateCursorConfinement();
         base.OnClosed(e);
     }
 
@@ -412,6 +433,9 @@ public partial class OverlayWindow : Window
     {
         base.OnKeyDown(e);
 
+        if (HandleInactiveMonitorKey(e))
+            return;
+
         // If inline text editing is active, let the TextBox handle keys
         if (_inlineTextBox != null)
         {
@@ -438,7 +462,7 @@ public partial class OverlayWindow : Window
             OnCancelled();
             e.Handled = true;
         }
-        else if (e.Key == Key.Tab)
+        else if (e.Key == Key.Tab && _options.EnableAnnotations)
         {
             // XIP-0023: Toggle annotation toolbar visibility
             ToggleAnnotationToolbar();
@@ -457,7 +481,7 @@ public partial class OverlayWindow : Window
             e.Handled = true;
         }
         // Tool shortcuts (only when no modifiers)
-        else if (e.KeyModifiers == KeyModifiers.None)
+        else if (_options.EnableAnnotations && e.KeyModifiers == KeyModifiers.None)
         {
             switch (e.Key)
             {
@@ -477,7 +501,7 @@ public partial class OverlayWindow : Window
                 case Key.S: _viewModel.SelectToolCommand.Execute(EditorTool.Spotlight); e.Handled = true; break;
             }
         }
-        else if (e.KeyModifiers.HasFlag(KeyModifiers.Control))
+        else if (_options.EnableAnnotations && e.KeyModifiers.HasFlag(KeyModifiers.Control))
         {
             if (e.Key == Key.Z)
             {

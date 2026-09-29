@@ -40,7 +40,7 @@ public partial class OverlayWindow
 
     private void OnAnnotationCanvasPointerPressed(object? sender, PointerPressedEventArgs e)
     {
-        if (_annotationCanvas == null) return;
+        if (_annotationCanvas == null || !_options.EnableAnnotations) return;
 
         // Commit any pending inline text edit. The click that commits text should not also
         // start a new annotation.
@@ -55,21 +55,7 @@ public partial class OverlayWindow
         var props = e.GetCurrentPoint(_annotationCanvas).Properties;
         var skPoint = new SKPoint((float)point.X, (float)point.Y);
 
-        // Right-click: delete annotation under cursor
-        if (props.IsRightButtonPressed)
-        {
-            int annotationCountBeforeDelete = _viewModel.EditorCore.Annotations.Count;
-            _viewModel.EditorCore.OnPointerPressed(skPoint, isRightButton: true);
-            _selectionInteractionActive = false;
-            SyncAnnotationState();
-            if (_viewModel.EditorCore.Annotations.Count != annotationCountBeforeDelete)
-            {
-                RebuildAnnotationCanvas();
-            }
-            return;
-        }
-
-        if (!props.IsLeftButtonPressed) return;
+        if (props.PointerUpdateKind != PointerUpdateKind.LeftButtonPressed) return;
 
         // Select tool still routes to EditorCore so existing annotations can be selected/moved/resized.
         if (_viewModel.ActiveTool == EditorTool.Select)
@@ -148,6 +134,13 @@ public partial class OverlayWindow
 
     private void OnAnnotationCanvasPointerMoved(object? sender, PointerEventArgs e)
     {
+        if (_annotationCanvas != null &&
+            e.GetCurrentPoint(_annotationCanvas).Properties.PointerUpdateKind == PointerUpdateKind.LeftButtonReleased)
+        {
+            FinishAnnotationInteraction(e);
+            return;
+        }
+
         if (_annotationCanvas == null) return;
 
         // Match EditorCanvas behavior: forward move events while a button is pressed or while captured.
@@ -191,7 +184,15 @@ public partial class OverlayWindow
 
     private void OnAnnotationCanvasPointerReleased(object? sender, PointerReleasedEventArgs e)
     {
-        if (_annotationCanvas == null) return;
+        if (_annotationCanvas == null || !_options.EnableAnnotations ||
+            e.GetCurrentPoint(_annotationCanvas).Properties.PointerUpdateKind != PointerUpdateKind.LeftButtonReleased) return;
+
+        FinishAnnotationInteraction(e);
+    }
+
+    private void FinishAnnotationInteraction(PointerEventArgs e)
+    {
+        if (_annotationCanvas == null || !_options.EnableAnnotations) return;
 
         var endPoint = e.GetPosition(_annotationCanvas);
         var skPoint = new SKPoint((float)endPoint.X, (float)endPoint.Y);
@@ -397,7 +398,8 @@ public partial class OverlayWindow
         // 2. Either a drawing tool is active, or Select is active with existing annotations
         //    so users can select/move/resize previously drawn annotations.
         bool hasAnnotations = _viewModel.EditorCore.Annotations.Count > 0;
-        bool isAnnotationMode = !_ctrlPressed &&
+        bool isAnnotationMode = _options.EnableAnnotations && _monitorState != OverlayMonitorState.Inactive &&
+                                !_ctrlPressed && !_viewModel.IsRegionToolActive &&
                                 (_viewModel.ActiveTool != EditorTool.Select || hasAnnotations);
 
         if (_annotationCanvas.IsHitTestVisible != isAnnotationMode)
@@ -417,7 +419,8 @@ public partial class OverlayWindow
 
     private void OnViewModelPropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
     {
-        if (e.PropertyName == nameof(RegionCaptureAnnotationViewModel.ActiveTool))
+        if (e.PropertyName is nameof(RegionCaptureAnnotationViewModel.ActiveTool) or
+            nameof(RegionCaptureAnnotationViewModel.IsRegionToolActive))
         {
             if (UpdateAnnotationCanvasHitTesting())
             {

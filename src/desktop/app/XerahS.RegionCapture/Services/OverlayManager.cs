@@ -44,6 +44,7 @@ public sealed class OverlayManager : IDisposable
     private readonly TaskCompletionSource<RegionSelectionResult?> _completionSource;
     private readonly CoordinateTranslationService _coordinateService;
     private readonly RegionCaptureAnnotationToolCoordinator _annotationToolCoordinator;
+    private ActiveMonitorCoordinator? _activeMonitorCoordinator;
     private bool _disposed;
 
     public OverlayManager()
@@ -76,34 +77,53 @@ public sealed class OverlayManager : IDisposable
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
 
+        options ??= new RegionCaptureOptions();
         var monitors = _coordinateService.Monitors;
 
         if (monitors.Count == 0)
             return null;
 
+        MonitorInfo? initialActiveMonitor = null;
+        if (options.ActiveMonitorMode)
+        {
+            PixelPoint? cursor = _coordinateService.TryGetReliableCursorPosition(out var cursorPosition)
+                ? cursorPosition
+                : null;
+            initialActiveMonitor = ActiveMonitorCoordinator.ResolveInitialActiveMonitor(monitors, cursor);
+
+            // With the cursor confined to the active monitor (Windows), the other monitors need no overlay.
+            if (initialActiveMonitor != null && CursorConfinementService.IsSupported)
+                monitors = [initialActiveMonitor];
+        }
+        else
+        {
+            var captureBounds = monitors.Aggregate(PixelRect.Empty, (bounds, monitor) => bounds.Union(monitor.PhysicalBounds));
+            options = options with { CaptureBounds = captureBounds };
+        }
+
         try
         {
-            // Create one overlay per monitor
+            // Create one overlay per monitor. In active monitor mode each overlay is limited to its own monitor.
             foreach (var monitor in monitors)
             {
-                var overlay = new OverlayWindow(monitor, _completionSource, onSelectionChanged, initialCursor, options, _annotationToolCoordinator);
+                var overlayOptions = options.ActiveMonitorMode
+                    ? options with { CaptureBounds = monitor.PhysicalBounds }
+                    : options;
+                var overlay = new OverlayWindow(monitor, _completionSource, onSelectionChanged, initialCursor, overlayOptions, _annotationToolCoordinator);
                 _overlays.Add(overlay);
             }
 
-            // Determine primary overlay first so we can show and focus it before others (helps Linux/Wayland grant focus sooner)
-            int primaryIndex = -1;
-            for (int i = 0; i < monitors.Count; i++)
+            if (options.ActiveMonitorMode)
             {
-                if (monitors[i].IsPrimary)
-                {
-                    primaryIndex = i;
-                    break;
-                }
+                _activeMonitorCoordinator = new ActiveMonitorCoordinator(
+                    _overlays,
+                    _overlays.FirstOrDefault(overlay => overlay.Monitor == initialActiveMonitor));
             }
 
-            var primaryOverlay = primaryIndex >= 0 && primaryIndex < _overlays.Count
-                ? _overlays[primaryIndex]
-                : null;
+            // Show and focus the active overlay (or the primary one) before the others
+            // (helps Linux/Wayland grant focus sooner)
+            var primaryOverlay = _activeMonitorCoordinator?.ActiveOverlay
+                ?? _overlays.FirstOrDefault(overlay => overlay.Monitor.IsPrimary);
 
             // Show primary overlay first and focus it immediately so compositor has one clear focus target (reduces pointer-event delay on Wayland)
             if (primaryOverlay != null)
@@ -121,10 +141,15 @@ public sealed class OverlayManager : IDisposable
                 if (overlay == primaryOverlay)
                     continue;
                 ShowOverlayDetached(overlay);
-                overlay.Activate();
+                // Inactive overlays must not take focus from the active one.
+                if (overlay.MonitorState != OverlayMonitorState.Inactive)
+                    overlay.Activate();
                 var handle = overlay.TryGetPlatformHandle()?.Handle ?? IntPtr.Zero;
                 WindowDetectionService.ExcludeHandle(handle);
             }
+
+            if (_activeMonitorCoordinator?.ActiveOverlay is { } activeOverlay && _overlays.Count > 1)
+                activeOverlay.FocusOverlay();
 
             if (options?.SessionStartUtc is { } start)
             {
@@ -184,6 +209,9 @@ public sealed class OverlayManager : IDisposable
 
     private void CloseAllOverlays()
     {
+        _activeMonitorCoordinator?.Dispose();
+        _activeMonitorCoordinator = null;
+
         foreach (var overlay in _overlays)
         {
             var handle = overlay.TryGetPlatformHandle()?.Handle ?? IntPtr.Zero;

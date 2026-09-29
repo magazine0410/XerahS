@@ -32,6 +32,7 @@ public sealed class RegionCaptureAnnotationToolCoordinator
 {
     private readonly List<RegionCaptureAnnotationViewModel> _viewModels = [];
     private EditorTool _activeTool = EditorTool.Select;
+    private bool _isRegionToolActive;
     private bool _isSynchronizing;
 
     public EditorTool ActiveTool => _activeTool;
@@ -52,6 +53,7 @@ public sealed class RegionCaptureAnnotationToolCoordinator
         {
             viewModel.ActiveTool = _activeTool;
         }
+        viewModel.IsRegionToolActive = _isRegionToolActive;
     }
 
     public void Unregister(RegionCaptureAnnotationViewModel viewModel)
@@ -69,7 +71,8 @@ public sealed class RegionCaptureAnnotationToolCoordinator
     private void OnViewModelPropertyChanged(object? sender, PropertyChangedEventArgs e)
     {
         if (_isSynchronizing ||
-            e.PropertyName != nameof(RegionCaptureAnnotationViewModel.ActiveTool) ||
+            e.PropertyName is not (nameof(RegionCaptureAnnotationViewModel.ActiveTool) or
+                nameof(RegionCaptureAnnotationViewModel.IsRegionToolActive)) ||
             sender is not RegionCaptureAnnotationViewModel source)
         {
             return;
@@ -81,19 +84,20 @@ public sealed class RegionCaptureAnnotationToolCoordinator
     private void SynchronizeActiveTool(RegionCaptureAnnotationViewModel source)
     {
         _activeTool = source.ActiveTool;
+        _isRegionToolActive = source.IsRegionToolActive;
         _isSynchronizing = true;
 
         try
         {
             foreach (var viewModel in _viewModels)
             {
-                if (ReferenceEquals(viewModel, source) ||
-                    viewModel.ActiveTool == _activeTool)
+                if (ReferenceEquals(viewModel, source))
                 {
                     continue;
                 }
 
                 viewModel.ActiveTool = _activeTool;
+                viewModel.IsRegionToolActive = _isRegionToolActive;
             }
         }
         finally

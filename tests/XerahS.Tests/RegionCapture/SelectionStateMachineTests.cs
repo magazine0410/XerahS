@@ -159,6 +159,102 @@ public class SelectionStateMachineTests
     }
 
     [Test]
+    public void ActiveMonitorBounds_ClipDragAndKeyboardResize()
+    {
+        var bounds = new PixelRect(-800, 100, 800, 600);
+        var stateMachine = new SelectionStateMachine(quickCrop: false, snapSizes: [], selectionBounds: bounds);
+        stateMachine.BeginDrag(new PixelPoint(-300, 200));
+        stateMachine.UpdateCursorPosition(new PixelPoint(200, 850));
+        stateMachine.EndDrag();
+
+        Assert.That(stateMachine.SelectionRect, Is.EqualTo(new PixelRect(-300, 200, 300, 500)));
+        stateMachine.ResizeSelection(500, 500);
+        Assert.That(stateMachine.SelectionRect, Is.EqualTo(new PixelRect(-300, 200, 300, 500)));
+
+        RegionSelectionResult? result = null;
+        stateMachine.SelectionConfirmed += value => result = value;
+        Assert.That(stateMachine.TryConfirm(), Is.True);
+        Assert.That(result!.Value.Region.Right, Is.EqualTo(bounds.Right));
+        Assert.That(result.Value.Region.Bottom, Is.EqualTo(bounds.Bottom));
+    }
+
+    [Test]
+    public void ActiveMonitorBounds_MouseMoveStopsAtEdgeWithoutShrinking()
+    {
+        var stateMachine = CreateBoundedSelection();
+
+        stateMachine.BeginMove(new PixelPoint(800, 200));
+        stateMachine.UpdateCursorPosition(new PixelPoint(950, 200));
+        Assert.That(stateMachine.SelectionRect, Is.EqualTo(new PixelRect(800, 100, 200, 200)));
+
+        // Moving further than the selection width used to leave an empty selection.
+        stateMachine.UpdateCursorPosition(new PixelPoint(1100, 900));
+        stateMachine.EndDrag();
+
+        Assert.That(stateMachine.CurrentState, Is.EqualTo(CaptureState.Selected));
+        Assert.That(stateMachine.SelectionRect, Is.EqualTo(new PixelRect(800, 600, 200, 200)));
+    }
+
+    [Test]
+    public void ActiveMonitorBounds_ArrowNudgeStopsAtEdgeWithoutShrinking()
+    {
+        var stateMachine = CreateBoundedSelection();
+
+        for (int i = 0; i < 105; i++)
+            stateMachine.NudgeSelection(1, 0);
+        Assert.That(stateMachine.SelectionRect, Is.EqualTo(new PixelRect(800, 100, 200, 200)));
+
+        for (int i = 0; i < 105; i++)
+            stateMachine.NudgeSelection(-1, 0);
+        Assert.That(stateMachine.SelectionRect, Is.EqualTo(new PixelRect(695, 100, 200, 200)));
+    }
+
+    [Test]
+    public void ActiveMonitorBounds_CtrlMoveDuringCreationStopsAtEdgeWithoutShrinking()
+    {
+        var stateMachine = new SelectionStateMachine(quickCrop: false, snapSizes: [], selectionBounds: BoundedMonitor);
+        stateMachine.BeginDrag(new PixelPoint(700, 100));
+        stateMachine.UpdateCursorPosition(new PixelPoint(900, 300));
+
+        stateMachine.SetModifiers(SelectionModifier.PixelNudge);
+        stateMachine.UpdateCursorPosition(new PixelPoint(1300, 300));
+        Assert.That(stateMachine.SelectionRect, Is.EqualTo(new PixelRect(800, 100, 200, 200)));
+
+        stateMachine.SetModifiers(SelectionModifier.None);
+        stateMachine.EndDrag();
+        Assert.That(stateMachine.SelectionRect, Is.EqualTo(new PixelRect(800, 100, 200, 200)));
+    }
+
+    private static readonly PixelRect BoundedMonitor = new(0, 0, 1000, 800);
+
+    private static SelectionStateMachine CreateBoundedSelection()
+    {
+        var stateMachine = new SelectionStateMachine(quickCrop: false, snapSizes: [], selectionBounds: BoundedMonitor);
+        stateMachine.BeginDrag(new PixelPoint(700, 100));
+        stateMachine.UpdateCursorPosition(new PixelPoint(900, 300));
+        stateMachine.EndDrag();
+        Assert.That(stateMachine.SelectionRect, Is.EqualTo(new PixelRect(700, 100, 200, 200)));
+        return stateMachine;
+    }
+
+    [Test]
+    public void DeferredQuickCapture_LeavesSelectionEditableUntilConfirmed()
+    {
+        var stateMachine = new SelectionStateMachine(quickCrop: true, snapSizes: []);
+        stateMachine.BeginDrag(new PixelPoint(10, 20));
+        stateMachine.UpdateCursorPosition(new PixelPoint(110, 120));
+        stateMachine.EndDrag(deferConfirmation: true);
+
+        Assert.That(stateMachine.CurrentState, Is.EqualTo(CaptureState.Selected));
+        stateMachine.BeginMove(new PixelPoint(50, 50));
+        stateMachine.UpdateCursorPosition(new PixelPoint(60, 60));
+        stateMachine.EndDrag(deferConfirmation: true);
+
+        Assert.That(stateMachine.SelectionRect, Is.EqualTo(new PixelRect(20, 30, 100, 100)));
+        Assert.That(stateMachine.TryConfirm(), Is.True);
+    }
+
+    [Test]
     public void HitTest_ReturnsHandleForCornerAndBody()
     {
         var selection = new PixelRect(10, 20, 100, 80);

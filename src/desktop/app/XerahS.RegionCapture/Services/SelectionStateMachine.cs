@@ -43,6 +43,7 @@ public sealed class SelectionStateMachine
     private readonly bool _quickCrop;
     private readonly IReadOnlyList<CaptureSnapSize> _snapSizes;
     private readonly double _snapDistance;
+    private readonly PixelRect? _selectionBounds;
 
     private CaptureState _currentState = CaptureState.Hovering;
     private PixelPoint _startPoint;
@@ -66,11 +67,13 @@ public sealed class SelectionStateMachine
     public SelectionStateMachine(
         bool quickCrop,
         IReadOnlyList<CaptureSnapSize>? snapSizes = null,
-        double snapDistance = 30)
+        double snapDistance = 30,
+        PixelRect? selectionBounds = null)
     {
         _quickCrop = quickCrop;
         _snapSizes = snapSizes ?? CaptureSnapSize.DefaultPresets;
         _snapDistance = snapDistance;
+        _selectionBounds = selectionBounds;
     }
 
     /// <summary>
@@ -218,7 +221,7 @@ public sealed class SelectionStateMachine
     /// <summary>
     /// Ends the current drag operation.
     /// </summary>
-    public void EndDrag()
+    public void EndDrag(bool deferConfirmation = false)
     {
         if (_currentState != CaptureState.Dragging)
             return;
@@ -229,7 +232,7 @@ public sealed class SelectionStateMachine
             _interaction = InteractionKind.None;
             _resizeHandle = SelectionHandle.None;
             ResetCreationModifiers();
-            FinishSelection(confirmImmediately: _quickCrop);
+            FinishSelection(confirmImmediately: _quickCrop && !deferConfirmation);
             return;
         }
 
@@ -240,7 +243,7 @@ public sealed class SelectionStateMachine
         // Check if selection is large enough to be considered a drag
         if (_selectionRect.Width > 3 && _selectionRect.Height > 3)
         {
-            FinishSelection(confirmImmediately: _quickCrop);
+            FinishSelection(confirmImmediately: _quickCrop && !deferConfirmation);
         }
         else
         {
@@ -249,7 +252,7 @@ public sealed class SelectionStateMachine
             if (_hoveredWindow != null)
             {
                 SetSelectionRect(_hoveredWindow.SnapBounds);
-                FinishSelection(confirmImmediately: _quickCrop);
+                FinishSelection(confirmImmediately: _quickCrop && !deferConfirmation);
             }
             else
             {
@@ -274,6 +277,8 @@ public sealed class SelectionStateMachine
         if (_currentState == CaptureState.Hovering && _hoveredWindow is not null)
         {
             SetSelectionRect(_hoveredWindow.SnapBounds);
+            if (_selectionRect.IsEmpty)
+                return false;
             ConfirmSelection();
             return true;
         }
@@ -303,13 +308,33 @@ public sealed class SelectionStateMachine
     }
 
     /// <summary>
+    /// True while a new region is being drawn (not while an existing one is moved or resized).
+    /// </summary>
+    public bool IsCreatingSelection =>
+        _currentState == CaptureState.Dragging && _interaction == InteractionKind.Creating;
+
+    public bool TryClearSelection(PixelPoint point)
+    {
+        if (!IsCreatingSelection && !_selectionRect.Contains(point))
+            return false;
+
+        _interaction = InteractionKind.None;
+        _resizeHandle = SelectionHandle.None;
+        _hoveredWindow = null;
+        ResetCreationModifiers();
+        SetSelectionRect(PixelRect.Empty);
+        TransitionTo(CaptureState.Hovering);
+        return true;
+    }
+
+    /// <summary>
     /// Nudges the selection by the specified delta (for arrow key handling).
     /// </summary>
     public void NudgeSelection(int dx, int dy)
     {
         if (_currentState == CaptureState.Selected)
         {
-            SetSelectionRect(_selectionRect.Offset(dx, dy));
+            SetSelectionRect(KeepInsideBounds(_selectionRect.Offset(dx, dy)));
         }
         else if (_currentState == CaptureState.Dragging)
         {
@@ -342,7 +367,7 @@ public sealed class SelectionStateMachine
         {
             var dx = _currentPoint.X - _startPoint.X;
             var dy = _currentPoint.Y - _startPoint.Y;
-            SetSelectionRect(_interactionOriginRect.Offset(dx, dy));
+            SetSelectionRect(KeepInsideBounds(_interactionOriginRect.Offset(dx, dy)));
             return;
         }
 
@@ -414,10 +439,11 @@ public sealed class SelectionStateMachine
             return false;
         }
 
-        var dx = _currentPoint.X - _lastCreationPoint.X;
-        var dy = _currentPoint.Y - _lastCreationPoint.Y;
-        SetSelectionRect(current.Offset(dx, dy));
-        _startPoint = _startPoint.Offset(dx, dy);
+        var moved = KeepInsideBounds(current.Offset(
+            _currentPoint.X - _lastCreationPoint.X,
+            _currentPoint.Y - _lastCreationPoint.Y));
+        SetSelectionRect(moved);
+        _startPoint = _startPoint.Offset(moved.X - current.X, moved.Y - current.Y);
         _isMovingSelectionDuringCreation = true;
         _controlHeldAtCreationStart = true;
         _lastCreationPoint = _currentPoint;
@@ -474,6 +500,12 @@ public sealed class SelectionStateMachine
 
     private void FinishSelection(bool confirmImmediately)
     {
+        if (_selectionRect.IsEmpty)
+        {
+            TransitionTo(CaptureState.Hovering);
+            return;
+        }
+
         TransitionTo(CaptureState.Selected);
         if (confirmImmediately)
         {
@@ -519,8 +551,29 @@ public sealed class SelectionStateMachine
         StateChanged?.Invoke(newState);
     }
 
+    /// <summary>
+    /// Shifts a moved rectangle back inside the selection bounds without changing its size,
+    /// so moving a selection against a monitor edge stops it there (ShareX behavior).
+    /// </summary>
+    private PixelRect KeepInsideBounds(PixelRect rect)
+    {
+        if (_selectionBounds is not { } bounds)
+            return rect;
+
+        double x = rect.Width >= bounds.Width
+            ? bounds.X
+            : Math.Clamp(rect.X, bounds.X, bounds.Right - rect.Width);
+        double y = rect.Height >= bounds.Height
+            ? bounds.Y
+            : Math.Clamp(rect.Y, bounds.Y, bounds.Bottom - rect.Height);
+        return new PixelRect(x, y, rect.Width, rect.Height);
+    }
+
     private void SetSelectionRect(PixelRect rect)
     {
+        if (_selectionBounds is { } bounds)
+            rect = rect.Intersect(bounds);
+
         if (rect == _selectionRect)
             return;
 

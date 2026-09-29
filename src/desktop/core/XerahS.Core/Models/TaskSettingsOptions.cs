@@ -123,6 +123,7 @@ public class RegionCaptureOptions
     public int MagnifierPixelCount { get; set; } = 15;
     public int MagnifierPixelSize { get; set; } = 10;
     public bool ShowCrosshair { get; set; } = false;
+    public bool ShowCenterCrosshair { get; set; } = true;
     /// <summary>Screen-wide crosshair lines through the cursor in region capture (XerahS has always shown them).</summary>
     public bool ShowScreenCrosshair { get; set; } = true;
     public bool UseLightResizeNodes { get; set; } = false;
@@ -509,4 +510,3 @@ public class FFmpegCaptureDevice
 
     public override string ToString() => Title;
 }
-

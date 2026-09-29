@@ -38,53 +38,28 @@ public partial class OverlayWindow
 {
     #region Capture Completion
 
-    // Stores the selection result when annotations exist, for use with ENTER key
-    private RegionSelectionResult? _pendingSelectionResult;
-
     /// <summary>
     /// XIP-0023: Confirms capture with annotations using ENTER key.
-    /// Uses the pending selection result if available, otherwise captures full monitor.
+    /// Captures the full monitor when no region was selected.
     /// </summary>
     private void ConfirmCaptureWithAnnotations()
     {
         // Save annotation options before completing
         _viewModel.SaveOptions();
 
-        // Use the pending selection if user has made a region selection
-        if (_pendingSelectionResult.HasValue)
-        {
-            var result = CreateResultWithAnnotations(_pendingSelectionResult.Value);
-            _completionSource.TrySetResult(result);
-            return;
-        }
-
         // Fallback: Get the full monitor bounds if no selection was made
-        var bounds = new PixelRect(0, 0, (int)_monitor.PhysicalBounds.Width, (int)_monitor.PhysicalBounds.Height);
-        var cursorPos = new PixelPoint(bounds.Width / 2, bounds.Height / 2);
+        var bounds = _monitor.PhysicalBounds;
+        var cursorPos = bounds.Center;
         var result2 = CreateResultWithAnnotations(new RegionSelectionResult(bounds, cursorPos));
         _completionSource.TrySetResult(result2);
     }
 
     private void OnRegionSelected(RegionSelectionResult result)
     {
-        // If annotations have been drawn, don't auto-complete on region selection
-        // User must press ENTER to confirm capture with annotations
-        if (_viewModel.HasAnnotations || (_annotationCanvas?.Children.Count ?? 0) > 0)
-        {
-            // Store the selection result for later use when ENTER is pressed
-            _pendingSelectionResult = result;
-
-            // Update capture control to show the reminder
-            _captureControl.HasPendingSelection = true;
-            _captureControl.HasAnnotations = true;
-            _captureControl.InvalidateVisual();
-            return;
-        }
-
         // Save annotation options before completing
         _viewModel.SaveOptions();
 
-        _completionSource.TrySetResult(result);
+        _completionSource.TrySetResult(CreateResultWithAnnotations(result));
     }
 
     /// <summary>
@@ -93,7 +68,7 @@ public partial class OverlayWindow
     private RegionSelectionResult CreateResultWithAnnotations(RegionSelectionResult baseResult)
     {
         // If no annotations, return the base result
-        if (!_viewModel.HasAnnotations && (_annotationCanvas?.Children.Count ?? 0) == 0)
+        if (!_options.EnableAnnotations || (!_viewModel.HasAnnotations && (_annotationCanvas?.Children.Count ?? 0) == 0))
         {
             return baseResult;
         }

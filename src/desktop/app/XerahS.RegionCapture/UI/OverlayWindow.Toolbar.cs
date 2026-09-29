@@ -97,6 +97,9 @@ public partial class OverlayWindow
     /// </summary>
     private void ToggleAnnotationToolbar()
     {
+        if (!_options.EnableAnnotations || _monitorState == OverlayMonitorState.Inactive)
+            return;
+
         var toolbar = this.FindControl<AnnotationToolbar>("AnnotationToolbarControl");
         if (toolbar != null)
         {
@@ -109,6 +112,9 @@ public partial class OverlayWindow
     /// </summary>
     public void ShowAnnotationToolbar()
     {
+        if (!_options.EnableAnnotations || _monitorState == OverlayMonitorState.Inactive)
+            return;
+
         var toolbar = this.FindControl<AnnotationToolbar>("AnnotationToolbarControl");
         if (toolbar != null)
         {

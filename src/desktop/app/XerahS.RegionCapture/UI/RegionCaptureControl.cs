@@ -64,6 +64,7 @@ public sealed class RegionCaptureControl : UserControl
     private readonly uint _crosshairColor;
     private readonly uint _crosshairLineColor;
     private readonly bool _showScreenCrosshair;
+    private readonly bool _showCenterCrosshair;
     private readonly bool _enableWindowSnapping;
     private readonly bool _useTransparentOverlay;
     private readonly bool _quickCrop;
@@ -117,6 +118,26 @@ public sealed class RegionCaptureControl : UserControl
     /// </summary>
     public bool HasPendingSelection { get; set; }
 
+    /// <summary>
+    /// Active monitor mode: this overlay covers a monitor outside the active one. It draws only the
+    /// dimmed background and ignores pointer input and keys other than Escape.
+    /// </summary>
+    internal bool IsInactiveMonitor
+    {
+        get => _isInactiveMonitor;
+        set
+        {
+            if (_isInactiveMonitor == value)
+                return;
+
+            _isInactiveMonitor = value;
+            UpdateMagnifierHud();
+            InvalidateVisual();
+        }
+    }
+
+    private bool _isInactiveMonitor;
+
     // State machine accessors for rendering
     private CaptureState _state => _stateMachine.CurrentState;
     private PixelPoint _currentPoint => _stateMachine.CurrentPoint;
@@ -154,13 +175,18 @@ public sealed class RegionCaptureControl : UserControl
         _stateMachine = new SelectionStateMachine(
             options.QuickCrop,
             options.SnapSizes,
-            options.SnapDistance);
+            options.SnapDistance,
+            options.ActiveMonitorMode ? monitor.PhysicalBounds : null);
         _stateMachine.SelectionConfirmed += OnSelectionConfirmed;
         _stateMachine.SelectionCancelled += OnSelectionCancelled;
-        _stateMachine.StateChanged += _ => InvalidateVisual();
+        _stateMachine.StateChanged += state =>
+        {
+            HasPendingSelection = state == CaptureState.Selected;
+            InvalidateVisual();
+        };
         _stateMachine.SelectionChanged += OnSelectionChanged;
 
-        _dimOpacity = options.DimOpacity;
+        _dimOpacity = double.IsFinite(options.DimOpacity) ? Math.Clamp(options.DimOpacity, 0, 1) : 0;
         _mode = options.Mode;
         bool requestedWindowSnapping = options.EnableWindowSnapping && _mode != RegionCaptureMode.ScreenColorPicker;
         _windowPreselectionCapability = WindowDetectionService.GetWindowPreselectionCapability();
@@ -174,6 +200,7 @@ public sealed class RegionCaptureControl : UserControl
         _crosshairColor = options.CrosshairColor;
         _crosshairLineColor = options.CrosshairLineColor;
         _showScreenCrosshair = options.ShowScreenCrosshair;
+        _showCenterCrosshair = options.ShowCenterCrosshair;
         _quickCrop = options.QuickCrop;
         _useLightResizeNodes = options.UseLightResizeNodes;
         _sessionStartUtc = options.SessionStartUtc;
@@ -303,6 +330,21 @@ public sealed class RegionCaptureControl : UserControl
 
     public bool TryConfirmCurrentSelection() => _stateMachine.TryConfirm();
 
+    internal bool IsDraggingSelection => _state == CaptureState.Dragging;
+    internal bool IsCreatingSelection => _stateMachine.IsCreatingSelection;
+    internal PixelPoint CurrentPosition => _currentPoint;
+
+    internal bool TryClearSelectionAt(Point localPoint)
+    {
+        bool cleared = _stateMachine.TryClearSelection(LocalToPhysical(localPoint));
+        if (cleared)
+        {
+            HasPendingSelection = false;
+            InvalidateVisual();
+        }
+        return cleared;
+    }
+
     private double GetPhysicalHandleSize()
     {
         double logical = _useLightResizeNodes ? 6.0 : 8.0;
@@ -324,12 +366,14 @@ public sealed class RegionCaptureControl : UserControl
     protected override void OnPointerPressed(PointerPressedEventArgs e)
     {
         base.OnPointerPressed(e);
+        if (_isInactiveMonitor)
+            return;
         UpdateModifiers(e.KeyModifiers);
 
         var point = e.GetPosition(this);
         var physicalPoint = LocalToPhysical(point);
 
-        if (e.GetCurrentPoint(this).Properties.IsLeftButtonPressed)
+        if (e.GetCurrentPoint(this).Properties.PointerUpdateKind == PointerUpdateKind.LeftButtonPressed)
         {
             if (_sessionStartUtc is { } start)
             {
@@ -371,10 +415,6 @@ public sealed class RegionCaptureControl : UserControl
 
             InvalidateVisual();
         }
-        else if (e.GetCurrentPoint(this).Properties.IsRightButtonPressed)
-        {
-            _stateMachine.Cancel();
-        }
     }
 
     protected override void OnAttachedToVisualTree(Avalonia.VisualTreeAttachmentEventArgs e)
@@ -391,7 +431,11 @@ public sealed class RegionCaptureControl : UserControl
     protected override void OnPointerMoved(PointerEventArgs e)
     {
         base.OnPointerMoved(e);
+        if (_isInactiveMonitor)
+            return;
         UpdateAimFromOverlayPointer(e.GetPosition(this), e.KeyModifiers);
+        if (e.GetCurrentPoint(this).Properties.PointerUpdateKind == PointerUpdateKind.LeftButtonReleased)
+            EndSelectionDrag(e);
     }
 
     public void UpdateAimFromOverlayPointer(Point localPoint, KeyModifiers keyModifiers)
@@ -429,8 +473,16 @@ public sealed class RegionCaptureControl : UserControl
     protected override void OnPointerReleased(PointerReleasedEventArgs e)
     {
         base.OnPointerReleased(e);
+        if (_isInactiveMonitor)
+            return;
         UpdateModifiers(e.KeyModifiers);
 
+        if (e.GetCurrentPoint(this).Properties.PointerUpdateKind == PointerUpdateKind.LeftButtonReleased)
+            EndSelectionDrag(e);
+    }
+
+    private void EndSelectionDrag(PointerEventArgs e)
+    {
         if (_state == CaptureState.Dragging && _mode != RegionCaptureMode.ScreenColorPicker)
         {
             if (_sessionStartUtc is { } start)
@@ -442,7 +494,7 @@ public sealed class RegionCaptureControl : UserControl
             var physicalPoint = LocalToPhysical(point);
             _stateMachine.UpdateCursorPosition(physicalPoint);
             e.Pointer.Capture(null);
-            _stateMachine.EndDrag();
+            _stateMachine.EndDrag(deferConfirmation: HasAnnotations);
             InvalidateVisual();
         }
     }
@@ -450,6 +502,9 @@ public sealed class RegionCaptureControl : UserControl
     protected override void OnKeyDown(KeyEventArgs e)
     {
         base.OnKeyDown(e);
+        // The overlay window redirects other keys to the active overlay.
+        if (_isInactiveMonitor && e.Key != Key.Escape)
+            return;
 
         // Update modifiers
         UpdateModifiers(e.KeyModifiers);
@@ -557,6 +612,8 @@ public sealed class RegionCaptureControl : UserControl
     protected override void OnPointerWheelChanged(PointerWheelEventArgs e)
     {
         base.OnPointerWheelChanged(e);
+        if (_isInactiveMonitor)
+            return;
         if (TryAdjustMagnifierFromWheel(e.Delta.Y))
         {
             e.Handled = true;
@@ -577,7 +634,7 @@ public sealed class RegionCaptureControl : UserControl
 
     private void UpdateMagnifierHud()
     {
-        if (!_enableMagnifier && !_showInfo)
+        if (_isInactiveMonitor || (!_enableMagnifier && !_showInfo))
         {
             _magnifier.IsVisible = false;
             return;
@@ -634,6 +691,12 @@ public sealed class RegionCaptureControl : UserControl
             DrawFrozenBackground(context, bounds);
         }
 
+        if (_isInactiveMonitor)
+        {
+            context.DrawRectangle(DimBrush, null, bounds);
+            return;
+        }
+
         Rect? clearRect = null;
 
         // Determine the clear rect (selection or window snap area)
@@ -680,7 +743,8 @@ public sealed class RegionCaptureControl : UserControl
 
                 // Draw resize handles at corners
                 DrawResizeHandles(context, rect);
-                DrawSelectionCenterCrosshair(context, rect);
+                if (_showCenterCrosshair)
+                    DrawSelectionCenterCrosshair(context, rect);
 
                 // Draw mode-specific overlays
                 if (_mode == RegionCaptureMode.Ruler)

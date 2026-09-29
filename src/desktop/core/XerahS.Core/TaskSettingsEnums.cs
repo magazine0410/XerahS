@@ -29,13 +29,21 @@ namespace XerahS.Core;
 
 public enum RegionCaptureAction
 {
+    [Description("None")]
     None,
+    [Description("Cancel capture")]
     CancelCapture,
+    [Description("Remove shape or cancel capture")]
     RemoveShapeCancelCapture,
+    [Description("Remove shape")]
     RemoveShape,
+    [Description("Swap region and annotation tools")]
     SwapToolType,
+    [Description("Capture fullscreen")]
     CaptureFullscreen,
+    [Description("Capture active monitor")]
     CaptureActiveMonitor,
+    [Description("Capture last region")]
     CaptureLastRegion
 }
 

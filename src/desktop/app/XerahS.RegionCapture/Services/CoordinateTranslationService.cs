@@ -67,6 +67,52 @@ public sealed class CoordinateTranslationService
     }
 
     /// <summary>
+    /// Gets the cursor position only when the platform reports it reliably. Returns false on
+    /// Wayland sessions: the InputCapture portal reports a position only after a pointer barrier
+    /// is crossed, and XWayland only knows where the pointer was last over an X11 window.
+    /// </summary>
+    public bool TryGetReliableCursorPosition(out PixelPoint point)
+    {
+#if WINDOWS
+        point = Platform.Windows.NativeMonitorService.GetPhysicalCursorPosition();
+        return true;
+#else
+        point = PixelPoint.Origin;
+        if (!IsCursorPositionReliable(OperatingSystem.IsLinux(),
+                Environment.GetEnvironmentVariable("XDG_SESSION_TYPE"),
+                Environment.GetEnvironmentVariable("WAYLAND_DISPLAY")) ||
+            !XerahS.Platform.Abstractions.PlatformServices.IsInitialized)
+        {
+            return false;
+        }
+
+        try
+        {
+            var position = XerahS.Platform.Abstractions.PlatformServices.Input.GetCursorPosition();
+            if (position.IsEmpty)
+                return false;
+
+            point = new PixelPoint(position.X, position.Y);
+            return true;
+        }
+        catch (Exception ex)
+        {
+            XerahS.Common.DebugHelper.WriteException(ex, "Region capture cursor position unavailable");
+            return false;
+        }
+#endif
+    }
+
+    internal static bool IsCursorPositionReliable(bool isLinux, string? sessionType, string? waylandDisplay)
+    {
+        if (!isLinux)
+            return true;
+
+        return !string.Equals(sessionType, "wayland", StringComparison.OrdinalIgnoreCase) &&
+               string.IsNullOrEmpty(waylandDisplay);
+    }
+
+    /// <summary>
     /// Moves the OS cursor in physical pixels. Returns false when the platform cannot warp the pointer.
     /// </summary>
     public bool SetPhysicalCursorPosition(PixelPoint point)
@@ -80,9 +126,21 @@ public sealed class CoordinateTranslationService
 
     private PixelPoint GetFallbackCursorPosition()
     {
-        // This is a fallback for non-Windows platforms
-        // In a real implementation, this would use platform-specific APIs
-        return PixelPoint.Origin;
+        if (XerahS.Platform.Abstractions.PlatformServices.IsInitialized)
+        {
+            try
+            {
+                var point = XerahS.Platform.Abstractions.PlatformServices.Input.GetCursorPosition();
+                if (!point.IsEmpty)
+                    return new PixelPoint(point.X, point.Y);
+            }
+            catch (Exception ex)
+            {
+                XerahS.Common.DebugHelper.WriteException(ex, "Region capture cursor position unavailable");
+            }
+        }
+
+        return Monitors.FirstOrDefault(monitor => monitor.IsPrimary)?.PhysicalBounds.Center ?? PixelPoint.Origin;
     }
 
     /// <summary>

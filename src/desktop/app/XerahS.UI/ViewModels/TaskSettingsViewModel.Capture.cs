@@ -155,6 +155,139 @@ namespace XerahS.UI.ViewModels
             }
         }
 
+        public bool RegionCaptureQuickCapture
+        {
+            get => _settings.CaptureSettings.RegionCaptureOptions.QuickCrop;
+            set
+            {
+                if (_settings.CaptureSettings.RegionCaptureOptions.QuickCrop != value)
+                {
+                    _settings.CaptureSettings.RegionCaptureOptions.QuickCrop = value;
+                    OnPropertyChanged();
+                }
+            }
+        }
+
+        public bool RegionCaptureActiveMonitorMode
+        {
+            get => _settings.CaptureSettings.RegionCaptureOptions.ActiveMonitorMode;
+            set
+            {
+                if (_settings.CaptureSettings.RegionCaptureOptions.ActiveMonitorMode != value)
+                {
+                    _settings.CaptureSettings.RegionCaptureOptions.ActiveMonitorMode = value;
+                    OnPropertyChanged();
+                }
+            }
+        }
+
+        public bool RegionCaptureDisableAnnotation
+        {
+            get => _settings.AdvancedSettings.RegionCaptureDisableAnnotation;
+            set
+            {
+                if (_settings.AdvancedSettings.RegionCaptureDisableAnnotation != value)
+                {
+                    _settings.AdvancedSettings.RegionCaptureDisableAnnotation = value;
+                    OnPropertyChanged();
+                }
+            }
+        }
+
+        public bool RegionCaptureUseDimming
+        {
+            get => _settings.CaptureSettings.RegionCaptureOptions.UseDimming;
+            set
+            {
+                if (_settings.CaptureSettings.RegionCaptureOptions.UseDimming != value)
+                {
+                    _settings.CaptureSettings.RegionCaptureOptions.UseDimming = value;
+                    OnPropertyChanged();
+                }
+            }
+        }
+
+        public int RegionCaptureBackgroundDimStrength
+        {
+            get => _settings.CaptureSettings.RegionCaptureOptions.BackgroundDimStrength;
+            set
+            {
+                int clamped = Math.Clamp(value, 0, 100);
+                if (_settings.CaptureSettings.RegionCaptureOptions.BackgroundDimStrength != clamped)
+                {
+                    _settings.CaptureSettings.RegionCaptureOptions.BackgroundDimStrength = clamped;
+                    OnPropertyChanged();
+                }
+            }
+        }
+
+        public bool RegionCaptureShowCenterCrosshair
+        {
+            get => _settings.CaptureSettings.RegionCaptureOptions.ShowCenterCrosshair;
+            set
+            {
+                if (_settings.CaptureSettings.RegionCaptureOptions.ShowCenterCrosshair != value)
+                {
+                    _settings.CaptureSettings.RegionCaptureOptions.ShowCenterCrosshair = value;
+                    OnPropertyChanged();
+                }
+            }
+        }
+
+        public RegionCaptureAction[] RegionCaptureMouseActions => Enum.GetValues<RegionCaptureAction>();
+
+        public RegionCaptureAction RegionCaptureRightClickAction
+        {
+            get => _settings.CaptureSettings.RegionCaptureOptions.RegionCaptureActionRightClick;
+            set
+            {
+                if (_settings.CaptureSettings.RegionCaptureOptions.RegionCaptureActionRightClick != value)
+                {
+                    _settings.CaptureSettings.RegionCaptureOptions.RegionCaptureActionRightClick = value;
+                    OnPropertyChanged();
+                }
+            }
+        }
+
+        public RegionCaptureAction RegionCaptureMiddleClickAction
+        {
+            get => _settings.CaptureSettings.RegionCaptureOptions.RegionCaptureActionMiddleClick;
+            set
+            {
+                if (_settings.CaptureSettings.RegionCaptureOptions.RegionCaptureActionMiddleClick != value)
+                {
+                    _settings.CaptureSettings.RegionCaptureOptions.RegionCaptureActionMiddleClick = value;
+                    OnPropertyChanged();
+                }
+            }
+        }
+
+        public RegionCaptureAction RegionCaptureX1ClickAction
+        {
+            get => _settings.CaptureSettings.RegionCaptureOptions.RegionCaptureActionX1Click;
+            set
+            {
+                if (_settings.CaptureSettings.RegionCaptureOptions.RegionCaptureActionX1Click != value)
+                {
+                    _settings.CaptureSettings.RegionCaptureOptions.RegionCaptureActionX1Click = value;
+                    OnPropertyChanged();
+                }
+            }
+        }
+
+        public RegionCaptureAction RegionCaptureX2ClickAction
+        {
+            get => _settings.CaptureSettings.RegionCaptureOptions.RegionCaptureActionX2Click;
+            set
+            {
+                if (_settings.CaptureSettings.RegionCaptureOptions.RegionCaptureActionX2Click != value)
+                {
+                    _settings.CaptureSettings.RegionCaptureOptions.RegionCaptureActionX2Click = value;
+                    OnPropertyChanged();
+                }
+            }
+        }
+
         public bool RegionCaptureShowMagnifier
         {
             get => _settings.CaptureSettings.RegionCaptureOptions.ShowMagnifier;

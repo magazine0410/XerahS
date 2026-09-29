@@ -3,6 +3,7 @@
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              xmlns:vm="using:XerahS.UI.ViewModels"
+             xmlns:core="using:XerahS.Core"
              xmlns:views="using:XerahS.UI.Views"
              xmlns:controls="using:XerahS.UI.Controls"
              xmlns:converters="using:XerahS.UI.Converters"
@@ -111,6 +112,15 @@
                             <TextBlock Text="Region capture" FontWeight="SemiBold"/>
                             <Border BorderBrush="{DynamicResource SystemControlForegroundBaseLowBrush}" BorderThickness="1" CornerRadius="4" Padding="16">
                                 <StackPanel Spacing="10">
+                                    <CheckBox IsChecked="{Binding RegionCaptureQuickCapture}" Content="Quick capture"/>
+                                    <CheckBox IsChecked="{Binding RegionCaptureActiveMonitorMode}" Content="Active monitor only"/>
+                                    <CheckBox IsChecked="{Binding RegionCaptureDisableAnnotation}" Content="Disable annotation"/>
+                                    <CheckBox IsChecked="{Binding RegionCaptureUseDimming}" Content="Dim background"/>
+                                    <Grid ColumnDefinitions="Auto,16,*,Auto" Margin="24,0,0,0" IsEnabled="{Binding RegionCaptureUseDimming}">
+                                        <TextBlock Text="Dim strength:" VerticalAlignment="Center"/>
+                                        <Slider Grid.Column="2" Value="{Binding RegionCaptureBackgroundDimStrength}" Minimum="0" Maximum="100" TickFrequency="1" IsSnapToTickEnabled="True" VerticalAlignment="Center" AutomationProperties.Name="Background Dim Strength"/>
+                                        <TextBlock Grid.Column="3" Text="{Binding RegionCaptureBackgroundDimStrength, StringFormat='{}{0}%'}" Width="48" TextAlignment="Right" VerticalAlignment="Center"/>
+                                    </Grid>
                                     <CheckBox IsChecked="{Binding RegionCaptureShowMagnifier}" Content="Show magnifier near cursor"/>
                                     <CheckBox IsChecked="{Binding RegionCaptureUseSquareMagnifier}" Content="Use square magnifier" IsEnabled="{Binding RegionCaptureShowMagnifier}" Margin="24,0,0,0"/>
                                     <StackPanel Orientation="Horizontal" Spacing="8" Margin="24,0,0,0" IsEnabled="{Binding RegionCaptureShowMagnifier}">
@@ -132,6 +142,22 @@
                                                Foreground="{DynamicResource SystemControlForegroundBaseMediumBrush}"
                                                TextWrapping="Wrap"/>
                                     <CheckBox IsChecked="{Binding RegionCaptureShowScreenCrosshair}" Content="Show screen-wide crosshair"/>
+                                    <CheckBox IsChecked="{Binding RegionCaptureShowCenterCrosshair}" Content="Show selection center crosshair"/>
+                                    <Grid ColumnDefinitions="Auto,16,*" RowDefinitions="Auto,Auto,Auto,Auto">
+                                        <Grid.DataTemplates>
+                                            <DataTemplate DataType="core:RegionCaptureAction" x:DataType="core:RegionCaptureAction">
+                                                <TextBlock Text="{Binding ., Converter={StaticResource EnumToDescriptionConverter}}" TextWrapping="Wrap"/>
+                                            </DataTemplate>
+                                        </Grid.DataTemplates>
+                                        <TextBlock Text="Right click:" VerticalAlignment="Center"/>
+                                        <ComboBox Grid.Column="2" ItemsSource="{Binding RegionCaptureMouseActions}" SelectedItem="{Binding RegionCaptureRightClickAction}" HorizontalAlignment="Stretch" AutomationProperties.Name="Region Capture Right Click Action"/>
+                                        <TextBlock Grid.Row="1" Text="Middle click:" VerticalAlignment="Center" Margin="0,8,0,0"/>
+                                        <ComboBox Grid.Row="1" Grid.Column="2" ItemsSource="{Binding RegionCaptureMouseActions}" SelectedItem="{Binding RegionCaptureMiddleClickAction}" HorizontalAlignment="Stretch" Margin="0,8,0,0" AutomationProperties.Name="Region Capture Middle Click Action"/>
+                                        <TextBlock Grid.Row="2" Text="X1 click:" VerticalAlignment="Center" Margin="0,8,0,0"/>
+                                        <ComboBox Grid.Row="2" Grid.Column="2" ItemsSource="{Binding RegionCaptureMouseActions}" SelectedItem="{Binding RegionCaptureX1ClickAction}" HorizontalAlignment="Stretch" Margin="0,8,0,0" AutomationProperties.Name="Region Capture X1 Click Action"/>
+                                        <TextBlock Grid.Row="3" Text="X2 click:" VerticalAlignment="Center" Margin="0,8,0,0"/>
+                                        <ComboBox Grid.Row="3" Grid.Column="2" ItemsSource="{Binding RegionCaptureMouseActions}" SelectedItem="{Binding RegionCaptureX2ClickAction}" HorizontalAlignment="Stretch" Margin="0,8,0,0" AutomationProperties.Name="Region Capture X2 Click Action"/>
+                                    </Grid>
                                 </StackPanel>
                             </Border>
                         </StackPanel>

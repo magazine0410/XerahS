@@ -165,13 +165,14 @@ internal static class OverlayRegionCaptureSession
         return new OverlayRegionCaptureResult(selection, annotationLayer, annotationMonitorOrigin);
     }
 
-    private static XerahS.RegionCapture.RegionCaptureOptions CreateOverlayOptions(
+    internal static XerahS.RegionCapture.RegionCaptureOptions CreateOverlayOptions(
         CaptureOptions? options,
         SKBitmap? backgroundImage,
         bool useFastOverlay,
         DateTime? sessionStartUtc)
     {
-        var regionOptions = ResolveTaskSettings(options?.WorkflowId)?.CaptureSettings?.RegionCaptureOptions;
+        var taskSettings = ResolveTaskSettings(options?.WorkflowId);
+        var regionOptions = taskSettings?.CaptureSettings?.RegionCaptureOptions;
         IReadOnlyList<CaptureSnapSize> snapSizes = CaptureSnapSize.DefaultPresets;
         if (regionOptions?.SnapSizes is { Count: > 0 } configuredSizes)
         {
@@ -180,6 +181,17 @@ internal static class OverlayRegionCaptureSession
 
         return new XerahS.RegionCapture.RegionCaptureOptions
         {
+            ActiveMonitorMode = regionOptions?.ActiveMonitorMode ?? false,
+            EnableAnnotations = taskSettings?.AdvancedSettings?.RegionCaptureDisableAnnotation != true,
+            DimOpacity = regionOptions?.UseDimming == false ? 0 : Math.Clamp(regionOptions?.BackgroundDimStrength ?? 20, 0, 100) / 100d,
+            ShowCenterCrosshair = regionOptions?.ShowCenterCrosshair ?? true,
+            RightClickAction = MapCaptureAction(regionOptions?.RegionCaptureActionRightClick ?? Core.RegionCaptureAction.RemoveShapeCancelCapture),
+            MiddleClickAction = MapCaptureAction(regionOptions?.RegionCaptureActionMiddleClick ?? Core.RegionCaptureAction.SwapToolType),
+            X1ClickAction = MapCaptureAction(regionOptions?.RegionCaptureActionX1Click ?? Core.RegionCaptureAction.CaptureFullscreen),
+            X2ClickAction = MapCaptureAction(regionOptions?.RegionCaptureActionX2Click ?? Core.RegionCaptureAction.CaptureActiveMonitor),
+            LastRegion = LastRegionStore.TryGet(out var lastRegion)
+                ? new PixelRect(lastRegion.X, lastRegion.Y, lastRegion.Width, lastRegion.Height)
+                : PixelRect.Empty,
             ShowCursor = options?.ShowCursor ?? false,
             BackgroundImage = backgroundImage,
             UseTransparentOverlay = useFastOverlay,
@@ -198,6 +210,18 @@ internal static class OverlayRegionCaptureSession
             SnapDistance = XerahS.Core.RegionCaptureOptions.SnapDistance
         };
     }
+
+    private static XerahS.RegionCapture.RegionCaptureAction MapCaptureAction(Core.RegionCaptureAction action) => action switch
+    {
+        Core.RegionCaptureAction.CancelCapture => XerahS.RegionCapture.RegionCaptureAction.CancelCapture,
+        Core.RegionCaptureAction.RemoveShapeCancelCapture => XerahS.RegionCapture.RegionCaptureAction.RemoveShapeCancelCapture,
+        Core.RegionCaptureAction.RemoveShape => XerahS.RegionCapture.RegionCaptureAction.RemoveShape,
+        Core.RegionCaptureAction.SwapToolType => XerahS.RegionCapture.RegionCaptureAction.SwapToolType,
+        Core.RegionCaptureAction.CaptureFullscreen => XerahS.RegionCapture.RegionCaptureAction.CaptureFullscreen,
+        Core.RegionCaptureAction.CaptureActiveMonitor => XerahS.RegionCapture.RegionCaptureAction.CaptureActiveMonitor,
+        Core.RegionCaptureAction.CaptureLastRegion => XerahS.RegionCapture.RegionCaptureAction.CaptureLastRegion,
+        _ => XerahS.RegionCapture.RegionCaptureAction.None
+    };
 
     private static TaskSettings? ResolveTaskSettings(string? workflowId)
     {

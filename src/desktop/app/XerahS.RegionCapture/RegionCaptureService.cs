@@ -68,6 +68,21 @@ public sealed class RegionCaptureService
 /// </summary>
 public sealed record RegionCaptureOptions
 {
+    public bool ActiveMonitorMode { get; init; }
+    public bool EnableAnnotations { get; init; } = true;
+    public bool ShowCenterCrosshair { get; init; } = true;
+
+    public RegionCaptureAction RightClickAction { get; init; } = RegionCaptureAction.RemoveShapeCancelCapture;
+    public RegionCaptureAction MiddleClickAction { get; init; } = RegionCaptureAction.SwapToolType;
+    public RegionCaptureAction X1ClickAction { get; init; } = RegionCaptureAction.CaptureFullscreen;
+    public RegionCaptureAction X2ClickAction { get; init; } = RegionCaptureAction.CaptureActiveMonitor;
+
+    /// <summary>The last confirmed region in absolute physical screen coordinates.</summary>
+    public PixelRect LastRegion { get; init; }
+
+    /// <summary>Bounds of the monitors participating in this overlay session.</summary>
+    internal PixelRect? CaptureBounds { get; init; }
+
     /// <summary>
     /// Sets the capture mode (e.g., ScreenColorPicker).
     /// </summary>
