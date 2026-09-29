@@ -271,6 +271,23 @@ public sealed class WorkflowOrchestrator : IWorkflowOrchestrator
         DebugHelper.WriteLine($"Hotkeys {(config.DisableHotkeys ? "disabled" : "enabled")}");
     }
 
+    /// <summary>
+    /// KDE System Settings changed the keys of XerahS shortcuts. The hotkeys are already updated;
+    /// re-register them (duplicate check, cleared keys) and save both configs, as after an in-app edit.
+    /// </summary>
+    private void OnHotkeysChangedByDesktop(object? sender, DesktopHotkeysChangedEventArgs e)
+    {
+        if (_workflowManager == null)
+        {
+            return;
+        }
+
+        DebugHelper.WriteLine($"Hotkeys changed in the desktop shortcut settings: {string.Join(", ", e.Hotkeys.Select(h => h.BindingName ?? h.ToString()))}");
+        _workflowManager.UpdateHotkeys(_workflowManager.Workflows);
+        _ = Core.SettingsManager.SaveWorkflowsConfigAsync();
+        _ = Core.SettingsManager.SaveApplicationConfigAsync();
+    }
+
     private void InitializeHotkeys()
     {
         if (!PlatformServices.IsInitialized)
@@ -291,6 +308,11 @@ public sealed class WorkflowOrchestrator : IWorkflowOrchestrator
             {
                 hotkeys = Core.Hotkeys.WorkflowManager.GetDefaultWorkflowList();
                 Core.SettingsManager.WorkflowsConfig.Hotkeys = hotkeys;
+            }
+
+            if (hotkeyService is IDesktopShortcutSync desktopSync)
+            {
+                desktopSync.HotkeysChangedByDesktop += OnHotkeysChangedByDesktop;
             }
 
             _workflowManager.UpdateHotkeys(hotkeys);

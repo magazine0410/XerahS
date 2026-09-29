@@ -18,6 +18,8 @@
 ### Global Hotkeys
 - **Delivery state is now surfaced (XIP0079 P1, v0.23.129):** Open **Settings → Hotkeys** to see whether shortcuts are portal-bound, focus-only (X11 fallback), or unavailable. When the GlobalShortcuts portal is missing or bind fails, hotkeys only fire while XerahS is focused — the banner explains this instead of failing silently.
 - **Portal bind still requires a matching `.desktop` entry (XIP0044):** xdg-desktop-portal 1.20+ rejects shortcut sessions from unsandboxed apps without an app ID ("An app id is required"). XerahS registers the app ID `xerahs` on each portal connection, which the portal accepts only when a `xerahs.desktop` entry exists. Packaged `.deb`/`.rpm` installs provide it, and the AppImage writes `~/.local/share/applications/xerahs.desktop` on start when no entry exists. `dotnet run` debug builds on Wayland still need the local workaround in [developers/linux/INSTALL.md](developers/linux/INSTALL.md).
+- **KDE Plasma: keys follow XerahS:** The GlobalShortcuts portal only suggests keys for shortcuts KDE has not seen, so XerahS also writes hotkey edits to KDE's shortcut registry (kglobalaccel) and copies edits made in System Settings → Shortcuts back into its settings while it runs. At startup KDE's saved keys win. GNOME keeps the portal behavior: keys suggested by XerahS apply only to new shortcuts, and later changes are made in GNOME Settings.
+- **Alt + Print Screen:** With Alt held, Print Screen produces SysRq, so Linux desktops never deliver Alt + Print Screen as a shortcut. The hotkey editor shows a warning for it.
 - **End-to-end verification matrix:** GNOME/KDE/wlroots manual verification is still pending on issue trackers; see XIP0044 and XIP0079 §3.1.
 
 ### Clipboard

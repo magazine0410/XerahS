@@ -39,7 +39,7 @@ using PlatformHotkeyStatus = XerahS.Platform.Abstractions.HotkeyStatus;
 
 namespace XerahS.Platform.Linux.Services;
 
-public sealed class WaylandPortalHotkeyService : IHotkeyService
+public sealed class WaylandPortalHotkeyService : IHotkeyService, IDesktopShortcutSync
 {
     private const string PortalBusName = "org.freedesktop.portal.Desktop";
     private static readonly ObjectPath PortalObjectPath = new("/org/freedesktop/portal/desktop");
@@ -67,9 +67,14 @@ public sealed class WaylandPortalHotkeyService : IHotkeyService
     private CancellationTokenSource? _rebindDebounceCts;
     private string[] _lastBoundIds = Array.Empty<string>();
     private int _activeRebindOperations;
+    private Kde.KdeShortcutSync? _kdeSync;
+    private bool _kdeSyncChecked;
 
     public event EventHandler<HotkeyTriggeredEventArgs>? HotkeyTriggered;
     public event EventHandler? HotkeysChanged;
+    public event EventHandler<DesktopHotkeysChangedEventArgs>? HotkeysChangedByDesktop;
+
+    public bool IsDesktopShortcutSyncActive => _kdeSync != null;
     public bool IsSuspended
     {
         get => _isSuspended;
@@ -442,6 +447,7 @@ public sealed class WaylandPortalHotkeyService : IHotkeyService
             {
                 DebugHelper.WriteLine("WaylandPortalHotkeyService: Shortcut set unchanged. Preserving session.");
                 _shortcutMap = map;
+                await SyncWithKdeAsync(map).ConfigureAwait(false);
                 return;
             }
 
@@ -461,6 +467,7 @@ public sealed class WaylandPortalHotkeyService : IHotkeyService
             await BindShortcutsAsync(bindings).ConfigureAwait(false);
             _shortcutMap = map;
             _lastBoundIds = currentIds;
+            await SyncWithKdeAsync(map).ConfigureAwait(false);
 
             // Portal bind succeeded. If we previously activated the X11 fallback (e.g. because
             // the initial bind ran before the window handle was available and got response=2),
@@ -887,10 +894,79 @@ public sealed class WaylandPortalHotkeyService : IHotkeyService
             {
                 ApplyPortalShortcutSnapshot(shortcuts);
             }
+
+            await SyncWithKdeAsync(_shortcutMap).ConfigureAwait(false);
         }
         finally
         {
             _bindSemaphore.Release();
+        }
+    }
+
+    /// <summary>
+    /// KDE only: applies XerahS hotkey edits to KDE's shortcut settings and copies edits made in
+    /// System Settings back into the hotkeys (see <see cref="Kde.KdeShortcutSync"/>). Runs while the
+    /// bind semaphore is held.
+    /// </summary>
+    private async Task SyncWithKdeAsync(Dictionary<string, HotkeyInfo> map)
+    {
+        if (_disposed || _connection == null || map.Count == 0)
+        {
+            return;
+        }
+
+        if (!_kdeSyncChecked)
+        {
+            _kdeSyncChecked = true;
+            var environment = LinuxRuntimeEnvironment.Detect();
+            string component = environment.IsSandboxed && !string.IsNullOrWhiteSpace(environment.AppId)
+                ? environment.AppId
+                : PortalHostRegistry.AppId;
+            var accel = await Kde.KdeGlobalAccel.TryCreateAsync(_connection, component).ConfigureAwait(false);
+            if (accel != null)
+            {
+                _kdeSync = new Kde.KdeShortcutSync(accel, component);
+                DebugHelper.WriteLine($"WaylandPortalHotkeyService: KDE shortcut sync enabled for component '{component}'.");
+            }
+        }
+
+        if (_kdeSync == null)
+        {
+            return;
+        }
+
+        try
+        {
+            var bound = map.Select(entry => (entry.Key, entry.Value)).ToList();
+            var before = bound.Select(entry => (entry.Value.Status, entry.Value.NativeTriggerDescription)).ToList();
+            IReadOnlyList<HotkeyInfo> changedFromKde = await _kdeSync.SyncAsync(bound).ConfigureAwait(false);
+            bool statusChanged = bound
+                .Select(entry => (entry.Value.Status, entry.Value.NativeTriggerDescription))
+                .Where((state, index) => state != before[index])
+                .Any();
+
+            if (!statusChanged && changedFromKde.Count == 0)
+            {
+                return;
+            }
+
+            Dispatcher.UIThread.Post(() =>
+            {
+                if (_disposed)
+                {
+                    return;
+                }
+
+                HotkeysChanged?.Invoke(this, EventArgs.Empty);
+                if (changedFromKde.Count > 0)
+                {
+                    HotkeysChangedByDesktop?.Invoke(this, new DesktopHotkeysChangedEventArgs(changedFromKde));
+                }
+            });
+        }
+        catch (Exception ex)
+        {
+            DebugHelper.WriteException(ex, "WaylandPortalHotkeyService: KDE shortcut sync failed");
         }
     }
 
