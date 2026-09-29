@@ -83,7 +83,7 @@ dotnet run --project src/desktop/app/XerahS.App
 
 ### Debug-build hotkey caveat (Wayland)
 
-The XDG GlobalShortcuts portal matches the running binary against a `.desktop` file `Exec=` line. A raw `dotnet run` build often fails portal binding even though hotkeys work when packaged.
+XerahS registers the app ID `xerahs` with xdg-desktop-portal, and the portal accepts it only when a `xerahs.desktop` entry exists. Packages install one and the AppImage writes one on start; a raw `dotnet run` build has neither, so portal binding fails even though hotkeys work when packaged.
 
 Workaround for local dev on Wayland:
 

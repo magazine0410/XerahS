@@ -36,6 +36,12 @@ namespace XerahS.Platform.Linux
             var environment = LinuxRuntimeEnvironment.Detect();
             DebugHelper.WriteLine($"Linux: Runtime environment detected: {environment.ToDiagnosticString()}");
 
+            // Before any portal service connects: portals identify an AppImage only through a desktop entry.
+            if (!environment.IsSandboxed)
+            {
+                AppImageDesktopIntegration.EnsureDesktopEntry();
+            }
+
             var clipboardService = new LinuxClipboardService();
             IClipboardMonitorService clipboardMonitorService = environment.IsSandboxed
                 ? new UnsupportedClipboardMonitorService()

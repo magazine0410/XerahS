@@ -875,6 +875,7 @@ public sealed class WaylandPortalRecordingService : IRecordingService
     {
         _connection = new Connection(Address.Session);
         var connectionInfo = await _connection.ConnectAsync().ConfigureAwait(false);
+        await global::XerahS.Platform.Linux.Services.PortalHostRegistry.RegisterAsync(_connection).ConfigureAwait(false);
         global::XerahS.Platform.Linux.Capture.PortalRequestExtensions.CacheLocalConnectionName(_connection, connectionInfo);
         _portal = _connection.CreateProxy<IScreenCastPortal>(PortalBusName, PortalObjectPath);
 

@@ -17,7 +17,7 @@
 
 ### Global Hotkeys
 - **Delivery state is now surfaced (XIP0079 P1, v0.23.129):** Open **Settings → Hotkeys** to see whether shortcuts are portal-bound, focus-only (X11 fallback), or unavailable. When the GlobalShortcuts portal is missing or bind fails, hotkeys only fire while XerahS is focused — the banner explains this instead of failing silently.
-- **Portal bind still requires a matching `.desktop` entry (XIP0044):** Packaged `.deb`/`.rpm` installs satisfy this; `dotnet run` debug builds on Wayland need a local `~/.local/share/applications/xerahs.desktop` workaround (documented in [developers/linux/INSTALL.md](developers/linux/INSTALL.md)).
+- **Portal bind still requires a matching `.desktop` entry (XIP0044):** xdg-desktop-portal 1.20+ rejects shortcut sessions from unsandboxed apps without an app ID ("An app id is required"). XerahS registers the app ID `xerahs` on each portal connection, which the portal accepts only when a `xerahs.desktop` entry exists. Packaged `.deb`/`.rpm` installs provide it, and the AppImage writes `~/.local/share/applications/xerahs.desktop` on start when no entry exists. `dotnet run` debug builds on Wayland still need the local workaround in [developers/linux/INSTALL.md](developers/linux/INSTALL.md).
 - **End-to-end verification matrix:** GNOME/KDE/wlroots manual verification is still pending on issue trackers; see XIP0044 and XIP0079 §3.1.
 
 ### Clipboard

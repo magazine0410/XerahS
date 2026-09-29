@@ -60,6 +60,7 @@ public sealed class PortalNotificationService : INotificationService, IDisposabl
         {
             _connection = new Connection(Address.Session);
             _connection.ConnectAsync().GetAwaiter().GetResult();
+            PortalHostRegistry.Register(_connection);
             _portal = _connection.CreateProxy<INotificationPortal>(PortalBusName, PortalObjectPath);
             _actionInvokedSubscription = _portal.WatchActionInvokedAsync(OnActionInvoked, OnPortalWatchError)
                 .GetAwaiter().GetResult();

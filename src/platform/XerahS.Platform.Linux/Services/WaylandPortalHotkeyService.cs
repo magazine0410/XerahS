@@ -103,6 +103,7 @@ public sealed class WaylandPortalHotkeyService : IHotkeyService
                 SynchronizationContext.SetSynchronizationContext(null);
                 _connection = new Connection(Address.Session);
                 var connectionInfo = _connection.ConnectAsync().GetAwaiter().GetResult();
+                PortalHostRegistry.Register(_connection);
                 global::XerahS.Platform.Linux.Capture.PortalRequestExtensions.CacheLocalConnectionName(_connection, connectionInfo);
                 _portal = _connection.CreateProxy<IGlobalShortcuts>(PortalBusName, PortalObjectPath);
                 _activatedSubscription = _portal.WatchActivatedAsync(OnActivated, OnPortalWatchError).GetAwaiter().GetResult();

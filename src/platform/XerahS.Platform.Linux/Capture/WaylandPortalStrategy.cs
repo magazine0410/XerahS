@@ -118,6 +118,7 @@ internal sealed class WaylandPortalStrategy : ICaptureStrategy
         {
             using var connection = new Connection(Address.Session);
             var connectionInfo = await connection.ConnectAsync();
+            await PortalHostRegistry.RegisterAsync(connection);
             PortalRequestExtensions.CacheLocalConnectionName(connection, connectionInfo);
 
             var portal = connection.CreateProxy<IScreenshotPortal>(PortalBusName, PortalObjectPath);

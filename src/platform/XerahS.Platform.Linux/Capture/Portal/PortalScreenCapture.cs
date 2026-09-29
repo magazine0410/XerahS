@@ -64,6 +64,7 @@ internal static class PortalScreenCapture
 
             using var connection = new Connection(Address.Session);
             var connectionInfo = await connection.ConnectAsync().ConfigureAwait(false);
+            await global::XerahS.Platform.Linux.Services.PortalHostRegistry.RegisterAsync(connection).ConfigureAwait(false);
             global::XerahS.Platform.Linux.Capture.PortalRequestExtensions.CacheLocalConnectionName(connection, connectionInfo);
 
             var portal = connection.CreateProxy<IScreenshotPortal>(PortalBusName, PortalObjectPath);

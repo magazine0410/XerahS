@@ -70,6 +70,7 @@ public sealed class WaylandPortalInputService : IInputService
                 SynchronizationContext.SetSynchronizationContext(null);
                 _connection = new Connection(Address.Session);
                 var connectionInfo = _connection.ConnectAsync().GetAwaiter().GetResult();
+                PortalHostRegistry.Register(_connection);
                 global::XerahS.Platform.Linux.Capture.PortalRequestExtensions.CacheLocalConnectionName(_connection, connectionInfo);
                 _portal = _connection.CreateProxy<IInputCapture>(PortalBusName, PortalObjectPath);
                 
