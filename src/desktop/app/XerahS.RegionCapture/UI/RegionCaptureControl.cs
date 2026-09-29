@@ -138,6 +138,15 @@ public sealed class RegionCaptureControl : UserControl
 
     private bool _isInactiveMonitor;
 
+    // Multi-monitor: only the overlay under the pointer draws the cursor crosshair and magnifier.
+    // Other overlays would otherwise keep showing them at the last position they saw.
+    private bool _pointerOnMonitor;
+
+    internal bool IsPointerOnMonitor => _pointerOnMonitor;
+
+    /// <summary>Raised with the physical pointer position after every pointer update on this overlay.</summary>
+    internal event Action<PixelPoint>? PointerLocationChanged;
+
     // State machine accessors for rendering
     private CaptureState _state => _stateMachine.CurrentState;
     private PixelPoint _currentPoint => _stateMachine.CurrentPoint;
@@ -459,8 +468,52 @@ public sealed class RegionCaptureControl : UserControl
             _stateMachine.UpdateHoveredWindow(window);
         }
 
+        // While a drag holds the pointer capture, moves arrive here even when the pointer is over
+        // another monitor, so presence follows the position rather than the event.
+        SetPointerOnMonitor(_physicalViewportBounds.Contains(physicalPoint));
         UpdateMagnifierHud();
+        InvalidateCrosshair();
+        PointerLocationChanged?.Invoke(physicalPoint);
+    }
 
+    /// <summary>
+    /// Pointer position reported by another monitor's overlay. Shows the crosshair here when the pointer
+    /// is on this monitor (for example while a selection drag started elsewhere holds the pointer capture)
+    /// and hides it otherwise.
+    /// </summary>
+    internal void UpdatePointerFromOtherOverlay(PixelPoint physicalPoint)
+    {
+        if (!_physicalViewportBounds.Contains(physicalPoint))
+        {
+            SetPointerOnMonitor(false);
+            return;
+        }
+
+        if (_state != CaptureState.Dragging)
+        {
+            _stateMachine.UpdateCursorPosition(physicalPoint);
+        }
+
+        SetPointerOnMonitor(true);
+        UpdateMagnifierHud();
+        InvalidateCrosshair();
+    }
+
+    /// <summary>The pointer left this overlay's window without a drag holding the capture.</summary>
+    internal void MarkPointerLeft() => SetPointerOnMonitor(false);
+
+    private void SetPointerOnMonitor(bool value)
+    {
+        if (_pointerOnMonitor == value)
+            return;
+
+        _pointerOnMonitor = value;
+        UpdateMagnifierHud();
+        InvalidateVisual();
+    }
+
+    private void InvalidateCrosshair()
+    {
         // Throttle redraws to ~60 FPS to avoid sluggish crosshair on Linux (Avalonia #19363, compositor load)
         long now = Stopwatch.GetTimestamp();
         if (_lastCrosshairInvalidateTicks == 0 || (now - _lastCrosshairInvalidateTicks) >= CrosshairInvalidateIntervalTicks)
@@ -634,7 +687,7 @@ public sealed class RegionCaptureControl : UserControl
 
     private void UpdateMagnifierHud()
     {
-        if (_isInactiveMonitor || (!_enableMagnifier && !_showInfo))
+        if (_isInactiveMonitor || !_pointerOnMonitor || (!_enableMagnifier && !_showInfo))
         {
             _magnifier.IsVisible = false;
             return;
@@ -890,8 +943,8 @@ public sealed class RegionCaptureControl : UserControl
     {
         var cursorLocal = PhysicalToLocal(_currentPoint);
 
-        // Only draw if cursor is within bounds
-        if (!bounds.Contains(cursorLocal))
+        // Only draw if cursor is within bounds and on this monitor
+        if (!_pointerOnMonitor || !bounds.Contains(cursorLocal))
             return;
 
         // Cache pens to avoid per-frame allocations (Avalonia high-frequency rendering; issue #19363)

@@ -45,6 +45,7 @@ public sealed class OverlayManager : IDisposable
     private readonly CoordinateTranslationService _coordinateService;
     private readonly RegionCaptureAnnotationToolCoordinator _annotationToolCoordinator;
     private ActiveMonitorCoordinator? _activeMonitorCoordinator;
+    private Action? _disconnectPointerPresence;
     private bool _disposed;
 
     public OverlayManager()
@@ -113,6 +114,8 @@ public sealed class OverlayManager : IDisposable
                 _overlays.Add(overlay);
             }
 
+            _disconnectPointerPresence = ConnectPointerPresence(_overlays.ToList());
+
             if (options.ActiveMonitorMode)
             {
                 _activeMonitorCoordinator = new ActiveMonitorCoordinator(
@@ -168,6 +171,37 @@ public sealed class OverlayManager : IDisposable
 
 
     /// <summary>
+    /// Only the overlay under the pointer shows the cursor crosshair and magnifier: each overlay passes its
+    /// pointer position to the others, which hide theirs unless the position is on their monitor.
+    /// Returns an action that disconnects the overlays.
+    /// </summary>
+    internal static Action ConnectPointerPresence(IReadOnlyList<OverlayWindow> overlays)
+    {
+        if (overlays.Count < 2)
+            return static () => { };
+
+        void OnPointerLocationChanged(OverlayWindow source, PixelPoint physicalPoint)
+        {
+            foreach (var overlay in overlays)
+            {
+                if (!ReferenceEquals(overlay, source))
+                {
+                    overlay.UpdatePointerFromOtherOverlay(physicalPoint);
+                }
+            }
+        }
+
+        foreach (var overlay in overlays)
+            overlay.PointerLocationChanged += OnPointerLocationChanged;
+
+        return () =>
+        {
+            foreach (var overlay in overlays)
+                overlay.PointerLocationChanged -= OnPointerLocationChanged;
+        };
+    }
+
+    /// <summary>
     /// Shows an overlay as a free-floating top-level window (Owner cleared) so X11
     /// does not set transient-for on a hidden/minimised MainWindow. On non-visible-owner
     /// failure, briefly ensures MainWindow is mapped and retries Show once.
@@ -211,6 +245,8 @@ public sealed class OverlayManager : IDisposable
     {
         _activeMonitorCoordinator?.Dispose();
         _activeMonitorCoordinator = null;
+        _disconnectPointerPresence?.Invoke();
+        _disconnectPointerPresence = null;
 
         foreach (var overlay in _overlays)
         {

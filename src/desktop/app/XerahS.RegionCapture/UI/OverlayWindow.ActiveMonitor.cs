@@ -59,6 +59,41 @@ public partial class OverlayWindow
     /// <summary>Raised when an inactive overlay is clicked or receives a key, so focus can return to the active overlay.</summary>
     internal event Action<OverlayWindow>? ActiveOverlayRequested;
 
+    /// <summary>Raised with the physical pointer position after pointer input on this overlay.</summary>
+    internal event Action<OverlayWindow, Models.PixelPoint>? PointerLocationChanged;
+
+    /// <summary>
+    /// Another monitor's overlay saw the pointer at <paramref name="physicalPoint"/>. This overlay then
+    /// shows its crosshair and magnifier only if the pointer is on its monitor.
+    /// </summary>
+    internal void UpdatePointerFromOtherOverlay(Models.PixelPoint physicalPoint)
+    {
+        if (_monitorState != OverlayMonitorState.Inactive)
+        {
+            _captureControl.UpdatePointerFromOtherOverlay(physicalPoint);
+        }
+    }
+
+    protected override void OnPointerEntered(PointerEventArgs e)
+    {
+        base.OnPointerEntered(e);
+        if (_monitorState != OverlayMonitorState.Inactive)
+        {
+            _captureControl.UpdateAimFromOverlayPointer(e.GetPosition(_captureControl), e.KeyModifiers);
+        }
+    }
+
+    protected override void OnPointerExited(PointerEventArgs e)
+    {
+        base.OnPointerExited(e);
+
+        // A drag keeps the pointer capture; its moves still report the position.
+        if (e.Pointer.Captured == null)
+        {
+            _captureControl.MarkPointerLeft();
+        }
+    }
+
     internal void SetMonitorState(OverlayMonitorState state)
     {
         if (_monitorState == state)

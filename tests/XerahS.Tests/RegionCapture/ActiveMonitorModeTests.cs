@@ -188,6 +188,93 @@ public class ActiveMonitorModeTests
         Assert.That(session.Completion.Task.Result!.Value.Region, Is.EqualTo(new CaptureRect(740, 200, 200, 160)));
     }
 
+    private static RegionCaptureControl CaptureControl(OverlayWindow window) =>
+        window.FindControl<Panel>("RootPanel")!.Children.OfType<RegionCaptureControl>().Single();
+
+    private static (OverlayWindow Left, OverlayWindow Right, Action Disconnect) OpenTwoMonitors()
+    {
+        var completion = new TaskCompletionSource<RegionSelectionResult?>();
+        OverlayWindow Create(CaptureMonitor monitor)
+        {
+            var window = new OverlayWindow(monitor, completion, options: new RegionCaptureOptions
+            {
+                CaptureBounds = new CaptureRect(0, 0, 1280, 480),
+                EnableWindowSnapping = false,
+                EnableMagnifier = true,
+                ShowInfo = true,
+                UseTransparentOverlay = true,
+                SnapSizes = []
+            });
+            window.Show();
+            window.UpdateLayout();
+            return window;
+        }
+
+        var left = Create(LeftMonitor);
+        var right = Create(RightMonitor);
+        return (left, right, OverlayManager.ConnectPointerPresence([left, right]));
+    }
+
+    [AvaloniaTest]
+    public void CrosshairAndMagnifier_ShowOnlyOnMonitorUnderPointer()
+    {
+        var (left, right, disconnect) = OpenTwoMonitors();
+        try
+        {
+            left.MouseMove(new Point(100, 100));
+            Assert.Multiple(() =>
+            {
+                Assert.That(CaptureControl(left).IsPointerOnMonitor, Is.True);
+                Assert.That(CaptureControl(left).MagnifierForTests.IsVisible, Is.True);
+                Assert.That(CaptureControl(right).IsPointerOnMonitor, Is.False);
+                Assert.That(CaptureControl(right).MagnifierForTests.IsVisible, Is.False);
+            });
+
+            right.MouseMove(new Point(50, 50));
+            Assert.Multiple(() =>
+            {
+                Assert.That(CaptureControl(left).IsPointerOnMonitor, Is.False);
+                Assert.That(CaptureControl(left).MagnifierForTests.IsVisible, Is.False);
+                Assert.That(CaptureControl(right).IsPointerOnMonitor, Is.True);
+                Assert.That(CaptureControl(right).MagnifierForTests.IsVisible, Is.True);
+            });
+        }
+        finally
+        {
+            disconnect();
+            left.Close();
+            right.Close();
+        }
+    }
+
+    [AvaloniaTest]
+    public void DragAcrossMonitors_MovesCrosshairToMonitorUnderPointer()
+    {
+        var (left, right, disconnect) = OpenTwoMonitors();
+        try
+        {
+            // The drag starts on the left overlay, which keeps the pointer capture. Local x=740 is
+            // physical x=740, on the right monitor.
+            left.MouseDown(new Point(500, 200), MouseButton.Left);
+            left.MouseMove(new Point(740, 260), RawInputModifiers.LeftMouseButton);
+
+            Assert.Multiple(() =>
+            {
+                Assert.That(CaptureControl(left).IsPointerOnMonitor, Is.False);
+                Assert.That(CaptureControl(right).IsPointerOnMonitor, Is.True);
+                Assert.That(CaptureControl(right).CurrentPointForTests, Is.EqualTo(new PixelPoint(740, 260)));
+            });
+
+            left.MouseUp(new Point(740, 260), MouseButton.Left);
+        }
+        finally
+        {
+            disconnect();
+            left.Close();
+            right.Close();
+        }
+    }
+
     [AvaloniaTest]
     public void InactiveMonitor_EscapeStillCancels()
     {

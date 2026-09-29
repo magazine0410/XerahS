@@ -183,6 +183,7 @@ public partial class OverlayWindow : Window
             _captureControl.SelectionChanged += selectionChanged;
         _captureControl.RegionSelected += OnRegionSelected;
         _captureControl.Cancelled += OnCancelled;
+        _captureControl.PointerLocationChanged += point => PointerLocationChanged?.Invoke(this, point);
 
         var panel = this.FindControl<Panel>("RootPanel")!;
         panel.Children.Add(_captureControl);
