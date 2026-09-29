@@ -120,6 +120,26 @@ public class HotkeyInfo
         return string.Join(" + ", parts);
     }
 
+    /// <summary>
+    /// Returns the key that identifies the physical key for conflict checks. Avalonia reports the
+    /// Print Screen key as <see cref="Key.Print"/> on Linux (X11 keysym "Print") and as
+    /// <see cref="Key.PrintScreen"/> on Windows, and the ShareX defaults use PrintScreen.
+    /// Both reach the compositor and the GlobalShortcuts portal as the same "Print" trigger.
+    /// </summary>
+    public static Key NormalizeKey(Key key) => key == Key.Print ? Key.PrintScreen : key;
+
+    /// <summary>
+    /// True when both hotkeys are valid and press the same physical key combination.
+    /// </summary>
+    public bool ConflictsWith(HotkeyInfo? other)
+    {
+        return other != null &&
+               IsValid &&
+               other.IsValid &&
+               Modifiers == other.Modifiers &&
+               NormalizeKey(Key) == NormalizeKey(other.Key);
+    }
+
     public string GetDisplayString()
     {
         return string.IsNullOrWhiteSpace(NativeTriggerDescription)
@@ -136,7 +156,7 @@ public class HotkeyInfo
             Key.Capital => "Caps Lock",
             Key.PageDown => "Page Down",
             Key.PageUp => "Page Up",
-            Key.PrintScreen => "Print Screen",
+            Key.PrintScreen or Key.Print => "Print Screen",
             Key.Scroll => "Scroll Lock",
             >= Key.D0 and <= Key.D9 => ((int)key - (int)Key.D0).ToString(),
             >= Key.NumPad0 and <= Key.NumPad9 => "Numpad " + ((int)key - (int)Key.NumPad0),

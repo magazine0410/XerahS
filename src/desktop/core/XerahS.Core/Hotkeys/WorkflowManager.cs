@@ -152,6 +152,27 @@ public class WorkflowManager : IDisposable
             return false;
         }
 
+        // Two workflows on one key combination would both be sent to the platform, which then picks
+        // one of them (the GlobalShortcuts portal receives two identical triggers). Keep the one that
+        // registered first and report the other as failed.
+        if (FindConflictingWorkflow(settings) is { } conflict)
+        {
+            settings.HotkeyInfo.Status = HotkeyStatus.Failed;
+            string conflictName = string.IsNullOrWhiteSpace(conflict.Name)
+                ? XerahS.Common.EnumExtensions.GetDescription(conflict.Job)
+                : conflict.Name;
+            settings.HotkeyInfo.NativeTriggerDescription = $"{settings.HotkeyInfo} (also used by \"{conflictName}\")";
+            XerahS.Common.DebugHelper.WriteLine($"Hotkey not registered: {settings} uses the same keys as {conflict}");
+
+            if (!Workflows.Contains(settings))
+            {
+                Workflows.Add(settings);
+                WorkflowsChanged?.Invoke(this, EventArgs.Empty);
+            }
+
+            return false;
+        }
+
         // Hyprland-managed keybindings (XIP0088): the compositor owns the key; registering it through
         // the portal or evdev as well would trigger the workflow twice.
         bool compositorManaged = CompositorManagesHotkeys();
@@ -186,6 +207,19 @@ public class WorkflowManager : IDisposable
         }
 
         return result;
+    }
+
+    /// <summary>
+    /// Returns the enabled workflow whose registered hotkey uses the same keys, if any.
+    /// </summary>
+    private WorkflowSettings? FindConflictingWorkflow(WorkflowSettings settings)
+    {
+        return Workflows.FirstOrDefault(other =>
+            !ReferenceEquals(other, settings) &&
+            other.Enabled &&
+            other.Job != WorkflowType.None &&
+            other.HotkeyInfo.Status == HotkeyStatus.Registered &&
+            other.HotkeyInfo.ConflictsWith(settings.HotkeyInfo));
     }
 
     /// <summary>

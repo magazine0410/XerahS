@@ -34,6 +34,72 @@ namespace XerahS.Tests.Hotkeys;
 public class WorkflowManagerTests
 {
     [Test]
+    public void UpdateHotkeys_PrintAndPrintScreenOnSameModifiers_RegistersOnlyTheFirst()
+    {
+        var service = new FakeHotkeyService();
+        using var manager = new WorkflowManager(service);
+        var activeWindow = new WorkflowSettings(
+            WorkflowType.ActiveWindow,
+            new HotkeyInfo(Key.PrintScreen, KeyModifiers.Control)) { Name = "Active window capture" };
+        // Linux records the Print Screen key as Key.Print.
+        var region = new WorkflowSettings(
+            WorkflowType.RectangleRegion,
+            new HotkeyInfo(Key.Print, KeyModifiers.Control)) { Name = "Region capture" };
+
+        manager.UpdateHotkeys([activeWindow, region]);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(activeWindow.HotkeyInfo.Status, Is.EqualTo(HotkeyStatus.Registered));
+            Assert.That(region.HotkeyInfo.Status, Is.EqualTo(HotkeyStatus.Failed));
+            Assert.That(service.IsRegistered(region.HotkeyInfo), Is.False);
+            Assert.That(region.HotkeyInfo.GetDisplayString(),
+                Is.EqualTo("Ctrl + Print Screen (also used by \"Active window capture\")"));
+            Assert.That(manager.Workflows, Does.Contain(region));
+        });
+    }
+
+    [Test]
+    public void RegisterHotkey_AfterConflictIsResolved_Registers()
+    {
+        var service = new FakeHotkeyService();
+        using var manager = new WorkflowManager(service);
+        var activeWindow = new WorkflowSettings(WorkflowType.ActiveWindow, new HotkeyInfo(Key.PrintScreen, KeyModifiers.Control));
+        var region = new WorkflowSettings(WorkflowType.RectangleRegion, new HotkeyInfo(Key.Print, KeyModifiers.Control));
+        manager.UpdateHotkeys([activeWindow, region]);
+
+        region.HotkeyInfo.Modifiers = KeyModifiers.Shift;
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(manager.RegisterHotkey(region), Is.True);
+            Assert.That(region.HotkeyInfo.Status, Is.EqualTo(HotkeyStatus.Registered));
+            Assert.That(region.HotkeyInfo.GetDisplayString(), Is.EqualTo("Shift + Print Screen"));
+        });
+    }
+
+    [Test]
+    public void HotkeyInfo_ConflictsWith_TreatsPrintAndPrintScreenAsOneKey()
+    {
+        var printScreen = new HotkeyInfo(Key.PrintScreen, KeyModifiers.Control);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(printScreen.ConflictsWith(new HotkeyInfo(Key.Print, KeyModifiers.Control)), Is.True);
+            Assert.That(printScreen.ConflictsWith(new HotkeyInfo(Key.PrintScreen, KeyModifiers.Control)), Is.True);
+            Assert.That(printScreen.ConflictsWith(new HotkeyInfo(Key.Print, KeyModifiers.Alt)), Is.False);
+            Assert.That(printScreen.ConflictsWith(new HotkeyInfo(Key.R, KeyModifiers.Control)), Is.False);
+            Assert.That(new HotkeyInfo(Key.None).ConflictsWith(new HotkeyInfo(Key.None)), Is.False);
+        });
+    }
+
+    [Test]
+    public void HotkeyInfo_ShowsPrintKeyAsPrintScreen()
+    {
+        Assert.That(new HotkeyInfo(Key.Print, KeyModifiers.Control).ToString(), Is.EqualTo("Ctrl + Print Screen"));
+    }
+
+    [Test]
     public void RegisterHotkey_WhenClearedToNone_UnregistersPreviousBinding()
     {
         var service = new FakeHotkeyService();
