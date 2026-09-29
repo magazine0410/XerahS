@@ -65,4 +65,19 @@ public class AvaloniaUIServiceEditorCloseTests
 
         Assert.That(result, Is.False);
     }
+
+    [Test]
+    public void StandaloneEditor_ReturnsSessionForCancelledClose_SoHistoryCanSaveAnnotations()
+    {
+        // Exit, Cancel, the close button, and "Save and close" all report Cancel.
+        Assert.That(AvaloniaUIService.ShouldReturnNullForEditorClose(false, true,
+            MainViewModel.EditorTaskResult.Cancel), Is.False);
+    }
+
+    [Test]
+    public void StandaloneEditor_CanContinueWithSourceImage()
+    {
+        Assert.That(AvaloniaUIService.ShouldReturnNullForEditorClose(false, true,
+            MainViewModel.EditorTaskResult.ContinueNoSave), Is.False);
+    }
 }

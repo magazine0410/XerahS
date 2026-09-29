@@ -74,6 +74,8 @@ namespace XerahS.UI.ViewModels
         // Expose underlying model if needed
         public TaskSettings Model => _settings;
         public TaskSettingsAdvanced AdvancedSettings => _settings.AdvancedSettings;
+        public ShareX.ImageEditor.Hosting.ImageEditorOptions EditorOptions =>
+            (_settings.ToolsSettings ??= new TaskSettingsTools()).ImageEditorOptions ??= new();
 
         public WorkflowType Job
         {

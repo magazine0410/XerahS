@@ -54,6 +54,20 @@ namespace XerahS.Platform.Abstractions
         Task<SKBitmap?> ShowEditorAsync(SKBitmap image, string? sourceFilePath = null, bool taskMode = false);
 
         /// <summary>
+        /// Opens an editor using the task's persistent options. Non-interactive hosts
+        /// can fall back to their existing editor implementation.
+        /// </summary>
+        Task<SKBitmap?> ShowEditorAsync(
+            SKBitmap image,
+            ImageEditorOptions editorOptions,
+            string? sourceFilePath = null,
+            bool taskMode = false,
+            bool openBackgroundPanel = false)
+        {
+            return ShowEditorAsync(image, sourceFilePath, taskMode);
+        }
+
+        /// <summary>
         /// Shows the image editor and returns the rendered image plus editable annotation state.
         /// </summary>
         async Task<ImageEditorSessionResult?> ShowEditorSessionAsync(
@@ -75,6 +89,21 @@ namespace XerahS.Platform.Abstractions
                 ?? Array.Empty<ShareX.ImageEditor.Core.Annotations.Annotation>();
 
             return new ImageEditorSessionResult(renderedImage, sourceImage, annotationSnapshot);
+        }
+
+        /// <summary>
+        /// Opens an editable annotation session using the task's persistent options.
+        /// </summary>
+        Task<ImageEditorSessionResult?> ShowEditorSessionAsync(
+            SKBitmap image,
+            ImageEditorOptions editorOptions,
+            string? sourceFilePath = null,
+            bool taskMode = false,
+            IReadOnlyList<ShareX.ImageEditor.Core.Annotations.Annotation>? annotations = null,
+            bool restoredAnnotations = false,
+            bool openBackgroundPanel = false)
+        {
+            return ShowEditorSessionAsync(image, sourceFilePath, taskMode, annotations, restoredAnnotations);
         }
 
         /// <summary>

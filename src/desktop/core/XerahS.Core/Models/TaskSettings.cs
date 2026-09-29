@@ -28,6 +28,7 @@ using System.Linq;
 using System.ComponentModel;
 using System.Drawing;
 using Newtonsoft.Json;
+using ShareX.ImageEditor.Hosting;
 using XerahS.Common;
 using XerahS.Indexer;
 using XerahS.Services.Abstractions;
@@ -104,6 +105,20 @@ public class TaskSettings
     public List<ExternalProgram> ExternalPrograms = new List<ExternalProgram>();
 
     public TaskSettingsTools ToolsSettings = new TaskSettingsTools();
+
+    [JsonIgnore]
+    public TaskSettingsTools ToolsSettingsReference
+    {
+        get
+        {
+            // Execution copies keep their workflow ID so interactive tool preferences
+            // are written back to the saved task, not discarded with the copy.
+            var settings = TaskSettingsReference
+                ?? SettingsManager.GetWorkflowById(WorkflowId ?? string.Empty)?.TaskSettings
+                ?? this;
+            return settings.ToolsSettings ??= new TaskSettingsTools();
+        }
+    }
 
     public TaskSettingsAdvanced AdvancedSettings = new TaskSettingsAdvanced();
 
@@ -388,6 +403,10 @@ public class TaskSettingsUpload
 /// </summary>
 public class TaskSettingsTools
 {
+    [JsonProperty(ObjectCreationHandling = ObjectCreationHandling.Replace)]
+    public ImageEditorOptions ImageEditorOptions = new ImageEditorOptions();
+    public BackgroundRemoverOptions BackgroundRemoverOptions = new BackgroundRemoverOptions();
+
     public string ScreenColorPickerFormat = "$hex";
     public string ScreenColorPickerFormatCtrl = "$r255, $g255, $b255";
     public string ScreenColorPickerInfoText = "RGB: $r255, $g255, $b255$nHex: $hex$nX: $x Y: $y";

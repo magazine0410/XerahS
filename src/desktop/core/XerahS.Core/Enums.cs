@@ -349,7 +349,21 @@ public enum WorkflowType // Localized
 
     [Category(EnumExtensions.WorkflowType_Category_Other)]
     [Description("Exit ShareX")]
-    ExitShareX
+    ExitShareX,
+
+    // Append new jobs to preserve the numeric values in existing workflow files.
+    [Category(EnumExtensions.WorkflowType_Category_Tools)]
+    [Description("Background remover")]
+    BackgroundRemover,
+    [Category(EnumExtensions.WorkflowType_Category_Tools)]
+    [Description("Image comparer")]
+    ImageComparer,
+    [Category(EnumExtensions.WorkflowType_Category_Tools)]
+    [Description("Icon converter")]
+    IconConverter,
+    [Category(EnumExtensions.WorkflowType_Category_Tools)]
+    [Description("Image beautifier")]
+    ImageBeautifier
 }
 
 public enum ThumbnailViewClickAction // Localized

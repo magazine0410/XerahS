@@ -24,6 +24,9 @@
 #endregion License Information (GPL v3)
 using Avalonia.Controls;
 using Avalonia.Markup.Xaml;
+using Avalonia.Interactivity;
+using ShareX.ImageEditor.Presentation.ViewModels;
+using ShareX.ImageEditor.Presentation.Views;
 using System;
 using XerahS.Common;
 using XerahS.UI.Controls;
@@ -82,6 +85,36 @@ namespace XerahS.UI.Views
         private void InitializeComponent()
         {
             AvaloniaXamlLoader.Load(this);
+        }
+
+        private async void OnCustomizeEditorToolbarClick(object? sender, RoutedEventArgs e)
+        {
+            if (DataContext is not TaskSettingsViewModel vm || TopLevel.GetTopLevel(this) is not Window owner)
+            {
+                return;
+            }
+
+            var dialog = new SurfaceWindow
+            {
+                Title = "Customize image editor toolbar",
+                Width = 700,
+                Height = 650,
+                MinWidth = 520,
+                MinHeight = 420,
+                WindowStartupLocation = WindowStartupLocation.CenterOwner
+            };
+            dialog.Content = new ToolbarCustomizationDialogView
+            {
+                DataContext = new ToolbarCustomizationDialogViewModel(
+                    ToolbarCustomizationItemViewModel.CreateFromOptions(vm.EditorOptions.ToolbarItems),
+                    items =>
+                    {
+                        vm.EditorOptions.ToolbarItems = items.Select(item => item.ToOptions()).ToList();
+                        dialog.Close();
+                    },
+                    dialog.Close)
+            };
+            await dialog.ShowDialog(owner);
         }
     }
 }

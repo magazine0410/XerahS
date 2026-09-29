@@ -136,7 +136,8 @@ namespace XerahS.Core.Tasks.Processors
                 }
                 else if (info.Metadata?.Image != null && PlatformServices.UI != null)
                 {
-                    editorResult = await PlatformServices.UI.ShowEditorSessionAsync(info.Metadata.Image, taskMode: true);
+                    editorResult = await PlatformServices.UI.ShowEditorSessionAsync(info.Metadata.Image,
+                        settings.ToolsSettingsReference.ImageEditorOptions ??= new ImageEditorOptions(), taskMode: true);
                     if (editorResult?.RenderedImage != null)
                     {
                         if (info.Metadata.Image != editorResult.RenderedImage)

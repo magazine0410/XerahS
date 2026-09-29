@@ -104,6 +104,10 @@
                     <MenuItem Header="_Index Folder..." Command="{Binding NavigateMenuCommand}" CommandParameter="Tools_IndexFolder"/>
                     <Separator/>
                     <MenuItem Header="_Image Combiner..." Command="{Binding NavigateMenuCommand}" CommandParameter="Tools_ImageCombiner"/>
+                    <MenuItem Header="Image Beautifier..." Command="{Binding NavigateMenuCommand}" CommandParameter="Tools_ImageBeautifier"/>
+                    <MenuItem Header="Background Remover..." Command="{Binding NavigateMenuCommand}" CommandParameter="Tools_BackgroundRemover"/>
+                    <MenuItem Header="Image Comparer..." Command="{Binding NavigateMenuCommand}" CommandParameter="Tools_ImageComparer"/>
+                    <MenuItem Header="Icon Converter..." Command="{Binding NavigateMenuCommand}" CommandParameter="Tools_IconConverter"/>
                     <MenuItem Header="Image _Splitter..." Command="{Binding NavigateMenuCommand}" CommandParameter="Tools_ImageSplitter"/>
                     <MenuItem Header="Image _Thumbnailer..." Command="{Binding NavigateMenuCommand}" CommandParameter="Tools_ImageThumbnailer"/>
                     <MenuItem Header="Image Resizer..." Command="{Binding NavigateMenuCommand}" CommandParameter="Tools_ImageResizer"/>

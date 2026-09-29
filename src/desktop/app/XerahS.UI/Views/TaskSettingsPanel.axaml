@@ -436,6 +436,23 @@
                 </ScrollViewer>
             </TabItem>
 
+            <TabItem Header="Image Editor">
+                <ScrollViewer>
+                    <StackPanel Spacing="16" Margin="20">
+                        <TextBlock Text="Image editor" FontWeight="SemiBold"/>
+                        <CheckBox Content="Remember window state" IsChecked="{Binding EditorOptions.RememberWindowState}"/>
+                        <CheckBox Content="Show exit confirmation" IsChecked="{Binding EditorOptions.ShowExitConfirmation}"/>
+                        <CheckBox Content="Zoom to fit on open" IsChecked="{Binding EditorOptions.ZoomToFitOnOpen}"/>
+                        <CheckBox Content="Quick crop" IsChecked="{Binding EditorOptions.QuickCrop}"/>
+                        <CheckBox Content="Auto close editor after a task" IsChecked="{Binding EditorOptions.AutoCloseEditorOnTask}"/>
+                        <CheckBox Content="Auto copy image to clipboard" IsChecked="{Binding EditorOptions.AutoCopyImageToClipboard}"/>
+                        <CheckBox Content="Show insert image dialog" IsChecked="{Binding EditorOptions.ShowInsertImageDialog}"/>
+                        <CheckBox Content="Show notifications" IsChecked="{Binding EditorOptions.ShowNotifications}"/>
+                        <Button Content="Customize toolbar..." Click="OnCustomizeEditorToolbarClick" HorizontalAlignment="Left"/>
+                    </StackPanel>
+                </ScrollViewer>
+            </TabItem>
+
             <!-- Advanced Tab -->
             <TabItem Header="Advanced">
                 <Grid Margin="24" RowDefinitions="Auto, *">

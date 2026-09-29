@@ -39,6 +39,7 @@ namespace XerahS.UI.Views
             InitializeComponent();
             Classes.Remove("xerahs-surface");
             Classes.Add("xerahs-editor-host");
+            Resized += (_, _) => SaveNormalWindowSize();
         }
 
         private void InitializeComponent()
@@ -61,19 +62,48 @@ namespace XerahS.UI.Views
             if (_viewModel != null)
             {
                 _viewModel.CloseRequested += OnViewModelCloseRequested;
+                var options = _viewModel.Options;
+                if (options.RememberWindowState)
+                {
+                    if (double.IsFinite(options.WindowWidth) && options.WindowWidth > 0 &&
+                        double.IsFinite(options.WindowHeight) && options.WindowHeight > 0)
+                    {
+                        Width = options.WindowWidth;
+                        Height = options.WindowHeight;
+                    }
+                    WindowState = options.IsWindowMaximized ? WindowState.Maximized : WindowState.Normal;
+                }
             }
         }
 
         protected override void OnClosed(EventArgs e)
         {
+            var viewModel = _viewModel;
             if (_viewModel != null)
             {
+                SaveNormalWindowSize();
+                if (_viewModel.Options.RememberWindowState)
+                {
+                    _viewModel.Options.IsWindowMaximized = WindowState == WindowState.Maximized;
+                }
                 _viewModel.CloseRequested -= OnViewModelCloseRequested;
                 _viewModel = null;
             }
 
             _allowClose = false;
             base.OnClosed(e);
+            this.FindControl<ShareX.ImageEditor.Presentation.Views.EditorView>("EditorViewControl")?.DisposeWorkspace();
+            viewModel?.Dispose();
+        }
+
+        private void SaveNormalWindowSize()
+        {
+            if (_viewModel?.Options.RememberWindowState == true && WindowState == WindowState.Normal &&
+                Bounds.Width > 0 && Bounds.Height > 0)
+            {
+                _viewModel.Options.WindowWidth = Bounds.Width;
+                _viewModel.Options.WindowHeight = Bounds.Height;
+            }
         }
 
         protected override void OnClosing(WindowClosingEventArgs e)

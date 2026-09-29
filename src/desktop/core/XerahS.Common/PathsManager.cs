@@ -240,6 +240,7 @@ namespace XerahS.Common
             : Path.Combine(PersonalFolder, "Tools");
 
         public static string ToolsArchitectureFolder => Path.Combine(ToolsFolder, GetArchitectureFolderName());
+        public static string ModelsFolder => Path.Combine(PersonalFolder, "Models");
         public static string PluginsFolder => UseLinuxXdgLayout
             ? Path.Combine(LinuxXdgDirectories.Detect().DataDirectory, AppResources.PluginsFolderName)
             : Path.Combine(PersonalFolder, AppResources.PluginsFolderName);

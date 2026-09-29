@@ -102,6 +102,10 @@ public static partial class TaskHelpers
         {
             // Image-specific tools
             WorkflowType.ImageEditor or
+            WorkflowType.ImageBeautifier or
+            WorkflowType.BackgroundRemover or
+            WorkflowType.ImageComparer or
+            WorkflowType.IconConverter or
             WorkflowType.ImageCombiner or
             WorkflowType.ImageSplitter or
             WorkflowType.ImageThumbnailer or
@@ -724,4 +728,3 @@ public static partial class TaskHelpers
 
     #endregion
 }
-

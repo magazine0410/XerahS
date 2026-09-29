@@ -35,8 +35,9 @@ namespace XerahS.Tests.Editor;
 [TestFixture]
 public class IUIServiceDefaultSessionTests
 {
-    [Test]
-    public async Task ShowEditorSessionAsync_DefaultFallback_PreservesSourceImage_AndAnnotations()
+    [TestCase(false)]
+    [TestCase(true)]
+    public async Task ShowEditorSessionAsync_DefaultFallback_PreservesSourceImage_AndAnnotations(bool withOptions)
     {
         using var image = new SKBitmap(12, 7);
         image.Erase(SKColors.CadetBlue);
@@ -50,11 +51,11 @@ public class IUIServiceDefaultSessionTests
         var implementation = new DefaultSessionFallbackUiService();
         IUIService service = implementation;
 
-        ImageEditorSessionResult? result = await service.ShowEditorSessionAsync(
-            image,
-            sourceFilePath: "/tmp/sample.png",
-            annotations: new[] { annotation },
-            restoredAnnotations: true);
+        ImageEditorSessionResult? result = withOptions
+            ? await service.ShowEditorSessionAsync(image, new ImageEditorOptions(),
+                sourceFilePath: "/tmp/sample.png", annotations: new[] { annotation }, restoredAnnotations: true)
+            : await service.ShowEditorSessionAsync(image,
+                sourceFilePath: "/tmp/sample.png", annotations: new[] { annotation }, restoredAnnotations: true);
 
         Assert.That(result, Is.Not.Null);
         Assert.That(result!.RenderedImage, Is.SameAs(implementation.RenderedImage));

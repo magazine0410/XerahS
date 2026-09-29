@@ -528,6 +528,10 @@ namespace XerahS.UI.Views
             toolsNode.AddChild(qrCodeNode);
 
             toolsNode.AddChild(CreateNode("Image Combiner...", "Tools_ImageCombiner", null, NavigationNodeKind.Action));
+            toolsNode.AddChild(CreateNode("Image Beautifier...", "Tools_ImageBeautifier", null, NavigationNodeKind.Action));
+            toolsNode.AddChild(CreateNode("Background Remover...", "Tools_BackgroundRemover", null, NavigationNodeKind.Action));
+            toolsNode.AddChild(CreateNode("Image Comparer...", "Tools_ImageComparer", null, NavigationNodeKind.Action));
+            toolsNode.AddChild(CreateNode("Icon Converter...", "Tools_IconConverter", null, NavigationNodeKind.Action));
             toolsNode.AddChild(CreateNode("Image Splitter...", "Tools_ImageSplitter", null, NavigationNodeKind.Action));
             toolsNode.AddChild(CreateNode("Image Thumbnailer...", "Tools_ImageThumbnailer", null, NavigationNodeKind.Action));
             toolsNode.AddChild(CreateNode("Image Resizer...", "Tools_ImageResizer", null, NavigationNodeKind.Action));

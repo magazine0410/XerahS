@@ -115,40 +115,58 @@ namespace XerahS.UI.Services
 
         public async Task<SKBitmap?> ShowEditorAsync(SKBitmap image, string? sourceFilePath = null, bool taskMode = false)
         {
-            ImageEditorSessionResult? result = await ShowEditorSessionAsync(image, sourceFilePath, taskMode);
+            return await ShowEditorAsync(image, ImageEditorOptionsStore.GetEditorOptions(), sourceFilePath, taskMode);
+        }
+
+        public async Task<SKBitmap?> ShowEditorAsync(
+            SKBitmap image,
+            ImageEditorOptions editorOptions,
+            string? sourceFilePath = null,
+            bool taskMode = false,
+            bool openBackgroundPanel = false)
+        {
+            ImageEditorSessionResult? result = await ShowEditorSessionAsync(image, editorOptions, sourceFilePath, taskMode,
+                openBackgroundPanel: openBackgroundPanel);
             result?.SourceImage?.Dispose();
             return result?.RenderedImage;
         }
 
-        public async Task<ImageEditorSessionResult?> ShowEditorSessionAsync(
+        public Task<ImageEditorSessionResult?> ShowEditorSessionAsync(
             SKBitmap image,
             string? sourceFilePath = null,
             bool taskMode = false,
             IReadOnlyList<Annotation>? annotations = null,
             bool restoredAnnotations = false)
         {
+            return ShowEditorSessionAsync(image, ImageEditorOptionsStore.GetEditorOptions(), sourceFilePath,
+                taskMode, annotations, restoredAnnotations);
+        }
+
+        public async Task<ImageEditorSessionResult?> ShowEditorSessionAsync(
+            SKBitmap image,
+            ImageEditorOptions editorOptions,
+            string? sourceFilePath = null,
+            bool taskMode = false,
+            IReadOnlyList<Annotation>? annotations = null,
+            bool restoredAnnotations = false,
+            bool openBackgroundPanel = false)
+        {
             if (_taskManager == null)
             {
                 throw new InvalidOperationException("AvaloniaUIService requires an IDesktopTaskManager before showing the editor.");
             }
 
-            var tcs = new TaskCompletionSource<ImageEditorSessionResult?>();
+            var tcs = new TaskCompletionSource<ImageEditorSessionResult?>(TaskCreationOptions.RunContinuationsAsynchronously);
             var restoredAnnotationSnapshot = annotations?.Select(annotation => annotation.Clone()).ToList();
 
             await Dispatcher.UIThread.InvokeAsync(() =>
             {
+                ImageEditorSessionResult? sessionResult = null;
                 // Create independent Editor Window
                 var editorWindow = new Views.EditorWindow();
 
                 // Create independent ViewModel for this editor instance
-                var editorOptions = ThemeService.CreateImageEditorOptions(showExitConfirmation: !taskMode);
-                var editorViewModel = new MainViewModel(editorOptions);
-                editorViewModel.ShowFileMenu = !taskMode;
-                editorViewModel.ShowTaskButtons = true;
-                editorViewModel.UseContinueWorkflow = taskMode;
-                editorViewModel.ShowBottomToolbar = true;
-                editorViewModel.ShowStartScreen = !taskMode;
-                editorViewModel.ApplicationName = AppResources.AppName;
+                var editorViewModel = ImageEditorOptionsStore.CreateViewModel(editorOptions, taskMode, openBackgroundPanel);
 
                 // Wire up UploadRequested to trigger host app upload workflow
                 MainViewModelHelper.WireUploadRequested(editorViewModel, _taskManager, () =>
@@ -175,7 +193,8 @@ namespace XerahS.UI.Services
                 editorWindow.DataContext = editorViewModel;
 
                 // Initialize the preview image
-                editorViewModel.UpdatePreview(image);
+                // The caller retains its image (including capture pipeline metadata).
+                editorViewModel.UpdatePreview(image.Copy());
                 if (!string.IsNullOrWhiteSpace(sourceFilePath))
                 {
                     editorViewModel.ImageFilePath = sourceFilePath;
@@ -195,9 +214,13 @@ namespace XerahS.UI.Services
                 // Handle window closing to capture result
                 editorWindow.Closing += (s, e) =>
                 {
+                    if (e.Cancel)
+                    {
+                        return;
+                    }
+
                     if (ShouldReturnNullForEditorClose(taskMode, editorWindow.IsCloseRequestedByViewModel, editorViewModel.TaskResult))
                     {
-                        tcs.TrySetResult(null);
                         return;
                     }
 
@@ -207,28 +230,38 @@ namespace XerahS.UI.Services
 
                         if (editorView != null)
                         {
-                            var snapshot = editorView.GetSnapshot();
+                            bool useSource = editorViewModel.TaskResult == MainViewModel.EditorTaskResult.ContinueNoSave;
+                            var snapshot = useSource ? editorView.GetSource() : editorView.GetSnapshot();
                             if (snapshot == null)
                             {
-                                tcs.TrySetResult(null);
+                                sessionResult = null;
                             }
                             else
                             {
                                 var source = editorView.GetSource();
-                                var annotationSnapshot = editorView.GetAnnotationSnapshot().ToList();
-                                tcs.TrySetResult(new ImageEditorSessionResult(snapshot, source, annotationSnapshot));
+                                var annotationSnapshot = useSource ? new List<Annotation>() : editorView.GetAnnotationSnapshot().ToList();
+                                sessionResult = new ImageEditorSessionResult(snapshot, source, annotationSnapshot)
+                                {
+                                    TaskResult = editorViewModel.TaskResult
+                                };
                             }
                         }
                         else
                         {
-                            tcs.TrySetResult(null);
+                            sessionResult = null;
                         }
                     }
                     catch (Exception ex)
                     {
                         DebugHelper.WriteException(ex, "Failed to get editor snapshot");
-                        tcs.TrySetResult(null);
+                        sessionResult = null;
                     }
+                };
+
+                editorWindow.Closed += async (_, _) =>
+                {
+                    await ImageEditorOptionsStore.PersistAsync();
+                    tcs.TrySetResult(sessionResult);
                 };
 
                 // Show the window
@@ -248,6 +281,8 @@ namespace XerahS.UI.Services
                 return true;
             }
 
+            // A standalone editor closed through Exit or Cancel still returns its session so History can
+            // save the annotation sidecar. Callers that run tasks check TaskResult for Continue.
             bool continueWithoutSave = taskResult == MainViewModel.EditorTaskResult.ContinueNoSave
                 || taskResult == MainViewModel.EditorTaskResult.Cancel;
 

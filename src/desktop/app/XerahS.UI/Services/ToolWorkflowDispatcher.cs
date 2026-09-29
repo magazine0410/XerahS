@@ -65,7 +65,11 @@ internal static class ToolWorkflowDispatcher
                 return true;
 
             case WorkflowType.ImageEditor:
-                dispatchTask = OpenImageEditorAsync(owner);
+            case WorkflowType.ImageBeautifier:
+            case WorkflowType.BackgroundRemover:
+            case WorkflowType.ImageComparer:
+            case WorkflowType.IconConverter:
+                dispatchTask = ImageEditingToolService.HandleWorkflowAsync(workflowType, owner, taskSettings, taskManager);
                 return true;
 
             case WorkflowType.VideoEditor:
@@ -134,57 +138,6 @@ internal static class ToolWorkflowDispatcher
             default:
                 dispatchTask = Task.CompletedTask;
                 return false;
-        }
-    }
-
-    private static async Task OpenImageEditorAsync(Window? owner)
-    {
-        try
-        {
-            var storageProvider = StorageProviderResolver.Resolve(owner);
-            if (storageProvider == null)
-            {
-                return;
-            }
-
-            var options = new FilePickerOpenOptions
-            {
-                Title = "Open Image in Editor",
-                AllowMultiple = false,
-                FileTypeFilter =
-                [
-                    new FilePickerFileType("Image Files")
-                    {
-                        Patterns = ["*.png", "*.jpg", "*.jpeg", "*.bmp", "*.gif", "*.webp", "*.tiff", "*.tif"]
-                    },
-                    FilePickerFileTypes.All
-                ]
-            };
-
-            var files = await storageProvider.OpenFilePickerAsync(options);
-            if (files.Count < 1)
-            {
-                return;
-            }
-
-            var path = files[0].TryGetLocalPath();
-            if (string.IsNullOrEmpty(path) || !File.Exists(path))
-            {
-                return;
-            }
-
-            using var fs = new FileStream(path, FileMode.Open, FileAccess.Read);
-            var skBitmap = SkiaSharp.SKBitmap.Decode(fs);
-            if (skBitmap == null)
-            {
-                return;
-            }
-
-            await PlatformServices.UI.ShowEditorAsync(skBitmap, sourceFilePath: path);
-        }
-        catch (Exception ex)
-        {
-            DebugHelper.WriteException(ex, "Failed to open image in editor");
         }
     }
 
