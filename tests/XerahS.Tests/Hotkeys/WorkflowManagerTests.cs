@@ -292,6 +292,30 @@ public class WorkflowManagerTests
         Assert.That(hotkey.GetDisplayString(), Is.EqualTo("Ctrl+Alt+S"));
     }
 
+    [Test]
+    public void UpdateHotkeys_KeepsShortcutsRegisteredByOtherComponents()
+    {
+        var service = new FakeHotkeyService();
+        using var manager = new WorkflowManager(service);
+        // The assistant registers its shortcut on the same service.
+        var assistant = new HotkeyInfo(Key.Space, KeyModifiers.Control | KeyModifiers.Shift) { BindingId = "assistant" };
+        Assert.That(service.RegisterHotkey(assistant), Is.True);
+        var region = new WorkflowSettings(WorkflowType.RectangleRegion, new HotkeyInfo(Key.PrintScreen, KeyModifiers.Control));
+        manager.UpdateHotkeys([region]);
+
+        // The workflow editor's OK replaces the workflow with an edited copy.
+        var edited = new WorkflowSettings(WorkflowType.RectangleRegion, new HotkeyInfo(Key.PrintScreen, KeyModifiers.Meta));
+        ushort previousId = region.HotkeyInfo.Id;
+        manager.UpdateHotkeys([edited]);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(service.IsRegistered(assistant), Is.True, "Clearing the assistant changes the portal shortcut set.");
+            Assert.That(service.IsRegistered(new HotkeyInfo { Id = previousId }), Is.False);
+            Assert.That(service.IsRegistered(edited.HotkeyInfo), Is.True);
+        });
+    }
+
     private sealed class FakeHotkeyService : IHotkeyService
     {
         private readonly HashSet<ushort> _registeredIds = new();

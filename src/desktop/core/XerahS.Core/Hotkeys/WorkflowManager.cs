@@ -281,7 +281,13 @@ public class WorkflowManager : IDisposable
     /// </summary>
     public void UnregisterAllHotkeys()
     {
-        _hotkeyService.UnregisterAll();
+        // Only the workflow hotkeys: the assistant and the capture command palette register their own
+        // shortcuts on the same service. Clearing those as well changes the portal shortcut set, which
+        // makes the next bind open a new portal session and KDE ask to assign them again.
+        foreach (var settings in _hotkeyMap.Values.ToList())
+        {
+            _hotkeyService.UnregisterHotkey(settings.HotkeyInfo);
+        }
         _hotkeyMap.Clear();
 
         foreach (var settings in Workflows)
