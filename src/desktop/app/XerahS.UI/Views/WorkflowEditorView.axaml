@@ -128,7 +128,17 @@
 
             <!-- Tab 5: Index Folder -->
             <TabItem Header="Index Folder" IsVisible="{Binding TaskSettings.IsIndexFolderJob}">
-                <views:IndexFolderPanel DataContext="{Binding IndexFolderConfig}"/>
+                <!-- Indexer settings are tools settings, so they follow "Override tools settings". -->
+                <DockPanel>
+                    <CheckBox DockPanel.Dock="Top"
+                              Content="Override tools settings"
+                              IsChecked="{Binding TaskSettings.OverrideToolsSettings}"
+                              Margin="20,12,20,0"
+                              ToolTip.Tip="When off, this workflow uses the tools settings from Settings > Task Settings."/>
+                    <Border IsEnabled="{Binding TaskSettings.ToolsSettingsEnabled}">
+                        <views:IndexFolderPanel DataContext="{Binding IndexFolderConfig}"/>
+                    </Border>
+                </DockPanel>
             </TabItem>
             
         </TabControl>

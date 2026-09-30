@@ -131,13 +131,14 @@ namespace XerahS.Core.Tasks
         {
             outputPath = null;
 
-            if (taskSettings?.ToolsSettings == null)
+            if (taskSettings == null)
             {
-                DebugHelper.WriteLine("IndexFolder: ToolsSettings missing.");
+                DebugHelper.WriteLine("IndexFolder: TaskSettings missing.");
                 return false;
             }
 
-            string folderPath = taskSettings.ToolsSettings.IndexerFolderPath;
+            var toolsSettings = taskSettings.ToolsSettingsReference;
+            string folderPath = toolsSettings.IndexerFolderPath;
             if (string.IsNullOrWhiteSpace(folderPath) || !Directory.Exists(folderPath))
             {
                 DebugHelper.WriteLine($"IndexFolder: Folder path invalid: '{folderPath}'");
@@ -146,7 +147,7 @@ namespace XerahS.Core.Tasks
 
             try
             {
-                var indexerSettings = taskSettings.ToolsSettings.IndexerSettings ?? new XerahS.Indexer.IndexerSettings();
+                var indexerSettings = toolsSettings.IndexerSettings ?? new XerahS.Indexer.IndexerSettings();
 
                 string output = XerahS.Indexer.Indexer.Index(folderPath, indexerSettings);
                 outputPath = WriteIndexOutput(taskSettings, folderPath, output, indexerSettings.Output);

@@ -104,8 +104,17 @@ public class TaskSettings
 
     public List<ExternalProgram> ExternalPrograms = new List<ExternalProgram>();
 
+    /// <summary>
+    /// When true (the ShareX default), the task uses the default task settings' tool settings.
+    /// </summary>
+    public bool UseDefaultToolsSettings = true;
+
     public TaskSettingsTools ToolsSettings = new TaskSettingsTools();
 
+    /// <summary>
+    /// The tool settings this task runs with: the default task settings' tools unless the saved task
+    /// overrides them. Interactive tools write their preferences back to this object.
+    /// </summary>
     [JsonIgnore]
     public TaskSettingsTools ToolsSettingsReference
     {
@@ -116,6 +125,12 @@ public class TaskSettings
             var settings = TaskSettingsReference
                 ?? SettingsManager.GetWorkflowById(WorkflowId ?? string.Empty)?.TaskSettings
                 ?? this;
+            var defaults = SettingsManager.DefaultTaskSettings;
+            if (settings.UseDefaultToolsSettings && defaults != null)
+            {
+                settings = defaults;
+            }
+
             return settings.ToolsSettings ??= new TaskSettingsTools();
         }
     }

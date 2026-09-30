@@ -45,6 +45,7 @@ namespace XerahS.UI.ViewModels
     ///   TaskSettingsViewModel.General.cs       — notifications, toast, sound settings
     ///   TaskSettingsViewModel.Image.cs         — image format, quality, thumbnails
     ///   TaskSettingsViewModel.IndexFolder.cs   — index folder settings + browse commands
+    ///   TaskSettingsViewModel.Tools.cs         — tool settings and default inheritance
     /// </summary>
     public partial class TaskSettingsViewModel : ObservableObject
     {
@@ -74,8 +75,6 @@ namespace XerahS.UI.ViewModels
         // Expose underlying model if needed
         public TaskSettings Model => _settings;
         public TaskSettingsAdvanced AdvancedSettings => _settings.AdvancedSettings;
-        public ShareX.ImageEditor.Hosting.ImageEditorOptions EditorOptions =>
-            (_settings.ToolsSettings ??= new TaskSettingsTools()).ImageEditorOptions ??= new();
 
         public WorkflowType Job
         {
@@ -87,6 +86,7 @@ namespace XerahS.UI.ViewModels
                     _settings.Job = value;
                     OnPropertyChanged();
                     OnPropertyChanged(nameof(IsIndexFolderJob));
+                    OnPropertyChanged(nameof(ShowIndexFolderTab));
                     OnPropertyChanged(nameof(IsScreenCaptureJob));
                     OnPropertyChanged(nameof(IsScreenRecordJob));
                 }

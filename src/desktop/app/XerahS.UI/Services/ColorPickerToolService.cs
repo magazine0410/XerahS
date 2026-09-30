@@ -42,12 +42,12 @@ namespace XerahS.UI.Services;
 /// </summary>
 public static class ColorPickerToolService
 {
-    public static Task HandleWorkflowAsync(WorkflowType job, Window? owner)
+    public static Task HandleWorkflowAsync(WorkflowType job, Window? owner, TaskSettings? taskSettings = null)
     {
         return job switch
         {
             WorkflowType.ColorPicker => ShowColorPickerAsync(owner),
-            WorkflowType.ScreenColorPicker => PickFromScreenAsync(owner, copyToClipboard: true),
+            WorkflowType.ScreenColorPicker => PickFromScreenAsync(owner, copyToClipboard: true, taskSettings),
             _ => Task.CompletedTask
         };
     }
@@ -65,7 +65,7 @@ public static class ColorPickerToolService
         await ShowDialogAsync(dialog, owner);
     }
 
-    public static async Task<PointInfo?> PickFromScreenAsync(Window? owner, bool copyToClipboard)
+    public static async Task<PointInfo?> PickFromScreenAsync(Window? owner, bool copyToClipboard, TaskSettings? taskSettings = null)
     {
         if (!PlatformServices.IsInitialized)
         {
@@ -82,7 +82,7 @@ public static class ColorPickerToolService
 
         if (copyToClipboard)
         {
-            await CopyResultAsync(selection);
+            await CopyResultAsync(selection, (taskSettings ?? SettingsManager.DefaultTaskSettings)?.ToolsSettingsReference);
         }
 
         return selection;
@@ -255,9 +255,8 @@ public static class ColorPickerToolService
         }
     }
 
-    private static async Task CopyResultAsync(PointInfo result)
+    private static async Task CopyResultAsync(PointInfo result, TaskSettingsTools? toolsSettings)
     {
-        var toolsSettings = SettingsManager.DefaultTaskSettings?.ToolsSettings;
         var clipboardText = ColorPickerService.GetClipboardText(toolsSettings, result.Color, result.Position, useCtrlFormat: false);
         var infoText = ColorPickerService.GetInfoText(toolsSettings, result.Color, result.Position);
 

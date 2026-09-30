@@ -129,6 +129,7 @@
                 <!-- Settings Menu -->
                 <MenuItem Header="_Settings">
                     <MenuItem Header="_Application Settings" Command="{Binding NavigateMenuCommand}" CommandParameter="Settings_App"/>
+                    <MenuItem Header="_Task Settings" Command="{Binding NavigateMenuCommand}" CommandParameter="Settings_Task"/>
                     <MenuItem Header="_Destination Settings" Command="{Binding NavigateMenuCommand}" CommandParameter="Settings_Dest"/>
                 </MenuItem>
                 

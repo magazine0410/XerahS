@@ -53,7 +53,7 @@ internal static class ToolWorkflowDispatcher
         {
             case WorkflowType.ColorPicker:
             case WorkflowType.ScreenColorPicker:
-                dispatchTask = ColorPickerToolService.HandleWorkflowAsync(workflowType, owner);
+                dispatchTask = ColorPickerToolService.HandleWorkflowAsync(workflowType, owner, taskSettings);
                 return true;
 
             case WorkflowType.OCR:

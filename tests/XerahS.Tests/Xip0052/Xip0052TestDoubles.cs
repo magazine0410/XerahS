@@ -252,6 +252,9 @@ internal sealed class FakeUiViewModelFactory : IUiViewModelFactory
     public TaskSettingsViewModel CreateTaskSettingsViewModel(TaskSettings settings) =>
         new(settings, ViewDialogService);
 
+    public TaskSettingsViewModel CreateDefaultTaskSettingsViewModel() =>
+        new(SettingsManager.DefaultTaskSettings, ViewDialogService) { IsDefaultTaskSettings = true };
+
     private static T CreateUninitialized<T>() where T : class =>
         (T)RuntimeHelpers.GetUninitializedObject(typeof(T));
 }

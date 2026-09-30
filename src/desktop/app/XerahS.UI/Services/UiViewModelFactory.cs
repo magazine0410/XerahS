@@ -87,4 +87,7 @@ public sealed class UiViewModelFactory(
 
     public ViewModels.TaskSettingsViewModel CreateTaskSettingsViewModel(TaskSettings settings) =>
         new(settings, viewDialogService, new EditorCore());
+
+    public ViewModels.TaskSettingsViewModel CreateDefaultTaskSettingsViewModel() =>
+        new(SettingsManager.DefaultTaskSettings, viewDialogService, new EditorCore()) { IsDefaultTaskSettings = true };
 }

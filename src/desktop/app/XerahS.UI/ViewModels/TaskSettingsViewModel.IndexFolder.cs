@@ -60,12 +60,12 @@ namespace XerahS.UI.ViewModels
 
         public string IndexerFolderPath
         {
-            get => _settings.ToolsSettings.IndexerFolderPath;
+            get => Tools.IndexerFolderPath;
             set
             {
-                if (_settings.ToolsSettings.IndexerFolderPath != value)
+                if (Tools.IndexerFolderPath != value)
                 {
-                    _settings.ToolsSettings.IndexerFolderPath = value;
+                    Tools.IndexerFolderPath = value;
                     OnPropertyChanged();
                 }
             }
@@ -73,12 +73,12 @@ namespace XerahS.UI.ViewModels
 
         public IndexerOutput IndexerOutput
         {
-            get => _settings.ToolsSettings.IndexerSettings.Output;
+            get => Tools.IndexerSettings.Output;
             set
             {
-                if (_settings.ToolsSettings.IndexerSettings.Output != value)
+                if (Tools.IndexerSettings.Output != value)
                 {
-                    _settings.ToolsSettings.IndexerSettings.Output = value;
+                    Tools.IndexerSettings.Output = value;
                     OnPropertyChanged();
                 }
             }
@@ -86,12 +86,12 @@ namespace XerahS.UI.ViewModels
 
         public bool IndexerSkipHiddenFolders
         {
-            get => _settings.ToolsSettings.IndexerSettings.SkipHiddenFolders;
+            get => Tools.IndexerSettings.SkipHiddenFolders;
             set
             {
-                if (_settings.ToolsSettings.IndexerSettings.SkipHiddenFolders != value)
+                if (Tools.IndexerSettings.SkipHiddenFolders != value)
                 {
-                    _settings.ToolsSettings.IndexerSettings.SkipHiddenFolders = value;
+                    Tools.IndexerSettings.SkipHiddenFolders = value;
                     OnPropertyChanged();
                 }
             }
@@ -99,12 +99,12 @@ namespace XerahS.UI.ViewModels
 
         public bool IndexerSkipHiddenFiles
         {
-            get => _settings.ToolsSettings.IndexerSettings.SkipHiddenFiles;
+            get => Tools.IndexerSettings.SkipHiddenFiles;
             set
             {
-                if (_settings.ToolsSettings.IndexerSettings.SkipHiddenFiles != value)
+                if (Tools.IndexerSettings.SkipHiddenFiles != value)
                 {
-                    _settings.ToolsSettings.IndexerSettings.SkipHiddenFiles = value;
+                    Tools.IndexerSettings.SkipHiddenFiles = value;
                     OnPropertyChanged();
                 }
             }
@@ -112,12 +112,12 @@ namespace XerahS.UI.ViewModels
 
         public bool IndexerSkipFiles
         {
-            get => _settings.ToolsSettings.IndexerSettings.SkipFiles;
+            get => Tools.IndexerSettings.SkipFiles;
             set
             {
-                if (_settings.ToolsSettings.IndexerSettings.SkipFiles != value)
+                if (Tools.IndexerSettings.SkipFiles != value)
                 {
-                    _settings.ToolsSettings.IndexerSettings.SkipFiles = value;
+                    Tools.IndexerSettings.SkipFiles = value;
                     OnPropertyChanged();
                 }
             }
@@ -125,12 +125,12 @@ namespace XerahS.UI.ViewModels
 
         public bool IndexerIgnoreEmptyFolders
         {
-            get => _settings.ToolsSettings.IndexerSettings.IgnoreEmptyFolders;
+            get => Tools.IndexerSettings.IgnoreEmptyFolders;
             set
             {
-                if (_settings.ToolsSettings.IndexerSettings.IgnoreEmptyFolders != value)
+                if (Tools.IndexerSettings.IgnoreEmptyFolders != value)
                 {
-                    _settings.ToolsSettings.IndexerSettings.IgnoreEmptyFolders = value;
+                    Tools.IndexerSettings.IgnoreEmptyFolders = value;
                     OnPropertyChanged();
                 }
             }
@@ -138,12 +138,12 @@ namespace XerahS.UI.ViewModels
 
         public int IndexerMaxDepthLevel
         {
-            get => _settings.ToolsSettings.IndexerSettings.MaxDepthLevel;
+            get => Tools.IndexerSettings.MaxDepthLevel;
             set
             {
-                if (_settings.ToolsSettings.IndexerSettings.MaxDepthLevel != value)
+                if (Tools.IndexerSettings.MaxDepthLevel != value)
                 {
-                    _settings.ToolsSettings.IndexerSettings.MaxDepthLevel = value;
+                    Tools.IndexerSettings.MaxDepthLevel = value;
                     OnPropertyChanged();
                 }
             }
@@ -151,12 +151,12 @@ namespace XerahS.UI.ViewModels
 
         public bool IndexerShowSizeInfo
         {
-            get => _settings.ToolsSettings.IndexerSettings.ShowSizeInfo;
+            get => Tools.IndexerSettings.ShowSizeInfo;
             set
             {
-                if (_settings.ToolsSettings.IndexerSettings.ShowSizeInfo != value)
+                if (Tools.IndexerSettings.ShowSizeInfo != value)
                 {
-                    _settings.ToolsSettings.IndexerSettings.ShowSizeInfo = value;
+                    Tools.IndexerSettings.ShowSizeInfo = value;
                     OnPropertyChanged();
                 }
             }
@@ -164,12 +164,12 @@ namespace XerahS.UI.ViewModels
 
         public bool IndexerAddFooter
         {
-            get => _settings.ToolsSettings.IndexerSettings.AddFooter;
+            get => Tools.IndexerSettings.AddFooter;
             set
             {
-                if (_settings.ToolsSettings.IndexerSettings.AddFooter != value)
+                if (Tools.IndexerSettings.AddFooter != value)
                 {
-                    _settings.ToolsSettings.IndexerSettings.AddFooter = value;
+                    Tools.IndexerSettings.AddFooter = value;
                     OnPropertyChanged();
                 }
             }
@@ -177,12 +177,12 @@ namespace XerahS.UI.ViewModels
 
         public string IndexerIndentationText
         {
-            get => _settings.ToolsSettings.IndexerSettings.IndentationText;
+            get => Tools.IndexerSettings.IndentationText;
             set
             {
-                if (_settings.ToolsSettings.IndexerSettings.IndentationText != value)
+                if (Tools.IndexerSettings.IndentationText != value)
                 {
-                    _settings.ToolsSettings.IndexerSettings.IndentationText = value;
+                    Tools.IndexerSettings.IndentationText = value;
                     OnPropertyChanged();
                 }
             }
@@ -190,12 +190,12 @@ namespace XerahS.UI.ViewModels
 
         public bool IndexerAddEmptyLineAfterFolders
         {
-            get => _settings.ToolsSettings.IndexerSettings.AddEmptyLineAfterFolders;
+            get => Tools.IndexerSettings.AddEmptyLineAfterFolders;
             set
             {
-                if (_settings.ToolsSettings.IndexerSettings.AddEmptyLineAfterFolders != value)
+                if (Tools.IndexerSettings.AddEmptyLineAfterFolders != value)
                 {
-                    _settings.ToolsSettings.IndexerSettings.AddEmptyLineAfterFolders = value;
+                    Tools.IndexerSettings.AddEmptyLineAfterFolders = value;
                     OnPropertyChanged();
                 }
             }
@@ -203,12 +203,12 @@ namespace XerahS.UI.ViewModels
 
         public bool IndexerUseCustomCssFile
         {
-            get => _settings.ToolsSettings.IndexerSettings.UseCustomCSSFile;
+            get => Tools.IndexerSettings.UseCustomCSSFile;
             set
             {
-                if (_settings.ToolsSettings.IndexerSettings.UseCustomCSSFile != value)
+                if (Tools.IndexerSettings.UseCustomCSSFile != value)
                 {
-                    _settings.ToolsSettings.IndexerSettings.UseCustomCSSFile = value;
+                    Tools.IndexerSettings.UseCustomCSSFile = value;
                     OnPropertyChanged();
                 }
             }
@@ -216,12 +216,12 @@ namespace XerahS.UI.ViewModels
 
         public bool IndexerDisplayPath
         {
-            get => _settings.ToolsSettings.IndexerSettings.DisplayPath;
+            get => Tools.IndexerSettings.DisplayPath;
             set
             {
-                if (_settings.ToolsSettings.IndexerSettings.DisplayPath != value)
+                if (Tools.IndexerSettings.DisplayPath != value)
                 {
-                    _settings.ToolsSettings.IndexerSettings.DisplayPath = value;
+                    Tools.IndexerSettings.DisplayPath = value;
                     OnPropertyChanged();
                 }
             }
@@ -229,12 +229,12 @@ namespace XerahS.UI.ViewModels
 
         public bool IndexerDisplayPathLimited
         {
-            get => _settings.ToolsSettings.IndexerSettings.DisplayPathLimited;
+            get => Tools.IndexerSettings.DisplayPathLimited;
             set
             {
-                if (_settings.ToolsSettings.IndexerSettings.DisplayPathLimited != value)
+                if (Tools.IndexerSettings.DisplayPathLimited != value)
                 {
-                    _settings.ToolsSettings.IndexerSettings.DisplayPathLimited = value;
+                    Tools.IndexerSettings.DisplayPathLimited = value;
                     OnPropertyChanged();
                 }
             }
@@ -242,12 +242,12 @@ namespace XerahS.UI.ViewModels
 
         public string IndexerCustomCssFilePath
         {
-            get => _settings.ToolsSettings.IndexerSettings.CustomCSSFilePath;
+            get => Tools.IndexerSettings.CustomCSSFilePath;
             set
             {
-                if (_settings.ToolsSettings.IndexerSettings.CustomCSSFilePath != value)
+                if (Tools.IndexerSettings.CustomCSSFilePath != value)
                 {
-                    _settings.ToolsSettings.IndexerSettings.CustomCSSFilePath = value;
+                    Tools.IndexerSettings.CustomCSSFilePath = value;
                     OnPropertyChanged();
                 }
             }
@@ -255,12 +255,12 @@ namespace XerahS.UI.ViewModels
 
         public bool IndexerUseAttribute
         {
-            get => _settings.ToolsSettings.IndexerSettings.UseAttribute;
+            get => Tools.IndexerSettings.UseAttribute;
             set
             {
-                if (_settings.ToolsSettings.IndexerSettings.UseAttribute != value)
+                if (Tools.IndexerSettings.UseAttribute != value)
                 {
-                    _settings.ToolsSettings.IndexerSettings.UseAttribute = value;
+                    Tools.IndexerSettings.UseAttribute = value;
                     OnPropertyChanged();
                 }
             }
@@ -268,12 +268,12 @@ namespace XerahS.UI.ViewModels
 
         public bool IndexerCreateParseableJson
         {
-            get => _settings.ToolsSettings.IndexerSettings.CreateParseableJson;
+            get => Tools.IndexerSettings.CreateParseableJson;
             set
             {
-                if (_settings.ToolsSettings.IndexerSettings.CreateParseableJson != value)
+                if (Tools.IndexerSettings.CreateParseableJson != value)
                 {
-                    _settings.ToolsSettings.IndexerSettings.CreateParseableJson = value;
+                    Tools.IndexerSettings.CreateParseableJson = value;
                     OnPropertyChanged();
                 }
             }
@@ -281,12 +281,12 @@ namespace XerahS.UI.ViewModels
 
         public bool IndexerBinaryUnits
         {
-            get => _settings.ToolsSettings.IndexerSettings.BinaryUnits;
+            get => Tools.IndexerSettings.BinaryUnits;
             set
             {
-                if (_settings.ToolsSettings.IndexerSettings.BinaryUnits != value)
+                if (Tools.IndexerSettings.BinaryUnits != value)
                 {
-                    _settings.ToolsSettings.IndexerSettings.BinaryUnits = value;
+                    Tools.IndexerSettings.BinaryUnits = value;
                     OnPropertyChanged();
                 }
             }

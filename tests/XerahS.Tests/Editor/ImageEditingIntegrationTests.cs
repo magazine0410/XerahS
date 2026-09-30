@@ -24,6 +24,7 @@
 #endregion License Information (GPL v3)
 
 using System.Reflection;
+using Avalonia.Automation;
 using Avalonia.Controls;
 using Avalonia.Headless;
 using Avalonia.Headless.NUnit;
@@ -112,32 +113,49 @@ public class ImageEditingIntegrationTests
     }
 
     [Test]
-    public void Options_AreIsolatedPerTask_AndExecutionCopiesReferToSavedOptions()
+    public void Options_ComeFromDefaultTaskSettings_UnlessTheWorkflowOverridesTools()
     {
-        var first = AddWorkflow("first");
-        var second = AddWorkflow("second");
-        var executionCopy = new TaskSettings { WorkflowId = "first" };
-        var options = ImageEditorOptionsStore.GetEditorOptions(executionCopy);
-        options.Thickness = 17;
-        options.BackgroundMargin = 123;
+        var inheriting = AddWorkflow("inheriting");
+        var overriding = AddWorkflow("overriding", overrideTools: true);
+        var defaults = SettingsManager.DefaultTaskSettings.ToolsSettings.ImageEditorOptions;
 
         Assert.Multiple(() =>
         {
-            Assert.That(options, Is.SameAs(first.ToolsSettings.ImageEditorOptions));
-            Assert.That(first.ToolsSettings.ImageEditorOptions.Thickness, Is.EqualTo(17));
-            Assert.That(second.ToolsSettings.ImageEditorOptions.Thickness, Is.EqualTo(4));
-            Assert.That(ImageEditorOptionsStore.GetEditorOptions(), Is.SameAs(SettingsManager.DefaultTaskSettings.ToolsSettings.ImageEditorOptions));
-            Assert.That(SettingsManager.DefaultTaskSettings.ToolsSettings.ImageEditorOptions.Thickness, Is.EqualTo(4));
+            Assert.That(inheriting.UseDefaultToolsSettings, Is.True, "ShareX default");
+            Assert.That(ImageEditorOptionsStore.GetEditorOptions(inheriting), Is.SameAs(defaults));
+            Assert.That(ImageEditorOptionsStore.GetEditorOptions(), Is.SameAs(defaults));
+            Assert.That(ImageEditorOptionsStore.GetEditorOptions(overriding), Is.SameAs(overriding.ToolsSettings.ImageEditorOptions));
+            Assert.That(ImageEditorOptionsStore.GetEditorOptions(overriding), Is.Not.SameAs(defaults));
+            Assert.That(ImageEditorOptionsStore.GetEditorOptions(new TaskSettings()), Is.SameAs(defaults), "Ad hoc tasks use the defaults.");
         });
+    }
 
-        var removedWorkflow = new TaskSettings { WorkflowId = "removed" };
-        Assert.That(ImageEditorOptionsStore.GetEditorOptions(removedWorkflow), Is.SameAs(removedWorkflow.ToolsSettings.ImageEditorOptions));
+    [Test]
+    public void ExecutionCopies_FollowTheSavedWorkflowsOverride()
+    {
+        var overriding = AddWorkflow("overriding", overrideTools: true);
+        AddWorkflow("inheriting");
+
+        // Copies carry a stale flag; the saved workflow decides.
+        var overridingCopy = new TaskSettings { WorkflowId = "overriding", UseDefaultToolsSettings = true };
+        var inheritingCopy = new TaskSettings { WorkflowId = "inheriting", UseDefaultToolsSettings = false };
+        var removedCopy = new TaskSettings { WorkflowId = "removed", UseDefaultToolsSettings = false };
+        ImageEditorOptionsStore.GetEditorOptions(overridingCopy).Thickness = 17;
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(overriding.ToolsSettings.ImageEditorOptions.Thickness, Is.EqualTo(17));
+            Assert.That(SettingsManager.DefaultTaskSettings.ToolsSettings.ImageEditorOptions.Thickness, Is.EqualTo(4));
+            Assert.That(ImageEditorOptionsStore.GetEditorOptions(inheritingCopy),
+                Is.SameAs(SettingsManager.DefaultTaskSettings.ToolsSettings.ImageEditorOptions));
+            Assert.That(ImageEditorOptionsStore.GetEditorOptions(removedCopy), Is.SameAs(removedCopy.ToolsSettings.ImageEditorOptions));
+        });
     }
 
     [Test]
     public async Task Preferences_RoundTripThroughWorkflowStorage()
     {
-        var settings = AddWorkflow("saved");
+        var settings = AddWorkflow("saved", overrideTools: true);
         var options = settings.ToolsSettings.ImageEditorOptions;
         options.ShowExitConfirmation = false;
         options.BackgroundMargin = 96;
@@ -154,6 +172,7 @@ public class ImageEditingIntegrationTests
 
         Assert.Multiple(() =>
         {
+            Assert.That(loaded.Hotkeys.Single(workflow => workflow.Id == "saved").TaskSettings.UseDefaultToolsSettings, Is.False);
             Assert.That(tools.ImageEditorOptions.ShowExitConfirmation, Is.False);
             Assert.That(tools.ImageEditorOptions.BackgroundMargin, Is.EqualTo(96));
             Assert.That(tools.ImageEditorOptions.BackgroundType, Is.EqualTo("Gradient"));
@@ -176,6 +195,7 @@ public class ImageEditingIntegrationTests
             Assert.That(settings.ToolsSettings.BackgroundRemoverOptions, Is.Not.Null);
             Assert.That(settings.ToolsSettings.IndexerFolderPath, Is.EqualTo("legacy"));
             Assert.That(settings.ToolsSettings.ImageEditorOptions.QuickCrop, Is.True);
+            Assert.That(settings.UseDefaultToolsSettings, Is.True, "Saved tasks without the flag use the default tools settings.");
         });
     }
 
@@ -184,7 +204,7 @@ public class ImageEditingIntegrationTests
     {
         Window? opened = null;
         using var subscription = Window.WindowOpenedEvent.AddClassHandler<Window>((window, _) => opened = window);
-        var settings = AddWorkflow("tools");
+        var settings = AddWorkflow("tools", overrideTools: true);
         foreach (var job in new[] { WorkflowType.BackgroundRemover, WorkflowType.ImageComparer, WorkflowType.IconConverter })
         {
             opened = null;
@@ -221,7 +241,7 @@ public class ImageEditingIntegrationTests
     [AvaloniaTest]
     public async Task Beautifier_UsesTaskPreferences_RendersBackground_AndPreservesCallerImage()
     {
-        var settings = AddWorkflow("beautifier");
+        var settings = AddWorkflow("beautifier", overrideTools: true);
         var options = settings.ToolsSettings.ImageEditorOptions;
         options.RememberWindowState = false;
         options.BackgroundType = "Color";
@@ -366,7 +386,7 @@ public class ImageEditingIntegrationTests
         var service = new RecordingUIService();
         var taskManager = new RecordingTaskManager();
         PlatformServices.RegisterUIService(service);
-        var settings = AddWorkflow("file");
+        var settings = AddWorkflow("file", overrideTools: true);
         string path = Path.Combine(_directory, "image.png");
         using (var bitmap = new SKBitmap(4, 3))
         using (var data = bitmap.Encode(SKEncodedImageFormat.Png, 100))
@@ -399,10 +419,11 @@ public class ImageEditingIntegrationTests
         Assert.That(service.Launches, Is.EqualTo(2));
     }
 
-    [Test]
-    public async Task CaptureAnnotation_PassesSavedTaskOptions()
+    [TestCase(false)]
+    [TestCase(true)]
+    public async Task CaptureAnnotation_PassesTheOptionsTheWorkflowUses(bool overrideTools)
     {
-        var settings = AddWorkflow("capture");
+        var settings = AddWorkflow("capture", overrideTools);
         var service = new RecordingUIService();
         PlatformServices.RegisterUIService(service);
         var executionCopy = new TaskSettings { WorkflowId = "capture", AfterCaptureJob = AfterCaptureTasks.AnnotateMedia };
@@ -410,7 +431,10 @@ public class ImageEditingIntegrationTests
         var info = new TaskInfo(executionCopy) { Metadata = new TaskMetadata(image) };
 
         Assert.That(await new CaptureJobProcessor().ProcessAsync(info, CancellationToken.None), Is.True);
-        Assert.That(service.Options, Is.SameAs(settings.ToolsSettings.ImageEditorOptions));
+        var expected = overrideTools
+            ? settings.ToolsSettings.ImageEditorOptions
+            : SettingsManager.DefaultTaskSettings.ToolsSettings.ImageEditorOptions;
+        Assert.That(service.Options, Is.SameAs(expected));
         Assert.That(service.TaskMode, Is.True);
     }
 
@@ -422,35 +446,181 @@ public class ImageEditingIntegrationTests
     }
 
     [AvaloniaTest]
-    public void TaskSettings_EditorControlsEditTheLocalTask_AndFitThePanel()
+    public void WorkflowToolsTab_IsDisabledUntilOverride_AndEditsTheLocalTask()
     {
         var saved = AddWorkflow("settings");
         var edited = new TaskSettings { WorkflowId = "settings" };
+        SettingsManager.DefaultTaskSettings.ToolsSettings.ImageEditorOptions.QuickCrop = false;
         var vm = new XerahS.UI.ViewModels.TaskSettingsViewModel(edited, new FakeViewDialogService());
         var panel = new XerahS.UI.Views.TaskSettingsPanel { DataContext = vm };
         var window = new Window { Width = 800, Height = 600, Content = panel };
         try
         {
             window.Show();
-            var tabs = panel.GetVisualDescendants().OfType<TabControl>().First();
-            tabs.SelectedItem = tabs.Items.OfType<TabItem>().Single(item => Equals(item.Header, "Image Editor"));
+            SelectTab(panel, "Tools");
+            var overrideBox = FindCheckBox(panel, "Override tools settings");
+            var quickCrop = FindCheckBox(panel, "Quick crop");
+            Assert.Multiple(() =>
+            {
+                Assert.That(overrideBox.IsVisible, Is.True);
+                Assert.That(overrideBox.IsChecked, Is.False);
+                Assert.That(quickCrop.IsEffectivelyEnabled, Is.False, "Inherited tools settings are read-only.");
+                Assert.That(quickCrop.IsChecked, Is.False, "While inheriting, the controls show the defaults the workflow uses.");
+            });
+            SavePreview(window, "WorkflowToolsInherited");
+
+            overrideBox.IsChecked = true;
             window.UpdateLayout();
-            var quickCrop = panel.GetVisualDescendants().OfType<CheckBox>().Single(box => Equals(box.Content, "Quick crop"));
+            Assert.That(quickCrop.IsChecked, Is.True, "With the override on, the controls show the workflow's own settings.");
             quickCrop.IsChecked = false;
-            Assert.That(edited.ToolsSettings.ImageEditorOptions.QuickCrop, Is.False);
-            Assert.That(saved.ToolsSettings.ImageEditorOptions.QuickCrop, Is.True, "Editing settings must not bypass workflow dialog Save/Cancel.");
-            SavePreview(window, "TaskSettings");
+            Assert.Multiple(() =>
+            {
+                Assert.That(edited.UseDefaultToolsSettings, Is.False);
+                Assert.That(quickCrop.IsEffectivelyEnabled, Is.True);
+                Assert.That(edited.ToolsSettings.ImageEditorOptions.QuickCrop, Is.False);
+                Assert.That(saved.ToolsSettings.ImageEditorOptions.QuickCrop, Is.True, "Editing settings must not bypass workflow dialog Save/Cancel.");
+                Assert.That(panel.GetVisualDescendants().OfType<TabItem>().Where(item => item.IsVisible).Select(item => item.Header),
+                    Has.None.EqualTo("Image").And.None.EqualTo("Video").And.None.EqualTo("Index Folder"));
+            });
+            SavePreview(window, "WorkflowToolsOverride");
             window.Width = 640;
             window.Height = 480;
             window.UpdateLayout();
             Assert.That(quickCrop.Bounds.Width, Is.GreaterThan(0));
-            SavePreview(window, "TaskSettingsCompact");
+            SavePreview(window, "WorkflowToolsCompact");
         }
         finally
         {
             window.Close();
         }
     }
+
+    [AvaloniaTest]
+    public void DefaultTaskSettingsPage_EditsTheDefaults_WithoutOverrideCheckbox()
+    {
+        var vm = new FakeUiViewModelFactory().CreateDefaultTaskSettingsViewModel();
+        var panel = new XerahS.UI.Views.TaskSettingsPanel { DataContext = vm };
+        var window = new Window { Width = 800, Height = 600, Content = panel };
+        try
+        {
+            window.Show();
+            var visibleTabs = panel.GetVisualDescendants().OfType<TabItem>().Where(item => item.IsVisible).Select(item => item.Header).ToList();
+            SelectTab(panel, "Tools");
+            var quickCrop = FindCheckBox(panel, "Quick crop");
+            var screenColorFormat = panel.GetVisualDescendants().OfType<TextBox>()
+                .Single(box => AutomationProperties.GetName(box) == "Screen Color Picker Format");
+            Assert.Multiple(() =>
+            {
+                Assert.That(vm.Model, Is.SameAs(SettingsManager.DefaultTaskSettings));
+                Assert.That(visibleTabs, Does.Contain("Image").And.Contain("Video").And.Contain("Index Folder").And.Contain("Tools"));
+                Assert.That(FindCheckBox(panel, "Override tools settings").IsVisible, Is.False);
+                Assert.That(quickCrop.IsEffectivelyEnabled, Is.True);
+            });
+
+            quickCrop.IsChecked = false;
+            screenColorFormat.Text = "$r, $g, $b";
+            Assert.Multiple(() =>
+            {
+                Assert.That(SettingsManager.DefaultTaskSettings.ToolsSettings.ImageEditorOptions.QuickCrop, Is.False);
+                Assert.That(SettingsManager.DefaultTaskSettings.ToolsSettings.ScreenColorPickerFormat, Is.EqualTo("$r, $g, $b"));
+                Assert.That(ImageEditorOptionsStore.GetEditorOptions(AddWorkflow("inheriting")).QuickCrop, Is.False);
+            });
+            SavePreview(window, "DefaultTaskSettingsTools");
+            SelectTab(panel, "Image");
+            SavePreview(window, "DefaultTaskSettingsImage");
+            SelectTab(panel, "Video");
+            SavePreview(window, "DefaultTaskSettingsVideo");
+        }
+        finally
+        {
+            window.Close();
+        }
+    }
+
+    [AvaloniaTest]
+    public async Task TaskModeEditor_ClosingAnUnchangedCapture_DoesNotAskToSave()
+    {
+        var options = ImageEditorOptionsStore.GetEditorOptions();
+        options.RememberWindowState = false;
+        Assert.That(options.ShowExitConfirmation, Is.True);
+        HostEditorWindow? opened = null;
+        using var subscription = Window.WindowOpenedEvent.AddClassHandler<HostEditorWindow>((window, _) => opened = window);
+        using var image = new SKBitmap(30, 20);
+        var service = new AvaloniaUIService(new FakeDesktopTaskManager());
+
+        var task = service.ShowEditorSessionAsync(image, taskMode: true);
+        Dispatcher.UIThread.RunJobs();
+        var vm = (MainViewModel)opened!.DataContext!;
+        Assert.That(vm.IsDirty, Is.False, "Loading the capture is not an edit.");
+        opened.Close();
+
+        Assert.That(vm.IsModalOpen, Is.False);
+        Assert.That(await task, Is.Null);
+    }
+
+    [Test]
+    public async Task PersistingToolPreferences_SavesWithoutRaisingSettingsChanged()
+    {
+        int raised = 0;
+        EventHandler handler = (_, _) => raised++;
+        SettingsManager.SettingsChanged += handler;
+        try
+        {
+            SettingsManager.DefaultTaskSettings.ToolsSettings.ImageEditorOptions.Thickness = 9;
+            await ImageEditorOptionsStore.PersistAsync();
+            await SettingsManager.SaveWorkflowsConfigAsync();
+        }
+        finally
+        {
+            SettingsManager.SettingsChanged -= handler;
+        }
+
+        var loaded = WorkflowsConfig.Load(SettingsManager.WorkflowsConfigFilePath, fallbackSupport: false);
+        Assert.Multiple(() =>
+        {
+            Assert.That(loaded.DefaultTaskSettings.ToolsSettings.ImageEditorOptions.Thickness, Is.EqualTo(9));
+            Assert.That(raised, Is.EqualTo(1), "Only the ordinary workflows save raises SettingsChanged.");
+        });
+    }
+
+    [Test]
+    public void IndexFolder_ShowsInheritedSettings_UntilTheWorkflowOverridesThem()
+    {
+        SettingsManager.DefaultTaskSettings.ToolsSettings.IndexerFolderPath = "/default/folder";
+        var inheriting = AddWorkflow("index");
+        inheriting.ToolsSettings.IndexerFolderPath = "/own/folder";
+        var overriding = AddWorkflow("index-override", overrideTools: true);
+        overriding.ToolsSettings.IndexerFolderPath = "/override/folder";
+
+        var tool = new XerahS.UI.ViewModels.IndexFolderViewModel(inheriting, false, new FakeViewDialogService(), new FakeDesktopTaskManager());
+        var overridingTool = new XerahS.UI.ViewModels.IndexFolderViewModel(overriding, false, new FakeViewDialogService(), new FakeDesktopTaskManager());
+        // The workflow editor edits a copy of the workflow.
+        var editedCopy = new TaskSettings { WorkflowId = "index" };
+        editedCopy.ToolsSettings.IndexerFolderPath = "/own/folder";
+        var editor = new XerahS.UI.ViewModels.IndexFolderViewModel(editedCopy, true, new FakeViewDialogService(), new FakeDesktopTaskManager());
+        string inheritedEditorPath = editor.FolderPath;
+        editedCopy.UseDefaultToolsSettings = false;
+        editor.ReloadToolsSettings();
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(tool.FolderPath, Is.EqualTo("/default/folder"));
+            Assert.That(overridingTool.FolderPath, Is.EqualTo("/override/folder"));
+            Assert.That(inheritedEditorPath, Is.EqualTo("/default/folder"), "While inheriting, the editor shows the defaults.");
+            Assert.That(editor.FolderPath, Is.EqualTo("/own/folder"));
+            Assert.That(SettingsManager.DefaultTaskSettings.ToolsSettings.IndexerFolderPath, Is.EqualTo("/default/folder"));
+        });
+    }
+
+    private static void SelectTab(Control panel, string header)
+    {
+        var tabs = panel.GetVisualDescendants().OfType<TabControl>().First();
+        tabs.SelectedItem = tabs.Items.OfType<TabItem>().Single(item => Equals(item.Header, header));
+        (TopLevel.GetTopLevel(panel) as Window)?.UpdateLayout();
+    }
+
+    private static CheckBox FindCheckBox(Control panel, string content) =>
+        panel.GetVisualDescendants().OfType<CheckBox>().Single(box => Equals(box.Content, content));
 
     private static void SavePreview(Window window, string name)
     {
@@ -463,9 +633,9 @@ public class ImageEditingIntegrationTests
         frame.Save(stream, PngBitmapEncoderOptions.Default);
     }
 
-    private static TaskSettings AddWorkflow(string id)
+    private static TaskSettings AddWorkflow(string id, bool overrideTools = false)
     {
-        var settings = new TaskSettings { WorkflowId = id };
+        var settings = new TaskSettings { WorkflowId = id, UseDefaultToolsSettings = !overrideTools };
         SettingsManager.WorkflowsConfig.Hotkeys.Add(new WorkflowSettings { Id = id, TaskSettings = settings });
         return settings;
     }

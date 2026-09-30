@@ -187,12 +187,26 @@
                 </ScrollViewer>
             </TabItem>
 
+            <!-- The workflow editor shows these in its own tabs; the default page shows them here. -->
+            <TabItem Header="Image" IsVisible="{Binding ShowMediaSettingsTabs}">
+                <views:TaskImageSettingsPanel/>
+            </TabItem>
+            <TabItem Header="Video" IsVisible="{Binding ShowMediaSettingsTabs}">
+                <views:TaskVideoSettingsPanel/>
+            </TabItem>
+
             <!-- Index Folder Tab (Conditional) -->
-            <TabItem Header="Index Folder" IsVisible="{Binding IsIndexFolderJob}">
+            <TabItem Header="Index Folder" IsVisible="{Binding ShowIndexFolderTab}">
                 <ScrollViewer>
                      <StackPanel Spacing="8" Margin="20">
+                        <CheckBox Content="Override tools settings"
+                                  IsChecked="{Binding OverrideToolsSettings}"
+                                  IsVisible="{Binding ShowOverrideToolsSettings}"
+                                  Margin="0,0,0,8"
+                                  ToolTip.Tip="When off, this workflow uses the tools settings from Settings > Task Settings."/>
                         <TextBlock Text="Index folder" FontWeight="SemiBold"/>
-                        <Border BorderBrush="{DynamicResource SystemControlForegroundBaseLowBrush}" BorderThickness="1" CornerRadius="4" Padding="16">
+                        <Border BorderBrush="{DynamicResource SystemControlForegroundBaseLowBrush}" BorderThickness="1" CornerRadius="4" Padding="16"
+                                IsEnabled="{Binding ToolsSettingsEnabled}">
                             <StackPanel Spacing="16">
                                 <Grid ColumnDefinitions="Auto, 16, *, Auto">
                                     <TextBlock Grid.Column="0" Text="Folder:" VerticalAlignment="Center"/>
@@ -436,19 +450,47 @@
                 </ScrollViewer>
             </TabItem>
 
-            <TabItem Header="Image Editor">
+            <!-- Tools Tab: ShareX's Tools and Image editor pages -->
+            <TabItem Header="Tools">
                 <ScrollViewer>
                     <StackPanel Spacing="16" Margin="20">
-                        <TextBlock Text="Image editor" FontWeight="SemiBold"/>
-                        <CheckBox Content="Remember window state" IsChecked="{Binding EditorOptions.RememberWindowState}"/>
-                        <CheckBox Content="Show exit confirmation" IsChecked="{Binding EditorOptions.ShowExitConfirmation}"/>
-                        <CheckBox Content="Zoom to fit on open" IsChecked="{Binding EditorOptions.ZoomToFitOnOpen}"/>
-                        <CheckBox Content="Quick crop" IsChecked="{Binding EditorOptions.QuickCrop}"/>
-                        <CheckBox Content="Auto close editor after a task" IsChecked="{Binding EditorOptions.AutoCloseEditorOnTask}"/>
-                        <CheckBox Content="Auto copy image to clipboard" IsChecked="{Binding EditorOptions.AutoCopyImageToClipboard}"/>
-                        <CheckBox Content="Show insert image dialog" IsChecked="{Binding EditorOptions.ShowInsertImageDialog}"/>
-                        <CheckBox Content="Show notifications" IsChecked="{Binding EditorOptions.ShowNotifications}"/>
-                        <Button Content="Customize toolbar..." Click="OnCustomizeEditorToolbarClick" HorizontalAlignment="Left"/>
+                        <CheckBox Content="Override tools settings"
+                                  IsChecked="{Binding OverrideToolsSettings}"
+                                  IsVisible="{Binding ShowOverrideToolsSettings}"
+                                  ToolTip.Tip="When off, this workflow uses the tools settings from Settings > Task Settings."/>
+
+                        <StackPanel Spacing="16" IsEnabled="{Binding ToolsSettingsEnabled}">
+                            <StackPanel Spacing="8">
+                                <TextBlock Text="Screen color picker" FontWeight="SemiBold"/>
+                                <Border BorderBrush="{DynamicResource SystemControlForegroundBaseLowBrush}" BorderThickness="1" CornerRadius="4" Padding="16">
+                                    <Grid ColumnDefinitions="Auto, 16, *" RowDefinitions="Auto, 12, Auto, 12, Auto">
+                                        <TextBlock Grid.Row="0" Text="Format:" VerticalAlignment="Center"/>
+                                        <TextBox Grid.Row="0" Grid.Column="2" Text="{Binding ScreenColorPickerFormat}" AutomationProperties.Name="Screen Color Picker Format"/>
+                                        <TextBlock Grid.Row="2" Text="Format (Ctrl + click):" VerticalAlignment="Center"/>
+                                        <TextBox Grid.Row="2" Grid.Column="2" Text="{Binding ScreenColorPickerFormatCtrl}" AutomationProperties.Name="Screen Color Picker Ctrl Format"/>
+                                        <TextBlock Grid.Row="4" Text="Info text:" VerticalAlignment="Top" Margin="0,6,0,0"/>
+                                        <TextBox Grid.Row="4" Grid.Column="2" Text="{Binding ScreenColorPickerInfoText}" AcceptsReturn="True" TextWrapping="Wrap" AutomationProperties.Name="Screen Color Picker Info Text"/>
+                                    </Grid>
+                                </Border>
+                            </StackPanel>
+
+                            <StackPanel Spacing="8">
+                                <TextBlock Text="Image editor" FontWeight="SemiBold"/>
+                                <Border BorderBrush="{DynamicResource SystemControlForegroundBaseLowBrush}" BorderThickness="1" CornerRadius="4" Padding="16">
+                                    <StackPanel Spacing="10">
+                                        <CheckBox Content="Remember window state" IsChecked="{Binding EditorOptions.RememberWindowState}"/>
+                                        <CheckBox Content="Show exit confirmation" IsChecked="{Binding EditorOptions.ShowExitConfirmation}"/>
+                                        <CheckBox Content="Zoom to fit on open" IsChecked="{Binding EditorOptions.ZoomToFitOnOpen}"/>
+                                        <CheckBox Content="Quick crop" IsChecked="{Binding EditorOptions.QuickCrop}"/>
+                                        <CheckBox Content="Auto close editor after a task" IsChecked="{Binding EditorOptions.AutoCloseEditorOnTask}"/>
+                                        <CheckBox Content="Auto copy image to clipboard" IsChecked="{Binding EditorOptions.AutoCopyImageToClipboard}"/>
+                                        <CheckBox Content="Show insert image dialog" IsChecked="{Binding EditorOptions.ShowInsertImageDialog}"/>
+                                        <CheckBox Content="Show notifications" IsChecked="{Binding EditorOptions.ShowNotifications}"/>
+                                        <Button Content="Customize toolbar..." Click="OnCustomizeEditorToolbarClick" HorizontalAlignment="Left"/>
+                                    </StackPanel>
+                                </Border>
+                            </StackPanel>
+                        </StackPanel>
                     </StackPanel>
                 </ScrollViewer>
             </TabItem>

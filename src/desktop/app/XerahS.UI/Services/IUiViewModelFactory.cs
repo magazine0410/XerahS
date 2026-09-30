@@ -52,4 +52,9 @@ public interface IUiViewModelFactory
     ViewModels.AutoCaptureViewModel CreateAutoCaptureViewModel();
     ViewModels.UploadContentViewModel CreateUploadContentViewModel();
     ViewModels.TaskSettingsViewModel CreateTaskSettingsViewModel(TaskSettings settings);
+
+    /// <summary>
+    /// Creates the view model for Settings &gt; Task Settings, which edits the default task settings.
+    /// </summary>
+    ViewModels.TaskSettingsViewModel CreateDefaultTaskSettingsViewModel();
 }

@@ -57,14 +57,15 @@ internal static class ImageEditorOptionsStore
     {
         try
         {
-            if (!await SettingsManager.SaveWorkflowsConfigAsync())
+            // Tool preferences change no hotkeys or menus, so the save does not raise SettingsChanged.
+            if (!await SettingsManager.SaveWorkflowsConfigAsync(raiseSettingsChanged: false))
             {
-                DebugHelper.WriteLine("Failed to save image editing tool preferences.");
+                DebugHelper.WriteLine("Failed to save task tool preferences.");
             }
         }
         catch (Exception ex)
         {
-            DebugHelper.WriteException(ex, "Failed to save image editing tool preferences");
+            DebugHelper.WriteException(ex, "Failed to save task tool preferences");
         }
     }
 }

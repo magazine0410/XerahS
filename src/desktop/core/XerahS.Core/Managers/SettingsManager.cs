@@ -414,10 +414,17 @@ namespace XerahS.Core
             RaiseSettingsChanged();
         }
 
-        public static async Task<bool> SaveWorkflowsConfigAsync()
+        /// <param name="raiseSettingsChanged">
+        /// False for saves that only persist tool preferences (image editor and tool window options).
+        /// SettingsChanged makes listeners rebuild the tray menu and re-register hotkeys.
+        /// </param>
+        public static async Task<bool> SaveWorkflowsConfigAsync(bool raiseSettingsChanged = true)
         {
             bool saved = WorkflowsConfig != null && await WorkflowsConfig.SaveAsync(WorkflowsConfigFilePath);
-            RaiseSettingsChanged();
+            if (raiseSettingsChanged)
+            {
+                RaiseSettingsChanged();
+            }
             return saved;
         }
 

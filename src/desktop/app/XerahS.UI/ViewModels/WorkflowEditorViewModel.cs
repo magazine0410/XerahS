@@ -170,6 +170,13 @@ public partial class WorkflowEditorViewModel : ViewModelBase
         // Initialize TaskSettings VM
         TaskSettings = _uiViewModelFactory.CreateTaskSettingsViewModel(_model.TaskSettings);
         IndexFolderConfig = _uiViewModelFactory.CreateIndexFolderViewModel(_model.TaskSettings, true);
+        TaskSettings.PropertyChanged += (_, e) =>
+        {
+            if (e.PropertyName == nameof(TaskSettingsViewModel.OverrideToolsSettings))
+            {
+                IndexFolderConfig.ReloadToolsSettings();
+            }
+        };
         LogStep(sw, "task settings viewmodels created");
 
         LoadJobCategories();

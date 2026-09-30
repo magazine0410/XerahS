@@ -251,6 +251,10 @@ namespace XerahS.UI.Views
                     _applicationSettingsView ??= CreateApplicationSettingsView();
                     contentFrame.Content = _applicationSettingsView;
                     return true;
+                case "Settings_Task":
+                    // Created on each visit so it always edits the current default task settings.
+                    contentFrame.Content = new DefaultTaskSettingsView();
+                    return true;
                 case "Settings_Dest":
                     _destinationSettingsView ??= CreateDestinationSettingsView();
                     contentFrame.Content = _destinationSettingsView;
@@ -555,6 +559,7 @@ namespace XerahS.UI.Views
         {
             NavigationNode settingsNode = CreateNode("Settings", "Settings", HostIcons.NavigationSettings, NavigationNodeKind.Group, isExpanded: true);
             settingsNode.AddChild(CreateNode("Application Settings", "Settings_App", null, NavigationNodeKind.Page));
+            settingsNode.AddChild(CreateNode("Task Settings", "Settings_Task", null, NavigationNodeKind.Page));
             settingsNode.AddChild(CreateNode("Destination Settings", "Settings_Dest", null, NavigationNodeKind.Page));
             return settingsNode;
         }

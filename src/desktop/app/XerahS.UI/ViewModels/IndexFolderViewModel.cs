@@ -84,6 +84,27 @@ public partial class IndexFolderViewModel : ViewModelBase
     [ObservableProperty]
     private string _folderPathError = string.Empty;
 
+    /// <summary>
+    /// The Index Folder tool uses the settings the task runs with (the default tool settings unless the
+    /// task overrides them). The workflow editor edits the task's own settings when it overrides them,
+    /// and shows the defaults, disabled, when it does not; it checks the edited copy's flag.
+    /// </summary>
+    private TaskSettingsTools Tools => !_isWorkflowConfigMode
+        ? _taskSettings.ToolsSettingsReference
+        : _taskSettings.UseDefaultToolsSettings && SettingsManager.DefaultTaskSettings != null
+            ? SettingsManager.DefaultTaskSettings.ToolsSettings ??= new TaskSettingsTools()
+            : _taskSettings.ToolsSettings ??= new TaskSettingsTools();
+
+    /// <summary>
+    /// Reloads the controls after the workflow editor's "Override tools settings" changes.
+    /// </summary>
+    public void ReloadToolsSettings()
+    {
+        FolderPath = Tools.IndexerFolderPath;
+        IsHtmlOutput = Tools.IndexerSettings.Output == IndexerOutput.Html;
+        OnPropertyChanged(string.Empty);
+    }
+
     public IndexFolderViewModel(TaskSettings? taskSettings, bool isWorkflowConfigMode, IViewDialogService dialogService, IDesktopTaskManager taskManager)
     {
         _dialogService = dialogService;
@@ -93,8 +114,8 @@ public partial class IndexFolderViewModel : ViewModelBase
         _isWorkflowConfigMode = isWorkflowConfigMode;
         _tempHtmlPath = Path.Combine(Path.GetTempPath(), $"xerahs_index_{Guid.NewGuid():N}.html");
 
-        FolderPath = _taskSettings.ToolsSettings.IndexerFolderPath;
-        IsHtmlOutput = _taskSettings.ToolsSettings.IndexerSettings.Output == IndexerOutput.Html;
+        FolderPath = Tools.IndexerFolderPath;
+        IsHtmlOutput = Tools.IndexerSettings.Output == IndexerOutput.Html;
         
         // Initialize progress reporter for async indexing
         _indexerProgress = new Progress<XerahS.Indexer.IndexerProgress>(OnIndexingProgress);
@@ -114,7 +135,7 @@ public partial class IndexFolderViewModel : ViewModelBase
 
     partial void OnFolderPathChanged(string value)
     {
-        _taskSettings.ToolsSettings.IndexerFolderPath = value;
+        Tools.IndexerFolderPath = value;
         if (!string.IsNullOrWhiteSpace(FolderPathError))
         {
             FolderPathError = string.Empty;
@@ -125,12 +146,12 @@ public partial class IndexFolderViewModel : ViewModelBase
 
     public IndexerOutput Output
     {
-        get => _taskSettings.ToolsSettings.IndexerSettings.Output;
+        get => Tools.IndexerSettings.Output;
         set
         {
-            if (_taskSettings.ToolsSettings.IndexerSettings.Output != value)
+            if (Tools.IndexerSettings.Output != value)
             {
-                _taskSettings.ToolsSettings.IndexerSettings.Output = value;
+                Tools.IndexerSettings.Output = value;
                 OnPropertyChanged();
                 OnOutputChanged(value);
             }
@@ -139,12 +160,12 @@ public partial class IndexFolderViewModel : ViewModelBase
 
     public bool SkipHiddenFolders
     {
-        get => _taskSettings.ToolsSettings.IndexerSettings.SkipHiddenFolders;
+        get => Tools.IndexerSettings.SkipHiddenFolders;
         set
         {
-            if (_taskSettings.ToolsSettings.IndexerSettings.SkipHiddenFolders != value)
+            if (Tools.IndexerSettings.SkipHiddenFolders != value)
             {
-                _taskSettings.ToolsSettings.IndexerSettings.SkipHiddenFolders = value;
+                Tools.IndexerSettings.SkipHiddenFolders = value;
                 OnPropertyChanged();
             }
         }
@@ -152,12 +173,12 @@ public partial class IndexFolderViewModel : ViewModelBase
 
     public bool SkipHiddenFiles
     {
-        get => _taskSettings.ToolsSettings.IndexerSettings.SkipHiddenFiles;
+        get => Tools.IndexerSettings.SkipHiddenFiles;
         set
         {
-            if (_taskSettings.ToolsSettings.IndexerSettings.SkipHiddenFiles != value)
+            if (Tools.IndexerSettings.SkipHiddenFiles != value)
             {
-                _taskSettings.ToolsSettings.IndexerSettings.SkipHiddenFiles = value;
+                Tools.IndexerSettings.SkipHiddenFiles = value;
                 OnPropertyChanged();
             }
         }
@@ -165,12 +186,12 @@ public partial class IndexFolderViewModel : ViewModelBase
 
     public bool SkipFiles
     {
-        get => _taskSettings.ToolsSettings.IndexerSettings.SkipFiles;
+        get => Tools.IndexerSettings.SkipFiles;
         set
         {
-            if (_taskSettings.ToolsSettings.IndexerSettings.SkipFiles != value)
+            if (Tools.IndexerSettings.SkipFiles != value)
             {
-                _taskSettings.ToolsSettings.IndexerSettings.SkipFiles = value;
+                Tools.IndexerSettings.SkipFiles = value;
                 OnPropertyChanged();
             }
         }
@@ -178,12 +199,12 @@ public partial class IndexFolderViewModel : ViewModelBase
 
     public bool IgnoreEmptyFolders
     {
-        get => _taskSettings.ToolsSettings.IndexerSettings.IgnoreEmptyFolders;
+        get => Tools.IndexerSettings.IgnoreEmptyFolders;
         set
         {
-            if (_taskSettings.ToolsSettings.IndexerSettings.IgnoreEmptyFolders != value)
+            if (Tools.IndexerSettings.IgnoreEmptyFolders != value)
             {
-                _taskSettings.ToolsSettings.IndexerSettings.IgnoreEmptyFolders = value;
+                Tools.IndexerSettings.IgnoreEmptyFolders = value;
                 OnPropertyChanged();
             }
         }
@@ -191,12 +212,12 @@ public partial class IndexFolderViewModel : ViewModelBase
 
     public int MaxDepthLevel
     {
-        get => _taskSettings.ToolsSettings.IndexerSettings.MaxDepthLevel;
+        get => Tools.IndexerSettings.MaxDepthLevel;
         set
         {
-            if (_taskSettings.ToolsSettings.IndexerSettings.MaxDepthLevel != value)
+            if (Tools.IndexerSettings.MaxDepthLevel != value)
             {
-                _taskSettings.ToolsSettings.IndexerSettings.MaxDepthLevel = value;
+                Tools.IndexerSettings.MaxDepthLevel = value;
                 OnPropertyChanged();
             }
         }
@@ -204,12 +225,12 @@ public partial class IndexFolderViewModel : ViewModelBase
 
     public bool ShowSizeInfo
     {
-        get => _taskSettings.ToolsSettings.IndexerSettings.ShowSizeInfo;
+        get => Tools.IndexerSettings.ShowSizeInfo;
         set
         {
-            if (_taskSettings.ToolsSettings.IndexerSettings.ShowSizeInfo != value)
+            if (Tools.IndexerSettings.ShowSizeInfo != value)
             {
-                _taskSettings.ToolsSettings.IndexerSettings.ShowSizeInfo = value;
+                Tools.IndexerSettings.ShowSizeInfo = value;
                 OnPropertyChanged();
             }
         }
@@ -217,12 +238,12 @@ public partial class IndexFolderViewModel : ViewModelBase
 
     public bool AddFooter
     {
-        get => _taskSettings.ToolsSettings.IndexerSettings.AddFooter;
+        get => Tools.IndexerSettings.AddFooter;
         set
         {
-            if (_taskSettings.ToolsSettings.IndexerSettings.AddFooter != value)
+            if (Tools.IndexerSettings.AddFooter != value)
             {
-                _taskSettings.ToolsSettings.IndexerSettings.AddFooter = value;
+                Tools.IndexerSettings.AddFooter = value;
                 OnPropertyChanged();
             }
         }
@@ -230,12 +251,12 @@ public partial class IndexFolderViewModel : ViewModelBase
 
     public string IndentationText
     {
-        get => _taskSettings.ToolsSettings.IndexerSettings.IndentationText;
+        get => Tools.IndexerSettings.IndentationText;
         set
         {
-            if (_taskSettings.ToolsSettings.IndexerSettings.IndentationText != value)
+            if (Tools.IndexerSettings.IndentationText != value)
             {
-                _taskSettings.ToolsSettings.IndexerSettings.IndentationText = value;
+                Tools.IndexerSettings.IndentationText = value;
                 OnPropertyChanged();
             }
         }
@@ -243,12 +264,12 @@ public partial class IndexFolderViewModel : ViewModelBase
 
     public bool AddEmptyLineAfterFolders
     {
-        get => _taskSettings.ToolsSettings.IndexerSettings.AddEmptyLineAfterFolders;
+        get => Tools.IndexerSettings.AddEmptyLineAfterFolders;
         set
         {
-            if (_taskSettings.ToolsSettings.IndexerSettings.AddEmptyLineAfterFolders != value)
+            if (Tools.IndexerSettings.AddEmptyLineAfterFolders != value)
             {
-                _taskSettings.ToolsSettings.IndexerSettings.AddEmptyLineAfterFolders = value;
+                Tools.IndexerSettings.AddEmptyLineAfterFolders = value;
                 OnPropertyChanged();
             }
         }
@@ -256,12 +277,12 @@ public partial class IndexFolderViewModel : ViewModelBase
 
     public bool UseCustomCssFile
     {
-        get => _taskSettings.ToolsSettings.IndexerSettings.UseCustomCSSFile;
+        get => Tools.IndexerSettings.UseCustomCSSFile;
         set
         {
-            if (_taskSettings.ToolsSettings.IndexerSettings.UseCustomCSSFile != value)
+            if (Tools.IndexerSettings.UseCustomCSSFile != value)
             {
-                _taskSettings.ToolsSettings.IndexerSettings.UseCustomCSSFile = value;
+                Tools.IndexerSettings.UseCustomCSSFile = value;
                 OnPropertyChanged();
             }
         }
@@ -269,12 +290,12 @@ public partial class IndexFolderViewModel : ViewModelBase
 
     public bool DisplayPath
     {
-        get => _taskSettings.ToolsSettings.IndexerSettings.DisplayPath;
+        get => Tools.IndexerSettings.DisplayPath;
         set
         {
-            if (_taskSettings.ToolsSettings.IndexerSettings.DisplayPath != value)
+            if (Tools.IndexerSettings.DisplayPath != value)
             {
-                _taskSettings.ToolsSettings.IndexerSettings.DisplayPath = value;
+                Tools.IndexerSettings.DisplayPath = value;
                 OnPropertyChanged();
             }
         }
@@ -282,12 +303,12 @@ public partial class IndexFolderViewModel : ViewModelBase
 
     public bool DisplayPathLimited
     {
-        get => _taskSettings.ToolsSettings.IndexerSettings.DisplayPathLimited;
+        get => Tools.IndexerSettings.DisplayPathLimited;
         set
         {
-            if (_taskSettings.ToolsSettings.IndexerSettings.DisplayPathLimited != value)
+            if (Tools.IndexerSettings.DisplayPathLimited != value)
             {
-                _taskSettings.ToolsSettings.IndexerSettings.DisplayPathLimited = value;
+                Tools.IndexerSettings.DisplayPathLimited = value;
                 OnPropertyChanged();
             }
         }
@@ -295,12 +316,12 @@ public partial class IndexFolderViewModel : ViewModelBase
 
     public string CustomCssFilePath
     {
-        get => _taskSettings.ToolsSettings.IndexerSettings.CustomCSSFilePath;
+        get => Tools.IndexerSettings.CustomCSSFilePath;
         set
         {
-            if (_taskSettings.ToolsSettings.IndexerSettings.CustomCSSFilePath != value)
+            if (Tools.IndexerSettings.CustomCSSFilePath != value)
             {
-                _taskSettings.ToolsSettings.IndexerSettings.CustomCSSFilePath = value;
+                Tools.IndexerSettings.CustomCSSFilePath = value;
                 OnPropertyChanged();
             }
         }
@@ -308,12 +329,12 @@ public partial class IndexFolderViewModel : ViewModelBase
 
     public bool UseAttribute
     {
-        get => _taskSettings.ToolsSettings.IndexerSettings.UseAttribute;
+        get => Tools.IndexerSettings.UseAttribute;
         set
         {
-            if (_taskSettings.ToolsSettings.IndexerSettings.UseAttribute != value)
+            if (Tools.IndexerSettings.UseAttribute != value)
             {
-                _taskSettings.ToolsSettings.IndexerSettings.UseAttribute = value;
+                Tools.IndexerSettings.UseAttribute = value;
                 OnPropertyChanged();
             }
         }
@@ -321,12 +342,12 @@ public partial class IndexFolderViewModel : ViewModelBase
 
     public bool CreateParseableJson
     {
-        get => _taskSettings.ToolsSettings.IndexerSettings.CreateParseableJson;
+        get => Tools.IndexerSettings.CreateParseableJson;
         set
         {
-            if (_taskSettings.ToolsSettings.IndexerSettings.CreateParseableJson != value)
+            if (Tools.IndexerSettings.CreateParseableJson != value)
             {
-                _taskSettings.ToolsSettings.IndexerSettings.CreateParseableJson = value;
+                Tools.IndexerSettings.CreateParseableJson = value;
                 OnPropertyChanged();
             }
         }
@@ -334,15 +355,15 @@ public partial class IndexFolderViewModel : ViewModelBase
 
     public string IncludedFileExtensionsText
     {
-        get => _taskSettings.ToolsSettings.IndexerSettings.IncludedFileExtensions != null 
-            ? string.Join(", ", _taskSettings.ToolsSettings.IndexerSettings.IncludedFileExtensions) 
+        get => Tools.IndexerSettings.IncludedFileExtensions != null 
+            ? string.Join(", ", Tools.IndexerSettings.IncludedFileExtensions) 
             : string.Empty;
         set
         {
             var list = ParseExtensionsText(value);
-            if (!ListEquals(_taskSettings.ToolsSettings.IndexerSettings.IncludedFileExtensions, list))
+            if (!ListEquals(Tools.IndexerSettings.IncludedFileExtensions, list))
             {
-                _taskSettings.ToolsSettings.IndexerSettings.IncludedFileExtensions = list;
+                Tools.IndexerSettings.IncludedFileExtensions = list;
                 OnPropertyChanged();
             }
         }
@@ -350,15 +371,15 @@ public partial class IndexFolderViewModel : ViewModelBase
 
     public string ExcludedFileExtensionsText
     {
-        get => _taskSettings.ToolsSettings.IndexerSettings.ExcludedFileExtensions != null 
-            ? string.Join(", ", _taskSettings.ToolsSettings.IndexerSettings.ExcludedFileExtensions) 
+        get => Tools.IndexerSettings.ExcludedFileExtensions != null 
+            ? string.Join(", ", Tools.IndexerSettings.ExcludedFileExtensions) 
             : string.Empty;
         set
         {
             var list = ParseExtensionsText(value);
-            if (!ListEquals(_taskSettings.ToolsSettings.IndexerSettings.ExcludedFileExtensions, list))
+            if (!ListEquals(Tools.IndexerSettings.ExcludedFileExtensions, list))
             {
-                _taskSettings.ToolsSettings.IndexerSettings.ExcludedFileExtensions = list;
+                Tools.IndexerSettings.ExcludedFileExtensions = list;
                 OnPropertyChanged();
             }
         }
@@ -389,12 +410,12 @@ public partial class IndexFolderViewModel : ViewModelBase
 
     public bool BinaryUnits
     {
-        get => _taskSettings.ToolsSettings.IndexerSettings.BinaryUnits;
+        get => Tools.IndexerSettings.BinaryUnits;
         set
         {
-            if (_taskSettings.ToolsSettings.IndexerSettings.BinaryUnits != value)
+            if (Tools.IndexerSettings.BinaryUnits != value)
             {
-                _taskSettings.ToolsSettings.IndexerSettings.BinaryUnits = value;
+                Tools.IndexerSettings.BinaryUnits = value;
                 OnPropertyChanged();
             }
         }
@@ -474,9 +495,9 @@ public partial class IndexFolderViewModel : ViewModelBase
         try
         {
             _taskSettings.Job = WorkflowType.IndexFolder;
-            _taskSettings.ToolsSettings.IndexerFolderPath = FolderPath;
+            Tools.IndexerFolderPath = FolderPath;
 
-            var indexerSettings = _taskSettings.ToolsSettings.IndexerSettings ?? new XerahS.Indexer.IndexerSettings();
+            var indexerSettings = Tools.IndexerSettings ?? new XerahS.Indexer.IndexerSettings();
             
             // Use async indexer with progress reporting and cancellation support
             string outputExtension = GetOutputExtension(Output);
