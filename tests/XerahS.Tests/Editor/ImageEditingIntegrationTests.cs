@@ -246,7 +246,7 @@ public class ImageEditingIntegrationTests
         UiViewModelFactoryAccessor.Configure(new FakeUiViewModelFactory());
         var saved = AddWorkflow("effects");
         saved.ImageSettings.ImageEffectsPreset = new ImageEffectPreset { Name = "Flip" };
-        saved.AfterCaptureJob = AfterCaptureTasks.AddImageEffects | AfterCaptureTasks.UploadImageToHost;
+        saved.AfterCaptureJob = AfterCaptureTasks.AddImageEffects | AfterCaptureTasks.CopyImageToClipboard;
         // Left half red, right half blue, so a horizontal flip is visible.
         using var image = new SKBitmap(80, 60);
         using (var canvas = new SKCanvas(image))
@@ -281,8 +281,8 @@ public class ImageEditingIntegrationTests
             Assert.Multiple(() =>
             {
                 Assert.That(manager.Calls, Is.EqualTo(1));
-                Assert.That(manager.Settings!.AfterCaptureJob, Is.EqualTo(AfterCaptureTasks.UploadImageToHost),
-                    "The preset is already applied, so Add image effects is skipped.");
+                Assert.That(manager.Settings!.AfterCaptureJob, Is.EqualTo(AfterCaptureTasks.CopyImageToClipboard | AfterCaptureTasks.UploadImageToHost),
+                    "Upload always uploads, keeps the other tasks, and skips Add image effects (the preset is already applied).");
                 Assert.That(manager.Settings.WorkflowId, Is.EqualTo("effects"));
             });
         }

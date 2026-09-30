@@ -184,13 +184,16 @@ internal static class ImageEditingToolService
 
     /// <summary>
     /// ShareX's Upload runs the image task (UploadManager.RunImageTask) with the workflow's after-capture tasks.
-    /// The preset is already applied, so "Add image effects" is skipped instead of applying it a second time.
+    /// "Upload image to host" is added for this run so the button always uploads, even when the workflow's
+    /// after-capture tasks leave it out (ShareX's defaults include it). The preset is already applied, so
+    /// "Add image effects" is skipped instead of applying it a second time.
     /// </summary>
     internal static Task UploadImageEffectsResultAsync(SKBitmap result, TaskSettings sourceSettings, IDesktopTaskManager taskManager)
     {
         var executionSettings = WatchFolderManager.CloneTaskSettings(sourceSettings);
         executionSettings.WorkflowId = sourceSettings.WorkflowId;
-        executionSettings.AfterCaptureJob &= ~AfterCaptureTasks.AddImageEffects;
+        executionSettings.AfterCaptureJob = (executionSettings.AfterCaptureJob & ~AfterCaptureTasks.AddImageEffects)
+            | AfterCaptureTasks.UploadImageToHost;
         return taskManager.StartTask(executionSettings, result.Copy());
     }
 }
