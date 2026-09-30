@@ -35,6 +35,7 @@ internal static class NavigationSearchKeywords
     private static readonly Dictionary<string, string> ToolAliases = new(StringComparer.Ordinal)
     {
         ["Tools_ColorPicker"] = "color picker colour eyedropper",
+        ["Tools_ScreenColorPicker"] = "screen color picker colour eyedropper pixel copy clipboard",
         ["Tools_Ruler"] = "ruler measure measurement",
         ["Tools_IndexFolder"] = "index folder directory listing",
         ["Tools_QrGenerator"] = "qr barcode qrcode generate",

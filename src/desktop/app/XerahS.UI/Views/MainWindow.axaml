@@ -84,6 +84,7 @@
                 <!-- Tools Menu -->
                 <MenuItem Header="_Tools">
                     <MenuItem Header="_Color Picker..." Command="{Binding NavigateMenuCommand}" CommandParameter="Tools_ColorPicker"/>
+                    <MenuItem Header="Scr_een Color Picker" Command="{Binding NavigateMenuCommand}" CommandParameter="Tools_ScreenColorPicker"/>
                     <MenuItem Header="_Ruler" Command="{Binding NavigateMenuCommand}" CommandParameter="Tools_Ruler"/>
                     <Separator/>
                     <MenuItem Header="_QR Code">

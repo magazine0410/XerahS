@@ -522,6 +522,7 @@ namespace XerahS.UI.Views
         {
             NavigationNode toolsNode = CreateNode("Tools", "Tools", HostIcons.NavigationTools, NavigationNodeKind.Page);
             toolsNode.AddChild(CreateNode("Color Picker...", "Tools_ColorPicker", null, NavigationNodeKind.Action));
+            toolsNode.AddChild(CreateNode("Screen Color Picker", "Tools_ScreenColorPicker", null, NavigationNodeKind.Action));
             toolsNode.AddChild(CreateNode("Ruler", "Tools_Ruler", null, NavigationNodeKind.Action));
             toolsNode.AddChild(CreateNode("Index Folder...", "Tools_IndexFolder", null, NavigationNodeKind.Action));
 
