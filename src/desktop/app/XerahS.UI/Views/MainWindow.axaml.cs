@@ -820,7 +820,9 @@ namespace XerahS.UI.Views
                 return XerahS.Core.Helpers.TaskHelpers.ExecuteWorkflow(workflow, workflow.Id);
             }
 
-            return XerahS.Core.Helpers.TaskHelpers.ExecuteJob(jobType, new TaskSettings { Job = jobType });
+            var settings = XerahS.Core.Managers.WatchFolderManager.CloneTaskSettings(SettingsManager.DefaultTaskSettings);
+            settings.Job = jobType;
+            return XerahS.Core.Helpers.TaskHelpers.ExecuteJob(jobType, settings);
         }
 
     }

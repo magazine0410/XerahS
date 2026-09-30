@@ -57,4 +57,9 @@ public interface IUiViewModelFactory
     /// Creates the view model for Settings &gt; Task Settings, which edits the default task settings.
     /// </summary>
     ViewModels.TaskSettingsViewModel CreateDefaultTaskSettingsViewModel();
+
+    /// <summary>
+    /// Creates a preset editor for <paramref name="settings"/>' image effect preset (the Image effects tool).
+    /// </summary>
+    ViewModels.ImageEffectsViewModel CreateImageEffectsViewModel(TaskSettingsImage settings);
 }

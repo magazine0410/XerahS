@@ -1,0 +1,22 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        x:Class="XerahS.UI.Views.DragDropUploadWindow"
+        Title="Drag and drop upload" Width="150" Height="150"
+        WindowDecorations="None" CanResize="False" Topmost="True" ShowInTaskbar="False"
+        DragDrop.AllowDrop="True" AutomationProperties.Name="Drop files, folders, images or text to upload">
+    <Window.Styles>
+        <Style Selector="Border.drag-over">
+            <Setter Property="BorderBrush" Value="{DynamicResource SystemControlHighlightAccentBrush}"/>
+            <Setter Property="BorderThickness" Value="3"/>
+        </Style>
+    </Window.Styles>
+    <Border x:Name="DropSurface" Padding="8" BorderThickness="2"
+            BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}"
+            Background="{DynamicResource SolidBackgroundFillColorSecondaryBrush}"
+            ToolTip.Tip="Drop to upload. Drag to move. Right-click or press Escape to close.">
+        <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center" Spacing="8">
+            <TextBlock x:Name="DropIcon" Text="↑" FontSize="36" HorizontalAlignment="Center"/>
+            <TextBlock x:Name="DropText" Text="Drop here" TextAlignment="Center" TextWrapping="Wrap"/>
+        </StackPanel>
+    </Border>
+</Window>

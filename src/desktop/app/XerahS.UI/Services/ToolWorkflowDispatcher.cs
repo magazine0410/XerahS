@@ -66,6 +66,7 @@ internal static class ToolWorkflowDispatcher
 
             case WorkflowType.ImageEditor:
             case WorkflowType.ImageBeautifier:
+            case WorkflowType.ImageEffects:
             case WorkflowType.BackgroundRemover:
             case WorkflowType.ImageComparer:
             case WorkflowType.IconConverter:
@@ -113,6 +114,13 @@ internal static class ToolWorkflowDispatcher
             case WorkflowType.ClipboardUploadWithContentViewer:
             case WorkflowType.ClipboardViewer:
                 dispatchTask = UploadContentToolService.HandleWorkflowAsync(workflowType, owner);
+                return true;
+
+            case WorkflowType.FolderUpload:
+            case WorkflowType.UploadText:
+            case WorkflowType.DragDropUpload:
+            case WorkflowType.ShortenURL:
+                dispatchTask = UploadWorkflowService.HandleWorkflowAsync(workflowType, owner, taskSettings, taskManager);
                 return true;
 
             case WorkflowType.ImageCombiner:

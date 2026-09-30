@@ -1,0 +1,27 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        x:Class="XerahS.UI.Views.Dialogs.MultiUploadConfirmationWindow"
+        Classes="xerahs-surface"
+        Title="Upload files"
+        Width="440"
+        MinWidth="360"
+        SizeToContent="Height"
+        CanResize="False"
+        Topmost="True"
+        ShowInTaskbar="False"
+        WindowStartupLocation="CenterScreen">
+    <!-- ShareX's multi-upload confirmation, shown before uploading more than 10 files. -->
+    <Border Background="{DynamicResource SolidBackgroundFillColorSecondaryBrush}"
+            BorderBrush="{DynamicResource SurfaceStrokeColorDefaultBrush}"
+            BorderThickness="1"
+            Padding="16">
+        <StackPanel Spacing="14">
+            <TextBlock x:Name="MessageText" FontSize="15" TextWrapping="Wrap"/>
+            <CheckBox x:Name="DontShowAgainCheckBox" Content="Don't show this message again."/>
+            <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Spacing="8">
+                <Button Content="Upload" Classes="accent" IsDefault="True" Click="OnUploadClick"/>
+                <Button Content="Cancel" IsCancel="True" Click="OnCancelClick"/>
+            </StackPanel>
+        </StackPanel>
+    </Border>
+</Window>

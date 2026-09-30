@@ -242,6 +242,26 @@ namespace XerahS.UI.Views
                     _ = ExecuteWorkflowFromNavigationAsync(WorkflowType.ClipboardUploadWithContentViewer);
                     openedExternalWindow = true;
                     return true;
+                case "Upload_FolderUpload":
+                    _ = ExecuteWorkflowFromNavigationAsync(WorkflowType.FolderUpload);
+                    openedExternalWindow = true;
+                    return true;
+                case "Upload_UploadText":
+                    _ = ExecuteWorkflowFromNavigationAsync(WorkflowType.UploadText);
+                    openedExternalWindow = true;
+                    return true;
+                case "Upload_DragDropUpload":
+                    _ = ExecuteWorkflowFromNavigationAsync(WorkflowType.DragDropUpload);
+                    openedExternalWindow = true;
+                    return true;
+                case "Upload_ShortenURL":
+                    _ = ExecuteWorkflowFromNavigationAsync(WorkflowType.ShortenURL);
+                    openedExternalWindow = true;
+                    return true;
+                case "Upload_StopUploads":
+                    _ = ExecuteWorkflowFromNavigationAsync(WorkflowType.StopUploads);
+                    openedExternalWindow = true;
+                    return true;
                 case "Upload_FileUpload":
                     _ = ExecuteWorkflowFromNavigationAsync(WorkflowType.FileUpload);
                     openedExternalWindow = true;
@@ -513,8 +533,14 @@ namespace XerahS.UI.Views
         private static NavigationNode CreateUploadNode()
         {
             NavigationNode uploadNode = CreateNode("Upload", "Upload", HostIcons.NavigationUpload, NavigationNodeKind.Group);
+            // Same order as ShareX's Upload menu.
             uploadNode.AddChild(CreateNode("Upload File...", "Upload_FileUpload", null, NavigationNodeKind.Action));
+            uploadNode.AddChild(CreateNode("Upload Folder...", "Upload_FolderUpload", null, NavigationNodeKind.Action));
             uploadNode.AddChild(CreateNode("Upload Content...", "Upload_ClipboardUploadWithContentViewer", null, NavigationNodeKind.Action));
+            uploadNode.AddChild(CreateNode("Upload Text...", "Upload_UploadText", null, NavigationNodeKind.Action));
+            uploadNode.AddChild(CreateNode("Drag and Drop Upload", "Upload_DragDropUpload", null, NavigationNodeKind.Action));
+            uploadNode.AddChild(CreateNode("Shorten URL...", "Upload_ShortenURL", null, NavigationNodeKind.Action));
+            uploadNode.AddChild(CreateNode("Stop All Uploads", "Upload_StopUploads", null, NavigationNodeKind.Action));
             return uploadNode;
         }
 
@@ -533,6 +559,7 @@ namespace XerahS.UI.Views
             toolsNode.AddChild(qrCodeNode);
 
             toolsNode.AddChild(CreateNode("Image Combiner...", "Tools_ImageCombiner", null, NavigationNodeKind.Action));
+            toolsNode.AddChild(CreateNode("Image Effects...", "Tools_ImageEffects", null, NavigationNodeKind.Action));
             toolsNode.AddChild(CreateNode("Image Beautifier...", "Tools_ImageBeautifier", null, NavigationNodeKind.Action));
             toolsNode.AddChild(CreateNode("Background Remover...", "Tools_BackgroundRemover", null, NavigationNodeKind.Action));
             toolsNode.AddChild(CreateNode("Image Comparer...", "Tools_ImageComparer", null, NavigationNodeKind.Action));

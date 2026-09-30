@@ -22,14 +22,32 @@
 */
 
 #endregion License Information (GPL v3)
+
 using Avalonia.Controls;
+using XerahS.UI.Controls;
+using XerahS.UI.ViewModels;
 
 namespace XerahS.UI.Views;
 
-public partial class TaskImageSettingsPanel : UserControl
+/// <summary>
+/// Image effect preset editor: effect list, effect properties, and preview.
+/// </summary>
+public partial class ImageEffectsEditorPanel : UserControl
 {
-    public TaskImageSettingsPanel()
+    public ImageEffectsEditorPanel()
     {
         InitializeComponent();
+
+        var propertyGrid = this.FindControl<PropertyGrid>("EffectPropertyGrid");
+        if (propertyGrid != null)
+        {
+            propertyGrid.PropertyValueChanged += (_, _) =>
+            {
+                if (DataContext is ImageEffectsViewModel vm)
+                {
+                    vm.UpdatePreview();
+                }
+            };
+        }
     }
 }

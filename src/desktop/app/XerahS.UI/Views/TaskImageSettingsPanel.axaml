@@ -4,6 +4,7 @@
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              xmlns:vm="using:XerahS.UI.ViewModels"
              xmlns:controls="using:XerahS.UI.Controls"
+             xmlns:views="using:XerahS.UI.Views"
              xmlns:imagefx="clr-namespace:ShareX.ImageEditor.Core.ImageEffects;assembly=ShareX.ImageEditor"
              mc:Ignorable="d" d:DesignWidth="800" d:DesignHeight="600"
              x:Class="XerahS.UI.Views.TaskImageSettingsPanel"
@@ -59,59 +60,7 @@
 
             <!-- Effects Tab -->
             <TabItem Header="Effects">
-                <Grid RowDefinitions="Auto, *" Margin="8">
-                    <!-- Top Toolbar -->
-                    <Border Grid.Row="0" Margin="0,0,0,16" Background="{DynamicResource CardBackgroundFillColorDefaultBrush}" BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}" BorderThickness="1" CornerRadius="6" Padding="12">
-                        <Grid ColumnDefinitions="*, Auto">
-                            <StackPanel Orientation="Horizontal" Spacing="16" VerticalAlignment="Center">
-                                <TextBlock Text="Preset:" FontWeight="SemiBold" VerticalAlignment="Center"/>
-                                <TextBlock Text="{Binding ImageEffects.Name}" VerticalAlignment="Center"/>
-                            </StackPanel>
-                            <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="10">
-                                <Button Command="{Binding ImageEffects.ImportEffectsCommand}" Content="Import..." AutomationProperties.Name="Import Image Effects Preset"/>
-                                <Button Command="{Binding ImageEffects.SavePresetCommand}" Content="Export..." AutomationProperties.Name="Export Image Effects Preset"/>
-                            </StackPanel>
-                        </Grid>
-                    </Border>
-
-                    <!-- Main Content -->
-                    <Grid Grid.Row="1" ColumnDefinitions="1.1*, 16, 1.1*, 16, 1.3*" HorizontalAlignment="Stretch" VerticalAlignment="Stretch">
-                        <!-- Effects List -->
-                        <Grid Grid.Column="0" RowDefinitions="Auto, *, Auto">
-                            <TextBlock Grid.Row="0" Text="Active Effects" FontWeight="SemiBold" Margin="0,0,0,8"/>
-                            <Border Grid.Row="1" BorderThickness="1" BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}" Background="{DynamicResource CardBackgroundFillColorDefaultBrush}" CornerRadius="6">
-                                <ListBox ItemsSource="{Binding ImageEffects.Effects}" SelectedItem="{Binding ImageEffects.SelectedEffect}" Background="Transparent" BorderThickness="0"
-                                         AutomationProperties.Name="Active Effects List">
-                                    <ListBox.ItemTemplate>
-                                        <DataTemplate x:DataType="imagefx:ImageEffect">
-                                            <TextBlock Text="{Binding Name}"/>
-                                        </DataTemplate>
-                                    </ListBox.ItemTemplate>
-                                </ListBox>
-                            </Border>
-                            <StackPanel Grid.Row="2" Orientation="Horizontal" Spacing="8" Margin="0,8,0,0">
-                                <Button Content="Add Effect" Command="{Binding ImageEffects.OpenEffectBrowserDialogCommand}" AutomationProperties.Name="Add Effect Browser"/>
-                                <Button Command="{Binding ImageEffects.RemoveEffectCommand}" Content="Remove" AutomationProperties.Name="Remove Selected Effect"/>
-                            </StackPanel>
-                        </Grid>
-
-                        <!-- Properties -->
-                        <Grid Grid.Column="2" RowDefinitions="Auto, *">
-                            <TextBlock Grid.Row="0" Text="Properties" FontWeight="SemiBold" Margin="0,0,0,8"/>
-                            <Border Grid.Row="1" BorderThickness="1" BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}" Background="{DynamicResource CardBackgroundFillColorDefaultBrush}" CornerRadius="6" Padding="8">
-                                <controls:PropertyGrid x:Name="EffectPropertyGrid" SelectedObject="{Binding ImageEffects.SelectedEffect}" AutomationProperties.Name="Effect Properties"/>
-                            </Border>
-                        </Grid>
-
-                        <!-- Preview -->
-                        <Grid Grid.Column="4" RowDefinitions="Auto, *">
-                            <TextBlock Grid.Row="0" Text="Preview" FontWeight="SemiBold" Margin="0,0,0,8"/>
-                            <Border Grid.Row="1" BorderThickness="1" BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}" Background="{DynamicResource CardBackgroundFillColorDefaultBrush}" CornerRadius="6" MinHeight="260">
-                                <Image Source="{Binding ImageEffects.PreviewBitmap}" Stretch="Uniform" Margin="10" AutomationProperties.Name="Effect Preview"/>
-                            </Border>
-                        </Grid>
-                    </Grid>
-                </Grid>
+                <views:ImageEffectsEditorPanel DataContext="{Binding ImageEffects}"/>
             </TabItem>
         </TabControl>
     </Border>

@@ -71,7 +71,7 @@ namespace XerahS.Core.Tasks.Pipeline
 
         private static bool ShouldRequireSuccessfulUpload(TaskInfo info)
         {
-            return info.Job == TaskJob.FileUpload || info.Job == TaskJob.TextUpload;
+            return info.Job is TaskJob.FileUpload or TaskJob.TextUpload or TaskJob.ShortenURL;
         }
 
         private static bool IsUploadResultSuccessful(XerahS.Uploaders.UploadResult? result)

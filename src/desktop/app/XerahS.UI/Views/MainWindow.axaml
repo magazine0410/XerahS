@@ -46,7 +46,13 @@
                     <Separator/>
                     <MenuItem Header="_Upload">
                         <MenuItem Header="Upload _File..." Command="{Binding NavigateMenuCommand}" CommandParameter="Upload_FileUpload"/>
+                        <MenuItem Header="Upload F_older..." Command="{Binding NavigateMenuCommand}" CommandParameter="Upload_FolderUpload"/>
                         <MenuItem Header="Upload _Content..." Command="{Binding NavigateMenuCommand}" CommandParameter="Upload_ClipboardUploadWithContentViewer"/>
+                        <MenuItem Header="Upload _Text..." Command="{Binding NavigateMenuCommand}" CommandParameter="Upload_UploadText"/>
+                        <MenuItem Header="_Drag and Drop Upload" Command="{Binding NavigateMenuCommand}" CommandParameter="Upload_DragDropUpload"/>
+                        <MenuItem Header="_Shorten URL..." Command="{Binding NavigateMenuCommand}" CommandParameter="Upload_ShortenURL"/>
+                        <Separator/>
+                        <MenuItem Header="Stop _All Uploads" Command="{Binding NavigateMenuCommand}" CommandParameter="Upload_StopUploads"/>
                     </MenuItem>
                     <Separator/>
                     <MenuItem Header="_Save" Command="{Binding #MainWindowRoot.DataContext.SaveCommand}" InputGesture="Ctrl+S"/>
@@ -105,6 +111,7 @@
                     <MenuItem Header="_Index Folder..." Command="{Binding NavigateMenuCommand}" CommandParameter="Tools_IndexFolder"/>
                     <Separator/>
                     <MenuItem Header="_Image Combiner..." Command="{Binding NavigateMenuCommand}" CommandParameter="Tools_ImageCombiner"/>
+                    <MenuItem Header="Image E_ffects..." Command="{Binding NavigateMenuCommand}" CommandParameter="Tools_ImageEffects"/>
                     <MenuItem Header="Image Beautifier..." Command="{Binding NavigateMenuCommand}" CommandParameter="Tools_ImageBeautifier"/>
                     <MenuItem Header="Background Remover..." Command="{Binding NavigateMenuCommand}" CommandParameter="Tools_BackgroundRemover"/>
                     <MenuItem Header="Image Comparer..." Command="{Binding NavigateMenuCommand}" CommandParameter="Tools_ImageComparer"/>

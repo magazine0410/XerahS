@@ -28,7 +28,6 @@ using XerahS.History;
 using XerahS.Platform.Abstractions;
 using XerahS.Services;
 using XerahS.Uploaders;
-using XerahS.Uploaders.PluginSystem;
 using ShareX.ImageEditor.Core.Persistence;
 using ShareX.ImageEditor.Hosting;
 using XerahS.Core.Services;
@@ -167,7 +166,7 @@ namespace XerahS.Core.Tasks.Processors
 
             if (settings.AfterCaptureJob.HasFlag(AfterCaptureTasks.UploadImageToHost))
             {
-                await UploadImageAsync(info);
+                await UploadImageAsync(info, token);
                 if (!annotationSidecarSaveAttempted)
                 {
                     annotationSidecarPath = await SaveAnnotationSidecarAsync(info, editorResult);
@@ -495,7 +494,7 @@ namespace XerahS.Core.Tasks.Processors
             await Task.CompletedTask;
         }
 
-        private async Task UploadImageAsync(TaskInfo info)
+        private async Task UploadImageAsync(TaskInfo info, CancellationToken token)
         {
             if (string.IsNullOrEmpty(info.FilePath) && info.Metadata?.Image != null)
             {
@@ -512,7 +511,8 @@ namespace XerahS.Core.Tasks.Processors
 
             try
             {
-                var pluginResult = TryUploadWithPluginSystem(info);
+                info.DataType = EDataType.Image;
+                var pluginResult = await new UploadJobProcessor().UploadAsync(info, token);
                 if (pluginResult == null)
                 {
                     DebugHelper.WriteLine("Plugin upload did not return a result.");
@@ -521,12 +521,14 @@ namespace XerahS.Core.Tasks.Processors
 
                 HandleUploadResult(info, pluginResult);
             }
+            catch (OperationCanceledException)
+            {
+                throw;
+            }
             catch (Exception ex)
             {
                 DebugHelper.WriteException(ex, "Upload error");
             }
-
-            await Task.CompletedTask;
         }
 
         private async Task PerformOCRAsync(TaskInfo info)
@@ -627,12 +629,6 @@ namespace XerahS.Core.Tasks.Processors
             return float.IsFinite(scaleFactor) ? Math.Max(scaleFactor, 1f) : 1f;
         }
 
-        private static UploadResult? UploadWithGenericUploader(GenericUploader uploader, string filePath)
-        {
-            using FileStream stream = new FileStream(filePath, FileMode.Open, FileAccess.Read, FileShare.Read);
-            return uploader.Upload(stream, Path.GetFileName(filePath));
-        }
-
         private static void HandleUploadResult(TaskInfo info, UploadResult? result)
         {
             if (result != null && !result.IsError && !string.IsNullOrEmpty(result.URL))
@@ -647,182 +643,6 @@ namespace XerahS.Core.Tasks.Processors
 
             string? errorText = result?.Errors?.Errors?.FirstOrDefault()?.Text ?? result?.Errors?.ToString();
             DebugHelper.WriteLine($"Upload failed: {errorText ?? "Unknown upload error."}");
-        }
-
-        private static UploadResult? TryUploadWithPluginSystem(TaskInfo info)
-        {
-            EnsurePluginsLoaded();
-
-            var instanceManager = InstanceManager.Instance;
-            var configuredInstanceId = info.TaskSettings.GetDestinationInstanceIdForDataType(EDataType.Image);
-            UploaderInstance? targetInstance = null;
-
-            if (!string.IsNullOrEmpty(configuredInstanceId))
-            {
-                targetInstance = instanceManager.GetInstance(configuredInstanceId);
-                if (targetInstance == null)
-                {
-                    DebugHelper.WriteLine($"Configured image uploader instance not found: {configuredInstanceId}");
-                    return TryUploadWithFallback(instanceManager, UploaderCategory.Image, info.FilePath, configuredInstanceId);
-                }
-            }
-
-            // Check if Auto destination is selected
-            if (targetInstance != null && InstanceManager.IsAutoProvider(targetInstance.ProviderId))
-            {
-                return TryUploadWithFallback(instanceManager, UploaderCategory.Image, info.FilePath, configuredInstanceId);
-            }
-
-            // Not Auto - use the configured instance directly
-            targetInstance ??= instanceManager.GetDefaultInstance(UploaderCategory.Image);
-            
-            if (targetInstance != null && InstanceManager.IsAutoProvider(targetInstance.ProviderId))
-            {
-                return TryUploadWithFallback(instanceManager, UploaderCategory.Image, info.FilePath, null);
-            }
-
-            if (targetInstance == null)
-            {
-                DebugHelper.WriteLine("No default image uploader instance configured; trying available uploaders.");
-                return TryUploadWithFallback(instanceManager, UploaderCategory.Image, info.FilePath, configuredInstanceId);
-            }
-
-            var primaryResult = TryUploadWithInstance(targetInstance, info.FilePath);
-            if (primaryResult != null && !primaryResult.IsError && !string.IsNullOrEmpty(primaryResult.URL))
-            {
-                return primaryResult;
-            }
-
-            var primaryError = primaryResult?.Errors?.ToString() ?? primaryResult?.Response ?? "Unknown error";
-            DebugHelper.WriteLine(
-                $"Primary capture uploader '{targetInstance.DisplayName}' failed ({primaryError}). Trying fallback uploaders.");
-
-            return TryUploadWithFallback(instanceManager, UploaderCategory.Image, info.FilePath, targetInstance.InstanceId);
-        }
-
-        /// <summary>
-        /// Tries to upload using multiple instances with fallback logic.
-        /// When one instance fails, it tries the next available instance.
-        /// Falls back to File category uploaders if the primary category fails.
-        /// </summary>
-        private static UploadResult? TryUploadWithFallback(InstanceManager instanceManager, UploaderCategory category, string filePath, string? excludeInstanceId, HashSet<string>? attemptedInstanceIds = null)
-        {
-            attemptedInstanceIds ??= new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-            
-            DebugHelper.WriteLine($"Trying uploaders with fallback for category {category}.");
-
-            // Get all available instances for this category that haven't been attempted yet
-            var allInstances = GetPrioritizedInstances(instanceManager, category, excludeInstanceId)
-                .Where(i => !attemptedInstanceIds.Contains(i.InstanceId))
-                .ToList();
-
-            if (allInstances.Count == 0)
-            {
-                DebugHelper.WriteLine($"No available uploaders for category {category} (excluding already attempted).");
-            }
-            else
-            {
-                DebugHelper.WriteLine($"Found {allInstances.Count} potential uploaders to try in category {category}.");
-
-                List<string> failedInstances = new();
-
-                foreach (var instance in allInstances)
-                {
-                    // Mark as attempted to avoid retrying in fallback categories
-                    attemptedInstanceIds.Add(instance.InstanceId);
-                    
-                    DebugHelper.WriteLine($"Trying uploader: {instance.DisplayName} ({instance.ProviderId})");
-
-                    var result = TryUploadWithInstance(instance, filePath);
-
-                    if (result != null && !result.IsError && !string.IsNullOrEmpty(result.URL))
-                    {
-                        DebugHelper.WriteLine($"Upload successful with {instance.DisplayName}.");
-                        return result;
-                    }
-
-                    // Track failed instance
-                    failedInstances.Add($"{instance.DisplayName} ({instance.ProviderId})");
-                    DebugHelper.WriteLine($"Uploader {instance.DisplayName} failed, trying next...");
-                }
-
-                DebugHelper.WriteLine($"All uploaders in category {category} failed. Tried: {string.Join(", ", failedInstances)}");
-            }
-
-            // If primary category failed (or had no uploaders), try File category as fallback
-            if (category != UploaderCategory.File)
-            {
-                DebugHelper.WriteLine($"Trying File category uploaders as fallback...");
-                var fileFallbackResult = TryUploadWithFallback(instanceManager, UploaderCategory.File, filePath, excludeInstanceId, attemptedInstanceIds);
-                if (fileFallbackResult != null)
-                {
-                    return fileFallbackResult;
-                }
-            }
-
-            return null;
-        }
-
-        /// <summary>
-        /// Gets all available instances for a category, prioritized by:
-        /// 1. Default instance first
-        /// 2. Other instances sorted by creation time (newest first)
-        /// </summary>
-        private static List<UploaderInstance> GetPrioritizedInstances(InstanceManager instanceManager, UploaderCategory category, string? excludeInstanceId)
-        {
-            var allInstances = instanceManager.GetInstancesByCategory(category)
-                .Where(i => !InstanceManager.IsAutoProvider(i.ProviderId))
-                .Where(i => excludeInstanceId == null || !string.Equals(i.InstanceId, excludeInstanceId, StringComparison.OrdinalIgnoreCase))
-                .ToList();
-
-            var defaultInstance = instanceManager.GetDefaultInstance(category);
-
-            // Sort: default first, then by creation time (newest first)
-            var ordered = allInstances
-                .OrderByDescending(i => defaultInstance != null && i.InstanceId == defaultInstance.InstanceId)
-                .ThenByDescending(i => i.CreatedAt)
-                .ToList();
-
-            return ordered;
-        }
-
-        /// <summary>
-        /// Attempts to upload using a specific instance. Returns null if creation or upload fails.
-        /// </summary>
-        private static UploadResult? TryUploadWithInstance(UploaderInstance instance, string filePath)
-        {
-            var provider = ProviderCatalog.GetProvider(instance.ProviderId);
-            if (provider == null)
-            {
-                DebugHelper.WriteLine($"Provider not found in catalog: {instance.ProviderId}");
-                return null;
-            }
-
-            Uploader uploader;
-            try
-            {
-                uploader = (Uploader)provider.CreateInstance(instance.SettingsJson);
-            }
-            catch (Exception ex)
-            {
-                DebugHelper.WriteException(ex, $"Failed to create uploader instance for {instance.DisplayName}");
-                return null;
-            }
-
-            try
-            {
-                return uploader switch
-                {
-                    FileUploader fileUploader => fileUploader.UploadFile(filePath),
-                    GenericUploader genericUploader => UploadWithGenericUploader(genericUploader, filePath),
-                    _ => null
-                };
-            }
-            catch (Exception ex)
-            {
-                DebugHelper.WriteException(ex, $"Upload failed for {instance.DisplayName}");
-                return null;
-            }
         }
 
         /// <summary>
@@ -892,26 +712,5 @@ namespace XerahS.Core.Tasks.Processors
             }
         }
 
-        private static void EnsurePluginsLoaded()
-        {
-            if (ProviderCatalog.ArePluginsLoaded())
-            {
-                return;
-            }
-
-            try
-            {
-                XerahS.Core.Uploaders.ProviderContextManager.EnsureProviderContext();
-                ProviderCatalog.InitializeBuiltInProviders();
-                var pluginPaths = PathsManager.GetPluginDirectories();
-                DebugHelper.WriteLine($"Loading plugins from: {string.Join(", ", pluginPaths)}");
-                ProviderCatalog.LoadPlugins(pluginPaths);
-                DebugHelper.WriteLine($"Plugin providers available: {ProviderCatalog.GetAllProviders().Count}");
-            }
-            catch (Exception ex)
-            {
-                DebugHelper.WriteException(ex, "Failed to load plugins");
-            }
-        }
     }
 }

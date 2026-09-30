@@ -286,13 +286,29 @@ public partial class WorkflowEditorViewModel : ViewModelBase
                 yield break;
 
             case EnumExtensions.WorkflowType_Category_Upload:
-                if (job == WorkflowType.FileUpload)
+                if (job == WorkflowType.StopUploads) yield break;
+
+                if (job == WorkflowType.ShortenURL)
+                {
+                    yield return UploaderCategory.UrlShortener;
+                    yield break;
+                }
+
+                if (job == WorkflowType.UploadText)
+                {
+                    yield return UploaderCategory.Text;
+                    yield return UploaderCategory.File;
+                    yield break;
+                }
+
+                if (job is WorkflowType.FileUpload or WorkflowType.FolderUpload)
                 {
                     yield return UploaderCategory.File;
                     yield break;
                 }
 
                 if (job == WorkflowType.ClipboardUpload ||
+                    job == WorkflowType.DragDropUpload ||
                     job == WorkflowType.ClipboardUploadWithContentViewer)
                 {
                     yield return UploaderCategory.Image;

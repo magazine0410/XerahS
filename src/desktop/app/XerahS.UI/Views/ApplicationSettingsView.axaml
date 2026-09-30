@@ -188,6 +188,42 @@
                             </Border>
                         </StackPanel>
 
+                        <StackPanel Spacing="8" controls:SettingsSearch.IsPanel="True">
+                            <TextBlock Text="Drag and drop upload window" FontWeight="SemiBold"/>
+                            <Border BorderThickness="1" BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}"
+                                    Background="{DynamicResource CardBackgroundFillColorDefaultBrush}" CornerRadius="4" Padding="16">
+                                <StackPanel Spacing="12">
+                                    <TextBlock Text="Open it from Upload → Drag and drop upload or assign a workflow hotkey. Drag the window to move it; right-click to close."
+                                               TextWrapping="Wrap"/>
+                                    <Grid ColumnDefinitions="*,16,140">
+                                        <TextBlock Text="Size (pixels)" VerticalAlignment="Center" TextWrapping="Wrap"/>
+                                        <NumericUpDown Grid.Column="2" Value="{Binding DropSize}" Minimum="10" Maximum="300" FormatString="0"
+                                                       AutomationProperties.Name="Drop window Size (pixels)"/>
+                                    </Grid>
+                                    <Grid ColumnDefinitions="*,16,140">
+                                        <TextBlock Text="Distance from screen edge (pixels)" VerticalAlignment="Center" TextWrapping="Wrap"/>
+                                        <NumericUpDown Grid.Column="2" Value="{Binding DropOffset}" Minimum="0" Maximum="1000" FormatString="0"
+                                                       AutomationProperties.Name="Drop window Distance from screen edge (pixels)"/>
+                                    </Grid>
+                                    <Grid ColumnDefinitions="*,16,140">
+                                        <TextBlock Text="Opacity (1–255)" VerticalAlignment="Center" TextWrapping="Wrap"/>
+                                        <NumericUpDown Grid.Column="2" Value="{Binding DropOpacity}" Minimum="1" Maximum="255" FormatString="0"
+                                                       AutomationProperties.Name="Drop window Opacity (1–255)"/>
+                                    </Grid>
+                                    <Grid ColumnDefinitions="*,16,140">
+                                        <TextBlock Text="Hover opacity (1–255)" VerticalAlignment="Center" TextWrapping="Wrap"/>
+                                        <NumericUpDown Grid.Column="2" Value="{Binding DropHoverOpacity}" Minimum="1" Maximum="255" FormatString="0"
+                                                       AutomationProperties.Name="Drop window Hover opacity (1–255)"/>
+                                    </Grid>
+                                    <Grid ColumnDefinitions="*,16,180">
+                                        <TextBlock Text="Screen alignment" VerticalAlignment="Center"/>
+                                        <ComboBox Grid.Column="2" ItemsSource="{Binding DropAlignments}" SelectedItem="{Binding DropAlignment}"
+                                                  HorizontalAlignment="Stretch" AutomationProperties.Name="Drop window alignment"/>
+                                    </Grid>
+                                </StackPanel>
+                            </Border>
+                        </StackPanel>
+
                         <!-- Taskbar -->
                         <StackPanel Spacing="8" controls:SettingsSearch.IsPanel="True">
                             <TextBlock Text="Taskbar" FontWeight="SemiBold"/>

@@ -87,8 +87,12 @@ public static partial class TaskHelpers
         return job switch
         {
             WorkflowType.FileUpload or
+            WorkflowType.FolderUpload or
+            WorkflowType.DragDropUpload or
             WorkflowType.ClipboardUpload or
             WorkflowType.ClipboardUploadWithContentViewer => JobMediaType.File,
+            WorkflowType.UploadText or WorkflowType.ShortenURL => JobMediaType.Text,
+            WorkflowType.StopUploads => JobMediaType.System,
             _ => JobMediaType.None
         };
     }
@@ -103,6 +107,7 @@ public static partial class TaskHelpers
             // Image-specific tools
             WorkflowType.ImageEditor or
             WorkflowType.ImageBeautifier or
+            WorkflowType.ImageEffects or
             WorkflowType.BackgroundRemover or
             WorkflowType.ImageComparer or
             WorkflowType.IconConverter or

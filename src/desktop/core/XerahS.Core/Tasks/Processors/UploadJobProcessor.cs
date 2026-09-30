@@ -40,7 +40,9 @@ namespace XerahS.Core.Tasks.Processors
         public async Task<bool> ProcessAsync(TaskInfo info, CancellationToken token)
         {
             if (!info.IsUploadJob) return true;
-            if (token.IsCancellationRequested) return true;
+            using var scope = new UploadCancellationScope(token);
+            token = scope.Token;
+            token.ThrowIfCancellationRequested();
 
             if (info.Result != null && !info.Result.IsError && !string.IsNullOrEmpty(info.Result.URL))
             {
@@ -48,9 +50,6 @@ namespace XerahS.Core.Tasks.Processors
                 await HandleAfterUploadTasksAsync(info, info.Result, token);
                 return true;
             }
-
-            // TODO: Handle URL Shortening, URL Sharing logic separate? Or combined?
-            // For now, focus on File/Image/Text upload.
 
             UploadResult? result = null;
 
@@ -111,8 +110,11 @@ namespace XerahS.Core.Tasks.Processors
             return true;
         }
 
-        private async Task<UploadResult?> UploadAsync(TaskInfo info, CancellationToken token)
+        internal async Task<UploadResult?> UploadAsync(TaskInfo info, CancellationToken token)
         {
+            using var scope = new UploadCancellationScope(token);
+            token = scope.Token;
+            token.ThrowIfCancellationRequested();
             if ((info.DataType is EDataType.Image or EDataType.File) && !string.IsNullOrEmpty(info.FilePath))
             {
                 FileReadinessStatus readiness = await FileReadiness.WaitUntilReadyAsync(info.FilePath, cancellationToken: token).ConfigureAwait(false);
@@ -136,6 +138,7 @@ namespace XerahS.Core.Tasks.Processors
                     EDataType.Image => UploadWithPluginSystemAsync(info, UploaderCategory.Image, token),
                     EDataType.Text => UploadWithPluginSystemAsync(info, UploaderCategory.Text, token),
                     EDataType.File => UploadWithPluginSystemAsync(info, UploaderCategory.File, token),
+                    EDataType.URL => ShortenUrlAsync(info, token),
                     _ => Task.FromResult<UploadResult?>(null)
                 };
             }
@@ -143,6 +146,55 @@ namespace XerahS.Core.Tasks.Processors
             {
                 DebugHelper.WriteException(ex, "UploadJobProcessor");
                 return Task.FromResult<UploadResult?>(new UploadResult { IsSuccess = false, Response = ex.Message });
+            }
+        }
+
+        private static async Task<UploadResult?> ShortenUrlAsync(TaskInfo info, CancellationToken token)
+        {
+            string url = info.TextContent?.Trim() ?? string.Empty;
+            if (!Uri.TryCreate(url, UriKind.Absolute, out var uri) ||
+                (uri.Scheme != Uri.UriSchemeHttp && uri.Scheme != Uri.UriSchemeHttps) || string.IsNullOrEmpty(uri.Host))
+            {
+                return new UploadResult { IsSuccess = false, Response = "Enter a valid HTTP or HTTPS URL." };
+            }
+
+            EnsurePluginsLoaded();
+            var manager = InstanceManager.Instance;
+            var id = info.TaskSettings.UrlShortenerDestinationInstanceId;
+            var instance = string.IsNullOrWhiteSpace(id)
+                ? ResolveDefaultInstance(manager, UploaderCategory.UrlShortener)
+                : ResolveRequestedInstance(manager, id, UploaderCategory.UrlShortener, allowCrossCategoryFallback: false);
+            if (instance == null)
+            {
+                return new UploadResult { IsSuccess = false, Response = "No URL shortener configured. Select a URL shortener in Destinations." };
+            }
+
+            try
+            {
+                object? uploader = ProviderCatalog.GetProvider(instance.ProviderId)?.CreateInstance(instance.SettingsJson);
+                var result = await UploaderUploadAdapter.ShortenAsync(uploader, url, token).ConfigureAwait(false);
+                token.ThrowIfCancellationRequested();
+
+                // Shorteners retain the original URL even on failure; it is not evidence of success.
+                if (string.IsNullOrWhiteSpace(result.ShortenedURL) || result.Errors.Count > 0)
+                {
+                    result.URL = null;
+                    result.IsSuccess = false;
+                    result.Response = result.ErrorsToString() is { Length: > 0 } errors
+                        ? errors : result.Response ?? "The URL shortener returned no shortened URL.";
+                    return result;
+                }
+
+                result.URL = result.ShortenedURL;
+                result.IsSuccess = true;
+                ApplyResolvedUploaderHost(info, instance, result);
+                return result;
+            }
+            catch (OperationCanceledException) { throw; }
+            catch (Exception ex)
+            {
+                DebugHelper.WriteException(ex, "URL shortening failed");
+                return new UploadResult { IsSuccess = false, Response = ex.Message };
             }
         }
 

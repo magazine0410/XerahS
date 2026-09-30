@@ -177,7 +177,7 @@ public class TaskSettings
     /// </summary>
     public string? GetDestinationInstanceId(WorkflowType job)
     {
-        return DestinationInstanceId;
+        return job == WorkflowType.ShortenURL ? UrlShortenerDestinationInstanceId : DestinationInstanceId;
     }
 
     /// <summary>
@@ -190,7 +190,14 @@ public class TaskSettings
             return false;
         }
 
-        DestinationInstanceId = NormalizeInstanceId(instanceId);
+        if (job == WorkflowType.ShortenURL)
+        {
+            UrlShortenerDestinationInstanceId = NormalizeInstanceId(instanceId);
+        }
+        else
+        {
+            DestinationInstanceId = NormalizeInstanceId(instanceId);
+        }
         return true;
     }
 
@@ -478,7 +485,7 @@ public class TaskSettingsAdvanced
     [Category("Upload text"), DefaultValue("text"), Description("Text format.")]
     public string TextFormat { get; set; } = "text";
 
-    [Category("Upload text"), DefaultValue(""), Description("Custom text input.")]
+    [Category("Upload text"), DefaultValue(""), Description("Custom text for text dropped on the drag and drop upload window. Use %input for the dropped text. For example, you can create a web page with your text in it.")]
     public string TextCustom { get; set; } = "";
 
     [Category("Upload text"), DefaultValue(true), Description("HTML encode custom text input.")]

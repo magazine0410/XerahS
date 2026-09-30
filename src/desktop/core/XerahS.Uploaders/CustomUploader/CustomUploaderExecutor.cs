@@ -75,7 +75,20 @@ public sealed class CustomUploaderExecutor : GenericUploader, IUploadHandler
         return Task.Run(() =>
         {
             cancellationToken.ThrowIfCancellationRequested();
-            UploadResult result = Upload(request.Content, request.FileName);
+            UploadResult result;
+            if (request.Category is UploaderCategory.Text or UploaderCategory.UrlShortener)
+            {
+                using var reader = new StreamReader(request.Content, System.Text.Encoding.UTF8, leaveOpen: true);
+                string text = reader.ReadToEnd();
+                result = request.Category == UploaderCategory.UrlShortener
+                    ? ShortenUrl(text)
+                    : UploadText(text, request.FileName);
+            }
+            else
+            {
+                result = Upload(request.Content, request.FileName);
+            }
+            cancellationToken.ThrowIfCancellationRequested();
             return UploadOutcomeMapper.FromUploadResult(result);
         }, cancellationToken);
     }

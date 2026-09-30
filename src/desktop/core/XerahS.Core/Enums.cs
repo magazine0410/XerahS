@@ -363,7 +363,25 @@ public enum WorkflowType // Localized
     IconConverter,
     [Category(EnumExtensions.WorkflowType_Category_Tools)]
     [Description("Image beautifier")]
-    ImageBeautifier
+    ImageBeautifier,
+    [Category(EnumExtensions.WorkflowType_Category_Upload)]
+    [Description("Upload folder")]
+    FolderUpload,
+    [Category(EnumExtensions.WorkflowType_Category_Upload)]
+    [Description("Upload text")]
+    UploadText,
+    [Category(EnumExtensions.WorkflowType_Category_Upload)]
+    [Description("Drag and drop upload")]
+    DragDropUpload,
+    [Category(EnumExtensions.WorkflowType_Category_Upload)]
+    [Description("Shorten URL")]
+    ShortenURL,
+    [Category(EnumExtensions.WorkflowType_Category_Upload)]
+    [Description("Stop all uploads")]
+    StopUploads,
+    [Category(EnumExtensions.WorkflowType_Category_Tools)]
+    [Description("Image effects")]
+    ImageEffects
 }
 
 public enum ThumbnailViewClickAction // Localized
