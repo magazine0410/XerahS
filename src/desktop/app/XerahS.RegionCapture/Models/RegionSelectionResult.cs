@@ -30,9 +30,11 @@ namespace XerahS.RegionCapture.Models;
 /// <summary>
 /// Represents a completed region selection with the cursor position at confirmation time.
 /// Optionally includes an annotation layer to be composited onto the captured image.
+/// ControlPressed reports whether Ctrl was held when the screen color picker confirmed its point.
 /// </summary>
 public readonly record struct RegionSelectionResult(
     PixelRect Region,
     PixelPoint CursorPosition,
     SKBitmap? AnnotationLayer = null,
-    PixelPoint MonitorOrigin = default);
+    PixelPoint MonitorOrigin = default,
+    bool ControlPressed = false);

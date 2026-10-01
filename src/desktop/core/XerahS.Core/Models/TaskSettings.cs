@@ -429,9 +429,11 @@ public class TaskSettingsTools
     public ImageEditorOptions ImageEditorOptions = new ImageEditorOptions();
     public BackgroundRemoverOptions BackgroundRemoverOptions = new BackgroundRemoverOptions();
 
-    public string ScreenColorPickerFormat = "$hex";
+    // Defaults match ShareX's ScreenColorPickerOptions.
+    public string ScreenColorPickerFormat = "$HEX";
     public string ScreenColorPickerFormatCtrl = "$r255, $g255, $b255";
-    public string ScreenColorPickerInfoText = "RGB: $r255, $g255, $b255$nHex: $hex$nX: $x Y: $y";
+    public string ScreenColorPickerInfoText = "#$HEX";
+    public bool ScreenColorPickerShowMagnifier = true;
 
     public PinToScreenOptions PinToScreenOptions = new PinToScreenOptions();
     public IndexerSettings IndexerSettings = new IndexerSettings();

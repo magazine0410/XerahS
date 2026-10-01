@@ -55,12 +55,8 @@ public static class ColorPickerService
             ? toolsSettings?.ScreenColorPickerFormatCtrl
             : toolsSettings?.ScreenColorPickerFormat;
 
-        if (string.IsNullOrWhiteSpace(format))
-        {
-            format = "$hex";
-        }
-
-        return FormatColorText(format, color, position);
+        // As in ShareX, an empty format means nothing is copied.
+        return string.IsNullOrEmpty(format) ? string.Empty : FormatColorText(format, color, position);
     }
 
     /// <summary>
@@ -71,7 +67,7 @@ public static class ColorPickerService
         string? template = toolsSettings?.ScreenColorPickerInfoText;
         if (string.IsNullOrWhiteSpace(template))
         {
-            template = "RGB: $r255, $g255, $b255$nHex: $hex$nX: $x Y: $y";
+            template = "#$HEX";
         }
 
         return FormatColorText(template, color, position);

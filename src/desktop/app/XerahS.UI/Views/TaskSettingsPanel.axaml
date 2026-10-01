@@ -463,13 +463,14 @@
                             <StackPanel Spacing="8">
                                 <TextBlock Text="Screen color picker" FontWeight="SemiBold"/>
                                 <Border BorderBrush="{DynamicResource SystemControlForegroundBaseLowBrush}" BorderThickness="1" CornerRadius="4" Padding="16">
-                                    <Grid ColumnDefinitions="Auto, 16, *" RowDefinitions="Auto, 12, Auto, 12, Auto">
+                                    <Grid ColumnDefinitions="Auto, 16, *" RowDefinitions="Auto, 12, Auto, 12, Auto, 12, Auto">
                                         <TextBlock Grid.Row="0" Text="Format:" VerticalAlignment="Center"/>
                                         <TextBox Grid.Row="0" Grid.Column="2" Text="{Binding ScreenColorPickerFormat}" AutomationProperties.Name="Screen Color Picker Format"/>
                                         <TextBlock Grid.Row="2" Text="Format (Ctrl + click):" VerticalAlignment="Center"/>
                                         <TextBox Grid.Row="2" Grid.Column="2" Text="{Binding ScreenColorPickerFormatCtrl}" AutomationProperties.Name="Screen Color Picker Ctrl Format"/>
                                         <TextBlock Grid.Row="4" Text="Info text:" VerticalAlignment="Top" Margin="0,6,0,0"/>
                                         <TextBox Grid.Row="4" Grid.Column="2" Text="{Binding ScreenColorPickerInfoText}" AcceptsReturn="True" TextWrapping="Wrap" AutomationProperties.Name="Screen Color Picker Info Text"/>
+                                        <CheckBox Grid.Row="6" Grid.ColumnSpan="3" Content="Show magnifier" IsChecked="{Binding ScreenColorPickerShowMagnifier}"/>
                                     </Grid>
                                 </Border>
                             </StackPanel>

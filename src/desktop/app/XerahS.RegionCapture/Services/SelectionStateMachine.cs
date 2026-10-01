@@ -210,12 +210,12 @@ public sealed class SelectionStateMachine
     /// <summary>
     /// Immediately confirms a single-point selection.
     /// </summary>
-    public void ConfirmPoint(PixelPoint point)
+    public void ConfirmPoint(PixelPoint point, bool controlPressed = false)
     {
         _currentPoint = point;
         SetSelectionRect(new PixelRect(point.X, point.Y, 1, 1));
         TransitionTo(CaptureState.Confirmed);
-        SelectionConfirmed?.Invoke(new RegionSelectionResult(_selectionRect, _currentPoint));
+        SelectionConfirmed?.Invoke(new RegionSelectionResult(_selectionRect, _currentPoint, ControlPressed: controlPressed));
     }
 
     /// <summary>

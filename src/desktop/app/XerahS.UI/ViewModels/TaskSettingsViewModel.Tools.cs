@@ -119,5 +119,18 @@ namespace XerahS.UI.ViewModels
                 }
             }
         }
+
+        public bool ScreenColorPickerShowMagnifier
+        {
+            get => Tools.ScreenColorPickerShowMagnifier;
+            set
+            {
+                if (Tools.ScreenColorPickerShowMagnifier != value)
+                {
+                    Tools.ScreenColorPickerShowMagnifier = value;
+                    OnPropertyChanged();
+                }
+            }
+        }
     }
 }

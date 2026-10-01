@@ -73,19 +73,22 @@ public static class ColorPickerToolService
             return null;
         }
 
-        var selection = await CapturePointAsync();
+        var settings = taskSettings ?? SettingsManager.DefaultTaskSettings;
+        var toolsSettings = settings?.ToolsSettingsReference;
+        var selection = await CapturePointAsync(toolsSettings);
+        // As in ShareX, cancelling the picker shows nothing.
         if (selection == null)
         {
-            ShowToast("Color Picker", "Screen color picking was cancelled.");
             return null;
         }
 
         if (copyToClipboard)
         {
-            await CopyResultAsync(selection, (taskSettings ?? SettingsManager.DefaultTaskSettings)?.ToolsSettingsReference);
+            await CopyResultAsync(selection.Value.Point, selection.Value.ControlPressed, toolsSettings,
+                settings?.GeneralSettings?.ShowToastNotificationAfterTaskCompleted ?? true);
         }
 
-        return selection;
+        return selection.Value.Point;
     }
 
     /// <summary>
@@ -118,7 +121,7 @@ public static class ColorPickerToolService
         }
     }
 
-    private static async Task<PointInfo?> CapturePointAsync()
+    private static async Task<(PointInfo Point, bool ControlPressed)?> CapturePointAsync(TaskSettingsTools? toolsSettings)
     {
         var captureSettings = SettingsManager.DefaultTaskSettings?.CaptureSettings ?? new TaskSettingsCapture();
         var forceModernCapture = IsWaylandSession() && !captureSettings.UseModernCapture;
@@ -165,22 +168,7 @@ public static class ColorPickerToolService
 
         try
         {
-            var regionOptions = captureSettings.RegionCaptureOptions;
-            var pickerOptions = new XerahS.RegionCapture.RegionCaptureOptions
-            {
-                Mode = RegionCaptureMode.ScreenColorPicker,
-                EnableWindowSnapping = false,
-                EnableMagnifier = regionOptions?.ShowMagnifier ?? true,
-                UseSquareMagnifier = regionOptions?.UseSquareMagnifier ?? false,
-                MagnifierPixelCount = regionOptions?.MagnifierPixelCount ?? 15,
-                ShowInfo = regionOptions?.ShowInfo ?? true,
-                CustomInfoFormat = regionOptions?.UseCustomInfoText == true ? regionOptions.CustomInfoText : null,
-                ShowScreenCrosshair = regionOptions?.ShowScreenCrosshair ?? true,
-                ShowCursor = false,
-                EditorOptions = RegionCaptureAnnotationOptionsStore.GetEditorOptions(workflowType: WorkflowType.ScreenColorPicker),
-                // Pass the pre-captured bitmap to the region selector for the magnifier
-                BackgroundImage = fullScreenBitmap
-            };
+            var pickerOptions = CreatePickerOptions(toolsSettings, captureSettings.RegionCaptureOptions, fullScreenBitmap);
 
             var captureService = new RegionCaptureService { Options = pickerOptions };
 
@@ -243,11 +231,11 @@ public static class ColorPickerToolService
                 return null;
             }
 
-            return new PointInfo
+            return (new PointInfo
             {
                 Position = new DrawingPoint(x, y),
                 Color = color.Value
-            };
+            }, result.Value.ControlPressed);
         }
         finally
         {
@@ -255,15 +243,46 @@ public static class ColorPickerToolService
         }
     }
 
-    private static async Task CopyResultAsync(PointInfo result, TaskSettingsTools? toolsSettings)
+    /// <summary>The overlay options for the screen color picker.</summary>
+    internal static XerahS.RegionCapture.RegionCaptureOptions CreatePickerOptions(
+        TaskSettingsTools? toolsSettings, XerahS.Core.RegionCaptureOptions? regionOptions, SKBitmap? background)
     {
-        var clipboardText = ColorPickerService.GetClipboardText(toolsSettings, result.Color, result.Position, useCtrlFormat: false);
-        var infoText = ColorPickerService.GetInfoText(toolsSettings, result.Color, result.Position);
+        string? infoText = toolsSettings?.ScreenColorPickerInfoText;
+        return new XerahS.RegionCapture.RegionCaptureOptions
+        {
+            Mode = RegionCaptureMode.ScreenColorPicker,
+            EnableWindowSnapping = false,
+            // As in ShareX, the picker has its own magnifier switch and shows its own info text next to the cursor.
+            EnableMagnifier = toolsSettings?.ScreenColorPickerShowMagnifier ?? true,
+            UseSquareMagnifier = regionOptions?.UseSquareMagnifier ?? false,
+            MagnifierPixelCount = regionOptions?.MagnifierPixelCount ?? 15,
+            ShowInfo = !string.IsNullOrEmpty(infoText),
+            CustomInfoFormat = infoText,
+            ShowScreenCrosshair = regionOptions?.ShowScreenCrosshair ?? true,
+            ShowCursor = false,
+            EditorOptions = RegionCaptureAnnotationOptionsStore.GetEditorOptions(workflowType: WorkflowType.ScreenColorPicker),
+            // Pass the pre-captured bitmap to the region selector for the magnifier
+            BackgroundImage = background
+        };
+    }
+
+    internal static async Task CopyResultAsync(PointInfo result, bool controlPressed, TaskSettingsTools? toolsSettings, bool showNotification)
+    {
+        // As in ShareX: Ctrl + click uses the Ctrl format, an empty format copies nothing, and the
+        // notification shows the copied text.
+        var clipboardText = ColorPickerService.GetClipboardText(toolsSettings, result.Color, result.Position, controlPressed);
+        if (string.IsNullOrEmpty(clipboardText))
+        {
+            return;
+        }
 
         try
         {
             await PlatformServices.Clipboard.SetTextAsync(clipboardText);
-            ShowToast("Color Picker", infoText);
+            if (showNotification)
+            {
+                ShowToast("XerahS - Screen color picker", $"Copied to clipboard: {clipboardText}");
+            }
         }
         catch (Exception ex)
         {
