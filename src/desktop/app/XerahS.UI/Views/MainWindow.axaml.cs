@@ -93,6 +93,10 @@ namespace XerahS.UI.Views
             NavigateMenuCommand = new RelayCommand<string?>(NavigateFromMenuTag);
             RunWorkflowFromMenuCommand = new RelayCommand<WorkflowSettings?>(RunWorkflowFromMenu);
             InitializeComponent();
+            this.FindControl<MenuItem>("MouseHighlighterMenuItem")!.IsVisible = WorkflowCatalog.IsAvailable(WorkflowType.MouseHighlighter);
+            this.FindControl<MenuItem>("InspectWindowMenuItem")!.IsVisible = WorkflowCatalog.IsAvailable(WorkflowType.InspectWindow);
+            this.FindControl<MenuItem>("BorderlessWindowMenuItem")!.IsVisible = WorkflowCatalog.IsAvailable(WorkflowType.BorderlessWindow);
+
             DataContextChanged += OnMainWindowDataContextChanged;
             KeyDown += OnKeyDown;
             ApplyInitialWindowPlacement();

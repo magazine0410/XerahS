@@ -34,9 +34,13 @@ namespace XerahS.Platform.Linux.Services;
 /// </summary>
 public sealed class LinuxInputService : IInputService
 {
+    public bool SupportsGlobalMouseMonitoring => LinuxGlobalMouseMonitor.IsSupported;
+    public IGlobalMouseMonitor CreateGlobalMouseMonitor(MouseHighlighterInputBuffer input) => new LinuxGlobalMouseMonitor(input);
+
     public Point GetCursorPosition()
     {
-        // Prefer xdotool which is widely available on X11
+        if (LinuxGlobalMouseMonitor.TryGetCursorPosition(out var nativePoint)) return nativePoint;
+        // Fall back to xdotool if the native query is unavailable.
         if (TryGetWithXdotool(out var point))
             return point;
 

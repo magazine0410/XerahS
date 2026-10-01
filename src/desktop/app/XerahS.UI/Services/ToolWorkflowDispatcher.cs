@@ -73,6 +73,26 @@ internal static class ToolWorkflowDispatcher
                 dispatchTask = ImageEditingToolService.HandleWorkflowAsync(workflowType, owner, taskSettings, taskManager);
                 return true;
 
+            case WorkflowType.InspectWindow:
+            case WorkflowType.BorderlessWindow:
+                dispatchTask = WindowToolsService.OpenAsync(workflowType, taskSettings);
+                return true;
+
+            case WorkflowType.MouseHighlighter:
+                MouseHighlighterManager.SetManualActive(!MouseHighlighterManager.IsManuallyActive,
+                    (taskSettings ?? SettingsManager.DefaultTaskSettings).ToolsSettingsReference.MouseHighlighterOptions);
+                dispatchTask = Task.CompletedTask;
+                return true;
+
+            case WorkflowType.Metadata:
+                new Views.MetadataWindow().Show();
+                dispatchTask = Task.CompletedTask;
+                return true;
+
+            case WorkflowType.StripMetadata:
+                dispatchTask = MetadataToolService.StripAsync(owner);
+                return true;
+
             case WorkflowType.ImageViewer:
                 new Views.ImageViewerWindow().Show();
                 dispatchTask = Task.CompletedTask;
@@ -119,6 +139,11 @@ internal static class ToolWorkflowDispatcher
             case WorkflowType.ClipboardUploadWithContentViewer:
             case WorkflowType.ClipboardViewer:
                 dispatchTask = UploadContentToolService.HandleWorkflowAsync(workflowType, owner);
+                return true;
+
+            case WorkflowType.ToggleActionsToolbar:
+                ActionsToolbarService.Toggle(taskManager);
+                dispatchTask = Task.CompletedTask;
                 return true;
 
             case WorkflowType.ToggleTrayMenu:

@@ -66,6 +66,11 @@ public sealed class WorkflowOrchestrator : IWorkflowOrchestrator
 
         ConfigureWorkerTaskCallbacks();
         InitializeHotkeys();
+        var mouseOptions = Core.SettingsManager.DefaultTaskSettings.ToolsSettingsReference.MouseHighlighterOptions;
+        if (mouseOptions.AutoActivate && Core.WorkflowCatalog.IsAvailable(Core.WorkflowType.MouseHighlighter))
+            Dispatcher.UIThread.Post(() => MouseHighlighterManager.Toggle(mouseOptions));
+        if (Core.SettingsManager.Settings.ActionsToolbarRunAtStartup)
+            Dispatcher.UIThread.Post(() => ActionsToolbarService.Show(_taskManager));
         _assistantOverlayCoordinator ??= new AssistantOverlayCoordinator(_taskManager);
         _assistantOverlayCoordinator.Start();
         if (_workflowManager != null)

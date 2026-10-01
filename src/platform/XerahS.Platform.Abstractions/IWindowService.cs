@@ -32,6 +32,20 @@ namespace XerahS.Platform.Abstractions
     /// </summary>
     public interface IWindowService
     {
+        bool SupportsWindowPositioning => true;
+        bool SupportsWindowInspection => false;
+        bool SupportsChildWindowPicking => false;
+        bool SupportsWindowOpacity => false;
+        bool SupportsBorderless => false;
+        bool SupportsClickThrough => false;
+
+        WindowDetails? GetWindowDetails(IntPtr handle) => null;
+        byte[]? GetWindowIcon(IntPtr handle) => null;
+        IntPtr GetWindowAtPoint(Point point, bool topLevelOnly = true) => IntPtr.Zero;
+        bool SetWindowTopmost(IntPtr handle, bool topmost) => false;
+        bool SetWindowOpacity(IntPtr handle, byte opacity) => false;
+        bool ToggleBorderlessWindow(IntPtr handle, bool useWorkingArea = false) => false;
+
         /// <summary>Whether the window system can toggle another application's topmost state.</summary>
         bool SupportsTopmost => false;
 

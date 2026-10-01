@@ -86,6 +86,18 @@ namespace XerahS.Core.Tasks.Pipeline
                 return PipelineStageResult.Stop;
             }
 
+            if (taskSettings.Job == WorkflowType.ActiveWindowBorderless)
+            {
+                if (!WorkflowCatalog.IsAvailable(taskSettings.Job))
+                    throw new PlatformNotSupportedException("The window system does not support making the active window borderless.");
+                // As in ShareX, "Keep taskbar visible" from the Borderless window settings applies here too.
+                bool excludeTaskbar = taskSettings.ToolsSettingsReference.BorderlessWindowSettings.ExcludeTaskbarArea;
+                if (!PlatformServices.Window.ToggleBorderlessWindow(PlatformServices.Window.GetForegroundWindow(), excludeTaskbar))
+                    throw new InvalidOperationException("Could not toggle the active window's borderless state.");
+                context.Info.SuppressCompletionNotification = true;
+                return PipelineStageResult.Stop;
+            }
+
             if (taskSettings.Job == WorkflowType.StopUploads)
             {
                 // As in ShareX, stop every task, including ones that have not reached their upload yet,

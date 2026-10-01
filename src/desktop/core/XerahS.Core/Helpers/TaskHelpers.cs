@@ -106,7 +106,7 @@ public static partial class TaskHelpers
         return job switch
         {
             // Image-specific tools
-            WorkflowType.ActiveWindowTopMost => JobMediaType.System,
+            WorkflowType.MouseHighlighter or WorkflowType.ActiveWindowTopMost or WorkflowType.ActiveWindowBorderless or WorkflowType.InspectWindow or WorkflowType.BorderlessWindow or WorkflowType.Metadata or WorkflowType.StripMetadata => JobMediaType.System,
             WorkflowType.ImageEditor or
             WorkflowType.ImageBeautifier or
             WorkflowType.ImageEffects or

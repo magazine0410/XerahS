@@ -95,4 +95,24 @@ public class LinuxWindowServiceTests
                 Is.False);
         });
     }
+    [Test]
+    public void WindowIcon_DecodesArgbAndRejectsTruncatedDimensions()
+    {
+        IntPtr[] values = [new(1), new(1), new(0xff12ab34L)];
+        byte[]? bytes = LinuxWindowService.DecodeWindowIcon(values);
+        Assert.That(bytes, Is.Not.Null);
+        using var image = SkiaSharp.SKBitmap.Decode(bytes);
+        Assert.That(image.GetPixel(0, 0), Is.EqualTo(new SkiaSharp.SKColor(0xff12ab34)));
+        Assert.That(LinuxWindowService.DecodeWindowIcon([new(512), new(512), new(1)]), Is.Null);
+    }
+
+    [Test]
+    public void PartialTaskbar_OnlyReducesTheMonitorItOccupies()
+    {
+        long[] strut = [0, 0, 0, 40, 0, 0, 0, 0, 0, 0, 1920, 3839];
+        var left = new Rectangle(0, 0, 1920, 1080);
+        var right = new Rectangle(1920, 0, 1920, 1080);
+        Assert.That(LinuxWindowService.ApplyStrut(left, 3840, 1080, strut), Is.EqualTo(left));
+        Assert.That(LinuxWindowService.ApplyStrut(right, 3840, 1080, strut), Is.EqualTo(new Rectangle(1920, 0, 1920, 1040)));
+    }
 }

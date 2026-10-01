@@ -141,9 +141,9 @@ namespace XerahS.Platform.Linux
         internal static extern int XGetClassHint(IntPtr display, IntPtr w, out XClassHint class_hints_return);
 
         // Window map state
-        internal const int IsUnviewable = 0;
-        internal const int IsViewable = 1;
-        internal const int IsViewableButNotMapped = 2; // Roughly speaking
+        internal const int IsUnmapped = 0;
+        internal const int IsUnviewable = 1;
+        internal const int IsViewable = 2;
         internal const int ZPixmap = 2;
 
         // Key events

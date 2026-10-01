@@ -24,6 +24,9 @@
 #endregion License Information (GPL v3)
 
 using System.Web;
+using Avalonia.Input;
+using Avalonia.Media.Imaging;
+using SkiaSharp;
 using Avalonia.Controls;
 using Avalonia.Platform.Storage;
 using Avalonia.Threading;
@@ -42,6 +45,36 @@ namespace XerahS.UI.Services;
 internal static class UploadWorkflowService
 {
     private static DragDropUploadWindow? _dropWindow;
+
+    internal static async Task UploadDroppedDataAsync(IDataTransfer data, TaskSettings settings, IDesktopTaskManager taskManager)
+    {
+        // Copy drag data while the native drop event is alive, before the first await.
+        var paths = UploadContentWindow.GetDroppedStorageItems(data)
+            .Select(item => item.TryGetLocalPath()).OfType<string>().ToArray();
+        if (paths.Length > 0)
+        {
+            await UploadWorkflowService.UploadPathsAsync(paths, settings, taskManager);
+            return;
+        }
+        var bitmap = data.TryGetBitmap();
+        if (bitmap != null)
+        {
+            using var stream = new MemoryStream();
+            bitmap.Save(stream, PngBitmapEncoderOptions.Default);
+            stream.Position = 0;
+            using var image = SKBitmap.Decode(stream);
+            if (image == null) throw new IOException("The dropped image could not be read.");
+            await taskManager.StartTask(UploadWorkflowService.CreateExecutionSettings(settings, WorkflowType.PrintScreen), image);
+            return;
+        }
+        string? text = data.TryGetText();
+        if (!string.IsNullOrWhiteSpace(text))
+        {
+            // As in ShareX, dropped text goes through the task's custom text template.
+            var textSettings = UploadWorkflowService.CreateExecutionSettings(settings, WorkflowType.UploadText);
+            await taskManager.StartTextTask(textSettings, UploadWorkflowService.ApplyCustomText(text, textSettings));
+        }
+    }
 
     internal static void RefreshDropWindowSettings() => _dropWindow?.ApplySettings(SettingsManager.Settings);
 

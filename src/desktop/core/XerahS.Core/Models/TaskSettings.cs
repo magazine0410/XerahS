@@ -440,6 +440,7 @@ public class TaskSettingsTools
     public ImageCombinerOptions ImageCombinerOptions = new ImageCombinerOptions();
     public VideoConverterOptions VideoConverterOptions = new VideoConverterOptions();
     public VideoThumbnailOptions VideoThumbnailOptions = new VideoThumbnailOptions();
+    public MouseHighlighterOptions MouseHighlighterOptions = new();
     public BorderlessWindowSettings BorderlessWindowSettings = new BorderlessWindowSettings();
     public AIOptions AIOptions = new AIOptions();
 }

@@ -393,7 +393,28 @@ public enum WorkflowType // Localized
     ActiveWindowTopMost,
     [Category(EnumExtensions.WorkflowType_Category_Other)]
     [Description("Toggle tray menu")]
-    ToggleTrayMenu
+    ToggleTrayMenu,
+    [Category(EnumExtensions.WorkflowType_Category_Tools)]
+    [Description("Metadata")]
+    Metadata,
+    [Category(EnumExtensions.WorkflowType_Category_Tools)]
+    [Description("Strip metadata")]
+    StripMetadata,
+    [Category(EnumExtensions.WorkflowType_Category_Tools)]
+    [Description("Inspect window")]
+    InspectWindow,
+    [Category(EnumExtensions.WorkflowType_Category_Tools)]
+    [Description("Borderless window")]
+    BorderlessWindow,
+    [Category(EnumExtensions.WorkflowType_Category_Tools)]
+    [Description("Make active window borderless")]
+    ActiveWindowBorderless,
+    [Category(EnumExtensions.WorkflowType_Category_Other)]
+    [Description("Toggle actions toolbar")]
+    ToggleActionsToolbar,
+    [Category(EnumExtensions.WorkflowType_Category_Tools)]
+    [Description("Mouse highlighter")]
+    MouseHighlighter
 }
 
 public enum ThumbnailViewClickAction // Localized

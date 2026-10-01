@@ -225,6 +225,10 @@ namespace XerahS.UI.Views
 
             switch (tag)
             {
+                case "Tools_MouseHighlighter":
+                    Services.MouseHighlighterManager.ShowWindow(SettingsManager.DefaultTaskSettings.ToolsSettingsReference.MouseHighlighterOptions);
+                    openedExternalWindow = true;
+                    return true;
                 case "Editor":
                     _editorView ??= CreateEditorView();
                     contentFrame.Content = _editorView;
@@ -554,8 +558,10 @@ namespace XerahS.UI.Views
             NavigationNode toolsNode = CreateNode("Tools", "Tools", HostIcons.NavigationTools, NavigationNodeKind.Page);
             toolsNode.AddChild(CreateNode("Color Picker...", "Tools_ColorPicker", null, NavigationNodeKind.Action));
             toolsNode.AddChild(CreateNode("Screen Color Picker", "Tools_ScreenColorPicker", null, NavigationNodeKind.Action));
+            if (WorkflowCatalog.IsAvailable(WorkflowType.MouseHighlighter)) toolsNode.AddChild(CreateNode("Mouse Highlighter...", "Tools_MouseHighlighter", null, NavigationNodeKind.Action));
             toolsNode.AddChild(CreateNode("Ruler", "Tools_Ruler", null, NavigationNodeKind.Action));
             toolsNode.AddChild(CreateNode("Index Folder...", "Tools_IndexFolder", null, NavigationNodeKind.Action));
+            toolsNode.AddChild(CreateNode("Metadata...", "Tools_Metadata", null, NavigationNodeKind.Action));
 
             NavigationNode qrCodeNode = CreateNode("QR Code", null, null, NavigationNodeKind.Group);
             qrCodeNode.AddChild(CreateNode("Generator...", "Tools_QrGenerator", null, NavigationNodeKind.Action));
@@ -583,6 +589,8 @@ namespace XerahS.UI.Views
             toolsNode.AddChild(CreateNode("Video Trimmer...", "Tools_VideoTrimmer", null, NavigationNodeKind.Action));
             toolsNode.AddChild(CreateNode("Video Thumbnailer...", "Tools_VideoThumbnailer", null, NavigationNodeKind.Action));
             toolsNode.AddChild(CreateNode("Analyze Image...", "Tools_AnalyzeImage", null, NavigationNodeKind.Action));
+            if (WorkflowCatalog.IsAvailable(WorkflowType.BorderlessWindow)) toolsNode.AddChild(CreateNode("Borderless Window...", "Tools_BorderlessWindow", null, NavigationNodeKind.Action));
+            if (WorkflowCatalog.IsAvailable(WorkflowType.InspectWindow)) toolsNode.AddChild(CreateNode("Inspect Window...", "Tools_InspectWindow", null, NavigationNodeKind.Action));
             toolsNode.AddChild(CreateNode("Monitor Test", "Tools_MonitorTest", null, NavigationNodeKind.Action));
             toolsNode.AddChild(CreateNode("Network Monitor...", "Tools_NetworkMonitor", null, NavigationNodeKind.Action));
 

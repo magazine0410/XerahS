@@ -318,6 +318,8 @@ public partial class App : Application
 
             desktop.Exit += (sender, args) =>
             {
+                MouseHighlighterManager.Shutdown();
+                ActionsToolbarService.Close();
                 if (_clipboardChangedHandler != null)
                 {
                     PlatformServices.ClipboardMonitor.ClipboardChanged -= _clipboardChangedHandler;

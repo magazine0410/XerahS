@@ -130,36 +130,8 @@ public partial class DragDropUploadWindow : Window
         catch (Exception ex) { UploadWorkflowService.ReportError(ex); }
     }
 
-    internal async Task UploadDroppedDataAsync(IDataTransfer data)
-    {
-        if (_taskManager == null) return;
-        // Copy drag data while the native drop event is alive, before the first await.
-        var paths = UploadContentWindow.GetDroppedStorageItems(data)
-            .Select(item => item.TryGetLocalPath()).OfType<string>().ToArray();
-        if (paths.Length > 0)
-        {
-            await UploadWorkflowService.UploadPathsAsync(paths, _settings, _taskManager);
-            return;
-        }
-        var bitmap = data.TryGetBitmap();
-        if (bitmap != null)
-        {
-            using var stream = new MemoryStream();
-            bitmap.Save(stream, PngBitmapEncoderOptions.Default);
-            stream.Position = 0;
-            using var image = SKBitmap.Decode(stream);
-            if (image == null) throw new IOException("The dropped image could not be read.");
-            await _taskManager.StartTask(UploadWorkflowService.CreateExecutionSettings(_settings, WorkflowType.PrintScreen), image);
-            return;
-        }
-        string? text = data.TryGetText();
-        if (!string.IsNullOrWhiteSpace(text))
-        {
-            // As in ShareX, dropped text goes through the task's custom text template.
-            var textSettings = UploadWorkflowService.CreateExecutionSettings(_settings, WorkflowType.UploadText);
-            await _taskManager.StartTextTask(textSettings, UploadWorkflowService.ApplyCustomText(text, textSettings));
-        }
-    }
+    internal Task UploadDroppedDataAsync(IDataTransfer data) => _taskManager == null ? Task.CompletedTask :
+        UploadWorkflowService.UploadDroppedDataAsync(data, _settings, _taskManager);
 
     private void SetHovered(bool hovered)
     {

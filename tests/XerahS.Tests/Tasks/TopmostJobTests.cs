@@ -35,10 +35,13 @@ namespace XerahS.Tests.Tasks;
 [NonParallelizable]
 public class TopmostJobTests
 {
-    [TestCase(true, true)]
-    [TestCase(true, false)]
-    [TestCase(false, false)]
-    public async Task TopmostJob_UsesPlatformCapabilityWithoutOpeningCapture(bool supported, bool succeeds)
+    [TestCase(WorkflowType.ActiveWindowTopMost, true, true)]
+    [TestCase(WorkflowType.ActiveWindowBorderless, true, true)]
+    [TestCase(WorkflowType.ActiveWindowBorderless, true, false)]
+    [TestCase(WorkflowType.ActiveWindowBorderless, false, false)]
+    [TestCase(WorkflowType.ActiveWindowTopMost, true, false)]
+    [TestCase(WorkflowType.ActiveWindowTopMost, false, false)]
+    public async Task ActiveWindowJob_UsesPlatformCapabilityWithoutOpeningCapture(WorkflowType job, bool supported, bool succeeds)
     {
         var service = DispatchProxy.Create<IWindowService, WindowProxy>();
         var proxy = (WindowProxy)service;
@@ -47,7 +50,10 @@ public class TopmostJobTests
         PlatformServices.Window = service;
         try
         {
-            using var worker = WorkerTask.Create(new TaskSettings { Job = WorkflowType.ActiveWindowTopMost, AfterCaptureJob = AfterCaptureTasks.None });
+            // "Keep taskbar visible" from the Borderless window settings reaches the direct job, as in ShareX.
+            var settings = new TaskSettings { Job = job, AfterCaptureJob = AfterCaptureTasks.None, UseDefaultToolsSettings = false };
+            settings.ToolsSettings.BorderlessWindowSettings.ExcludeTaskbarArea = true;
+            using var worker = WorkerTask.Create(settings);
             await worker.StartAsync();
             Assert.That(proxy.ToggleCalls, Is.EqualTo(supported ? 1 : 0));
             Assert.That(worker.Status, Is.EqualTo(supported && succeeds ? XerahS.Core.TaskStatus.Completed : XerahS.Core.TaskStatus.Failed));
@@ -67,7 +73,13 @@ public class TopmostJobTests
         {
             switch (targetMethod!.Name)
             {
-                case "get_SupportsTopmost": return Supported;
+                case "get_SupportsTopmost":
+                case "get_SupportsBorderless": return Supported;
+                case nameof(IWindowService.GetForegroundWindow): return new IntPtr(42);
+                case nameof(IWindowService.ToggleBorderlessWindow):
+                    Assert.That(args![0], Is.EqualTo(new IntPtr(42)));
+                    Assert.That(args[1], Is.EqualTo(true));
+                    ToggleCalls++; return Succeeds;
                 case nameof(IWindowService.ToggleActiveWindowTopmost): ToggleCalls++; return Succeeds;
                 default: throw new AssertionException("Unexpected window operation: " + targetMethod.Name);
             }

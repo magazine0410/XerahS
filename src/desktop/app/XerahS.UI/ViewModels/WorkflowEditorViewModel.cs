@@ -323,7 +323,8 @@ public partial class WorkflowEditorViewModel : ViewModelBase
                 yield break;
 
             case EnumExtensions.WorkflowType_Category_Tools:
-                if (job is WorkflowType.ImageViewer or WorkflowType.ActiveWindowTopMost) yield break;
+                if (job == WorkflowType.ImageViewer || XerahS.Core.TaskHelpers.GetJobMediaType(job) == XerahS.Core.TaskHelpers.JobMediaType.System)
+                    yield break;
                 if (job == WorkflowType.OCR)
                 {
                     yield return UploaderCategory.Text;
@@ -516,8 +517,7 @@ public partial class WorkflowEditorViewModel : ViewModelBase
         var allTypes = Enum.GetValues(typeof(WorkflowType)).Cast<WorkflowType>()
             .Where(t => t != WorkflowType.None)
             // Keep an imported workflow editable without silently changing its job on unsupported platforms.
-            .Where(t => t != WorkflowType.ActiveWindowTopMost || _sourceModel.Job == WorkflowType.ActiveWindowTopMost ||
-                (PlatformServices.IsWindowServiceInitialized && PlatformServices.Window.SupportsTopmost));
+            .Where(t => t == _sourceModel.Job || WorkflowCatalog.IsAvailable(t));
 
         var grouped = allTypes.GroupBy(t => t.GetHotkeyCategory())
             .Where(g => !string.IsNullOrEmpty(g.Key))
