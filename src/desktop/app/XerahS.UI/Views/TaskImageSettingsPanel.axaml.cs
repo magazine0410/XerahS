@@ -23,8 +23,6 @@
 
 #endregion License Information (GPL v3)
 using Avalonia.Controls;
-using XerahS.UI.Controls;
-using XerahS.UI.ViewModels;
 
 namespace XerahS.UI.Views;
 
@@ -33,17 +31,5 @@ public partial class TaskImageSettingsPanel : UserControl
     public TaskImageSettingsPanel()
     {
         InitializeComponent();
-
-        var propertyGrid = this.FindControl<PropertyGrid>("EffectPropertyGrid");
-        if (propertyGrid != null)
-        {
-            propertyGrid.PropertyValueChanged += (_, _) =>
-            {
-                if (DataContext is TaskSettingsViewModel vm)
-                {
-                    vm.ImageEffects.UpdatePreview();
-                }
-            };
-        }
     }
 }

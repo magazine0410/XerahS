@@ -225,6 +225,10 @@ namespace XerahS.UI.Views
 
             switch (tag)
             {
+                case "Tools_MouseHighlighter":
+                    Services.MouseHighlighterManager.ShowWindow(SettingsManager.DefaultTaskSettings.ToolsSettingsReference.MouseHighlighterOptions);
+                    openedExternalWindow = true;
+                    return true;
                 case "Editor":
                     _editorView ??= CreateEditorView();
                     contentFrame.Content = _editorView;
@@ -240,6 +244,30 @@ namespace XerahS.UI.Views
                     return true;
                 case "Upload_ClipboardUploadWithContentViewer":
                     _ = ExecuteWorkflowFromNavigationAsync(WorkflowType.ClipboardUploadWithContentViewer);
+                    openedExternalWindow = true;
+                    return true;
+                case "Upload_FolderUpload":
+                    _ = ExecuteWorkflowFromNavigationAsync(WorkflowType.FolderUpload);
+                    openedExternalWindow = true;
+                    return true;
+                case "Upload_UploadText":
+                    _ = ExecuteWorkflowFromNavigationAsync(WorkflowType.UploadText);
+                    openedExternalWindow = true;
+                    return true;
+                case "Upload_DragDropUpload":
+                    _ = ExecuteWorkflowFromNavigationAsync(WorkflowType.DragDropUpload);
+                    openedExternalWindow = true;
+                    return true;
+                case "Upload_UploadURL":
+                    _ = ExecuteWorkflowFromNavigationAsync(WorkflowType.UploadURL);
+                    openedExternalWindow = true;
+                    return true;
+                case "Upload_ShortenURL":
+                    _ = ExecuteWorkflowFromNavigationAsync(WorkflowType.ShortenURL);
+                    openedExternalWindow = true;
+                    return true;
+                case "Upload_StopUploads":
+                    _ = ExecuteWorkflowFromNavigationAsync(WorkflowType.StopUploads);
                     openedExternalWindow = true;
                     return true;
                 case "Upload_FileUpload":
@@ -513,8 +541,15 @@ namespace XerahS.UI.Views
         private static NavigationNode CreateUploadNode()
         {
             NavigationNode uploadNode = CreateNode("Upload", "Upload", HostIcons.NavigationUpload, NavigationNodeKind.Group);
+            // Same order as ShareX's Upload menu.
             uploadNode.AddChild(CreateNode("Upload File...", "Upload_FileUpload", null, NavigationNodeKind.Action));
+            uploadNode.AddChild(CreateNode("Upload Folder...", "Upload_FolderUpload", null, NavigationNodeKind.Action));
             uploadNode.AddChild(CreateNode("Upload Content...", "Upload_ClipboardUploadWithContentViewer", null, NavigationNodeKind.Action));
+            uploadNode.AddChild(CreateNode("Upload Text...", "Upload_UploadText", null, NavigationNodeKind.Action));
+            uploadNode.AddChild(CreateNode("Upload URL...", "Upload_UploadURL", null, NavigationNodeKind.Action));
+            uploadNode.AddChild(CreateNode("Drag and Drop Upload", "Upload_DragDropUpload", null, NavigationNodeKind.Action));
+            uploadNode.AddChild(CreateNode("Shorten URL...", "Upload_ShortenURL", null, NavigationNodeKind.Action));
+            uploadNode.AddChild(CreateNode("Stop All Uploads", "Upload_StopUploads", null, NavigationNodeKind.Action));
             return uploadNode;
         }
 
@@ -523,8 +558,10 @@ namespace XerahS.UI.Views
             NavigationNode toolsNode = CreateNode("Tools", "Tools", HostIcons.NavigationTools, NavigationNodeKind.Page);
             toolsNode.AddChild(CreateNode("Color Picker...", "Tools_ColorPicker", null, NavigationNodeKind.Action));
             toolsNode.AddChild(CreateNode("Screen Color Picker", "Tools_ScreenColorPicker", null, NavigationNodeKind.Action));
+            if (WorkflowCatalog.IsAvailable(WorkflowType.MouseHighlighter)) toolsNode.AddChild(CreateNode("Mouse Highlighter...", "Tools_MouseHighlighter", null, NavigationNodeKind.Action));
             toolsNode.AddChild(CreateNode("Ruler", "Tools_Ruler", null, NavigationNodeKind.Action));
             toolsNode.AddChild(CreateNode("Index Folder...", "Tools_IndexFolder", null, NavigationNodeKind.Action));
+            toolsNode.AddChild(CreateNode("Metadata...", "Tools_Metadata", null, NavigationNodeKind.Action));
 
             NavigationNode qrCodeNode = CreateNode("QR Code", null, null, NavigationNodeKind.Group);
             qrCodeNode.AddChild(CreateNode("Generator...", "Tools_QrGenerator", null, NavigationNodeKind.Action));
@@ -533,6 +570,7 @@ namespace XerahS.UI.Views
             toolsNode.AddChild(qrCodeNode);
 
             toolsNode.AddChild(CreateNode("Image Combiner...", "Tools_ImageCombiner", null, NavigationNodeKind.Action));
+            toolsNode.AddChild(CreateNode("Image Effects...", "Tools_ImageEffects", null, NavigationNodeKind.Action));
             toolsNode.AddChild(CreateNode("Image Beautifier...", "Tools_ImageBeautifier", null, NavigationNodeKind.Action));
             toolsNode.AddChild(CreateNode("Background Remover...", "Tools_BackgroundRemover", null, NavigationNodeKind.Action));
             toolsNode.AddChild(CreateNode("Image Comparer...", "Tools_ImageComparer", null, NavigationNodeKind.Action));
@@ -541,6 +579,7 @@ namespace XerahS.UI.Views
             toolsNode.AddChild(CreateNode("Image Thumbnailer...", "Tools_ImageThumbnailer", null, NavigationNodeKind.Action));
             toolsNode.AddChild(CreateNode("Image Resizer...", "Tools_ImageResizer", null, NavigationNodeKind.Action));
             toolsNode.AddChild(CreateNode("Image Converter...", "Tools_ImageConverter", null, NavigationNodeKind.Action));
+            toolsNode.AddChild(CreateNode("Image Viewer...", "Tools_ImageViewer", null, NavigationNodeKind.Action));
             toolsNode.AddChild(CreateNode("Image Watermark...", "Tools_ImageWatermark", null, NavigationNodeKind.Action));
             toolsNode.AddChild(CreateNode("Animated GIF Maker...", "Tools_AnimatedGifMaker", null, NavigationNodeKind.Action));
 #if DEBUG
@@ -550,6 +589,8 @@ namespace XerahS.UI.Views
             toolsNode.AddChild(CreateNode("Video Trimmer...", "Tools_VideoTrimmer", null, NavigationNodeKind.Action));
             toolsNode.AddChild(CreateNode("Video Thumbnailer...", "Tools_VideoThumbnailer", null, NavigationNodeKind.Action));
             toolsNode.AddChild(CreateNode("Analyze Image...", "Tools_AnalyzeImage", null, NavigationNodeKind.Action));
+            if (WorkflowCatalog.IsAvailable(WorkflowType.BorderlessWindow)) toolsNode.AddChild(CreateNode("Borderless Window...", "Tools_BorderlessWindow", null, NavigationNodeKind.Action));
+            if (WorkflowCatalog.IsAvailable(WorkflowType.InspectWindow)) toolsNode.AddChild(CreateNode("Inspect Window...", "Tools_InspectWindow", null, NavigationNodeKind.Action));
             toolsNode.AddChild(CreateNode("Monitor Test", "Tools_MonitorTest", null, NavigationNodeKind.Action));
             toolsNode.AddChild(CreateNode("Network Monitor...", "Tools_NetworkMonitor", null, NavigationNodeKind.Action));
 

@@ -28,6 +28,7 @@ using Avalonia.Controls;
 using Avalonia.Headless;
 using Avalonia.Headless.NUnit;
 using Avalonia.Input;
+using Avalonia.Threading;
 using NUnit.Framework;
 using ShareX.ImageEditor.Presentation.Controls;
 using XerahS.RegionCapture;
@@ -49,6 +50,21 @@ public class ActiveMonitorModeTests
     private static readonly CaptureRect RightBounds = new(640, 0, 640, 480);
     private static readonly CaptureMonitor LeftMonitor = new("Left", LeftBounds, LeftBounds, 1, true);
     private static readonly CaptureMonitor RightMonitor = new("Right", RightBounds, RightBounds, 1, false);
+
+    private int[] _focusRetryDelays = [];
+
+    // The overlays retry focusing themselves after 50, 200 and 500 ms. These tests move keyboard
+    // focus themselves, so a retry that arrives during a slow run would send their key presses
+    // to another overlay. Turn the retries off except where a test sets its own.
+    [SetUp]
+    public void DisableFocusRetries()
+    {
+        _focusRetryDelays = OverlayWindow.FocusRetryDelayMs;
+        OverlayWindow.FocusRetryDelayMs = [];
+    }
+
+    [TearDown]
+    public void RestoreFocusRetries() => OverlayWindow.FocusRetryDelayMs = _focusRetryDelays;
 
     private sealed class Session : IDisposable
     {
@@ -295,5 +311,18 @@ public class ActiveMonitorModeTests
         session.Right.MouseUp(new Point(200, 200), MouseButton.XButton1);
 
         Assert.That(session.Completion.Task.Result!.Value.Region, Is.EqualTo(RightBounds));
+    }
+
+    [AvaloniaTest]
+    public void InactiveMonitor_FocusRetryDoesNotTakeFocusFromTheActiveOverlay()
+    {
+        using var session = Open(rightIsInitiallyActive: true);
+        // The headless platform activates each shown window from a queued job; run those first.
+        Dispatcher.UIThread.RunJobs();
+        Assert.That(session.Right.IsKeyboardFocusWithin, Is.True);
+
+        session.Left.RetryFocus();
+        Assert.That(session.Right.IsKeyboardFocusWithin, Is.True);
+        Assert.That(session.Left.IsKeyboardFocusWithin, Is.False);
     }
 }

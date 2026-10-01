@@ -90,4 +90,7 @@ public sealed class UiViewModelFactory(
 
     public ViewModels.TaskSettingsViewModel CreateDefaultTaskSettingsViewModel() =>
         new(SettingsManager.DefaultTaskSettings, viewDialogService, new EditorCore()) { IsDefaultTaskSettings = true };
+
+    public ViewModels.ImageEffectsViewModel CreateImageEffectsViewModel(TaskSettingsImage settings) =>
+        new(settings, new EditorCore(), viewDialogService);
 }

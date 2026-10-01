@@ -286,13 +286,30 @@ public partial class WorkflowEditorViewModel : ViewModelBase
                 yield break;
 
             case EnumExtensions.WorkflowType_Category_Upload:
-                if (job == WorkflowType.FileUpload)
+                if (job == WorkflowType.StopUploads) yield break;
+
+                if (job == WorkflowType.ShortenURL)
+                {
+                    yield return UploaderCategory.UrlShortener;
+                    yield break;
+                }
+
+                if (job == WorkflowType.UploadText)
+                {
+                    yield return UploaderCategory.Text;
+                    yield return UploaderCategory.File;
+                    yield break;
+                }
+
+                if (job is WorkflowType.FileUpload or WorkflowType.FolderUpload)
                 {
                     yield return UploaderCategory.File;
                     yield break;
                 }
 
                 if (job == WorkflowType.ClipboardUpload ||
+                    job == WorkflowType.UploadURL ||
+                    job == WorkflowType.DragDropUpload ||
                     job == WorkflowType.ClipboardUploadWithContentViewer)
                 {
                     yield return UploaderCategory.Image;
@@ -306,6 +323,8 @@ public partial class WorkflowEditorViewModel : ViewModelBase
                 yield break;
 
             case EnumExtensions.WorkflowType_Category_Tools:
+                if (job == WorkflowType.ImageViewer || XerahS.Core.TaskHelpers.GetJobMediaType(job) == XerahS.Core.TaskHelpers.JobMediaType.System)
+                    yield break;
                 if (job == WorkflowType.OCR)
                 {
                     yield return UploaderCategory.Text;
@@ -496,7 +515,9 @@ public partial class WorkflowEditorViewModel : ViewModelBase
     {
         // Group WorkflowTypes by their Category attribute
         var allTypes = Enum.GetValues(typeof(WorkflowType)).Cast<WorkflowType>()
-            .Where(t => t != WorkflowType.None);
+            .Where(t => t != WorkflowType.None)
+            // Keep an imported workflow editable without silently changing its job on unsupported platforms.
+            .Where(t => t == _sourceModel.Job || WorkflowCatalog.IsAvailable(t));
 
         var grouped = allTypes.GroupBy(t => t.GetHotkeyCategory())
             .Where(g => !string.IsNullOrEmpty(g.Key))

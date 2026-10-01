@@ -1,0 +1,64 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:vm="using:XerahS.UI.ViewModels"
+        mc:Ignorable="d"
+        d:DesignWidth="1200"
+        d:DesignHeight="760"
+        x:Class="XerahS.UI.Views.ImageViewerWindow"
+        x:DataType="vm:ImageViewerViewModel"
+        Title="Image viewer"
+        WindowState="FullScreen"
+        WindowDecorations="None"
+        CanResize="False"
+        CanMaximize="False"
+        Topmost="True">
+
+        <Grid Background="{DynamicResource SolidBackgroundFillColorSecondaryBrush}">
+            <Border Background="{DynamicResource CheckerBrush}"
+                    PointerReleased="OnPreviewPointerReleased"
+                    PointerWheelChanged="OnPreviewPointerWheelChanged">
+                <Image Source="{Binding CurrentImage}"
+                       Stretch="Uniform"
+                       StretchDirection="DownOnly"/>
+            </Border>
+
+            <Border Background="{DynamicResource SolidBackgroundFillColorSecondaryBrush}" CornerRadius="4"
+                    Padding="10,7"
+                    Margin="16"
+                    HorizontalAlignment="Center"
+                    VerticalAlignment="Top"
+                    IsVisible="{Binding HasImage}">
+                <TextBlock Text="{Binding StatusText}" FontWeight="Normal"/>
+            </Border>
+
+            <Button Width="72"
+                    Height="96"
+                    HorizontalContentAlignment="Center"
+                    VerticalContentAlignment="Center"
+                    Margin="20"
+                    HorizontalAlignment="Left"
+                    VerticalAlignment="Center"
+                    IsVisible="{Binding CanNavigateLeft}"
+                    Click="OnPreviousClick">
+                <TextBlock Text="‹"
+                           FontWeight="Normal"
+                           FontSize="38"/>
+            </Button>
+
+            <Button Width="72"
+                    Height="96"
+                    HorizontalContentAlignment="Center"
+                    VerticalContentAlignment="Center"
+                    Margin="20"
+                    HorizontalAlignment="Right"
+                    VerticalAlignment="Center"
+                    IsVisible="{Binding CanNavigateRight}"
+                    Click="OnNextClick">
+                <TextBlock Text="›"
+                           FontWeight="Normal"
+                           FontSize="38"/>
+            </Button>
+        </Grid>
+</Window>

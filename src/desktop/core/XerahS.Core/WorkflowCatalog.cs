@@ -43,6 +43,20 @@ public static class WorkflowCatalog
         WorkflowType.OCR,
         WorkflowType.ImageEditor,
         WorkflowType.ImageBeautifier,
+        WorkflowType.ImageEffects,
+        WorkflowType.ImageViewer,
+        WorkflowType.InspectWindow,
+        WorkflowType.BorderlessWindow,
+        WorkflowType.MouseHighlighter,
+        WorkflowType.Metadata,
+        WorkflowType.StripMetadata,
+        WorkflowType.UploadURL,
+        WorkflowType.ToggleActionsToolbar,
+        WorkflowType.ToggleTrayMenu,
+        WorkflowType.FolderUpload,
+        WorkflowType.UploadText,
+        WorkflowType.DragDropUpload,
+        WorkflowType.ShortenURL,
         WorkflowType.BackgroundRemover,
         WorkflowType.ImageComparer,
         WorkflowType.IconConverter,
@@ -87,6 +101,24 @@ public static class WorkflowCatalog
         WorkflowType.CustomRegion,
         WorkflowType.LastRegion
     ];
+
+    public static bool IsAvailable(WorkflowType job)
+    {
+        if (job == WorkflowType.MouseHighlighter)
+            return XerahS.Platform.Abstractions.PlatformServices.IsInputServiceInitialized &&
+                XerahS.Platform.Abstractions.PlatformServices.IsWindowServiceInitialized &&
+                XerahS.Platform.Abstractions.PlatformServices.Input.SupportsGlobalMouseMonitoring &&
+                XerahS.Platform.Abstractions.PlatformServices.Window.SupportsClickThrough;
+        if (job is not (WorkflowType.ActiveWindowTopMost or WorkflowType.ActiveWindowBorderless or WorkflowType.BorderlessWindow or WorkflowType.InspectWindow)) return true;
+        if (!XerahS.Platform.Abstractions.PlatformServices.IsWindowServiceInitialized) return false;
+        var windows = XerahS.Platform.Abstractions.PlatformServices.Window;
+        return job switch
+        {
+            WorkflowType.ActiveWindowTopMost => windows.SupportsTopmost,
+            WorkflowType.InspectWindow => windows.SupportsWindowInspection,
+            _ => windows.SupportsBorderless
+        };
+    }
 
     public static bool IsToolWorkflow(WorkflowType workflowType)
     {

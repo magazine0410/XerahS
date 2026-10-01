@@ -34,6 +34,7 @@ using XerahS.Common;
 using XerahS.Core;
 using XerahS.Core.Managers;
 using XerahS.Platform.Abstractions;
+using XerahS.UI.Views;
 
 namespace XerahS.UI.Services;
 
@@ -43,7 +44,7 @@ internal static class ImageEditingToolService
     {
         try
         {
-            if (job is WorkflowType.ImageEditor or WorkflowType.ImageBeautifier)
+            if (job is WorkflowType.ImageEditor or WorkflowType.ImageBeautifier or WorkflowType.ImageEffects)
             {
                 var storageProvider = StorageProviderResolver.Resolve(owner);
                 if (storageProvider == null)
@@ -53,14 +54,25 @@ internal static class ImageEditingToolService
 
                 var files = await storageProvider.OpenFilePickerAsync(new FilePickerOpenOptions
                 {
-                    Title = job == WorkflowType.ImageBeautifier ? "Open Image in Beautifier" : "Open Image in Editor",
+                    Title = job switch
+                    {
+                        WorkflowType.ImageBeautifier => "Open Image in Beautifier",
+                        WorkflowType.ImageEffects => "Open Image for Effects",
+                        _ => "Open Image in Editor"
+                    },
                     AllowMultiple = false,
                     FileTypeFilter = [FilePickerFileTypes.ImageAll, FilePickerFileTypes.All]
                 });
 
                 if (files.Count > 0 && files[0].TryGetLocalPath() is { } path)
                 {
-                    await OpenImageFileAsync(path, taskSettings, job == WorkflowType.ImageBeautifier, taskManager);
+                    bool opened = job == WorkflowType.ImageEffects
+                        ? await OpenImageEffectsAsync(path, taskSettings, taskManager)
+                        : await OpenImageFileAsync(path, taskSettings, job == WorkflowType.ImageBeautifier, taskManager);
+                    if (!opened)
+                    {
+                        throw new IOException("The selected image could not be opened. Check that it exists and uses a supported image format.");
+                    }
                 }
 
                 return;
@@ -85,7 +97,7 @@ internal static class ImageEditingToolService
         }
         catch (Exception ex)
         {
-            DebugHelper.WriteException(ex, $"Failed to open {job}");
+            UploadWorkflowService.ReportError(ex, $"Could not open {EnumExtensions.GetDescription(job)}");
         }
     }
 
@@ -131,5 +143,57 @@ internal static class ImageEditingToolService
             await taskManager.StartTask(executionSettings, result.Copy());
         }
         return true;
+    }
+
+    /// <summary>
+    /// ShareX's Image effects job: the task's image effect preset in the preset editor, previewed on the image.
+    /// Preset changes are written to the saved workflow (ShareX edits ImageSettingsReference) and saved when
+    /// the window closes. Returns when the window closes, or false if the image cannot be opened.
+    /// </summary>
+    internal static async Task<bool> OpenImageEffectsAsync(string path, TaskSettings? taskSettings, IDesktopTaskManager taskManager)
+    {
+        using var bitmap = File.Exists(path) ? SKBitmap.Decode(path) : null;
+        if (bitmap == null)
+        {
+            DebugHelper.WriteLine($"Cannot decode image for image effects: {path}");
+            return false;
+        }
+
+        var window = CreateImageEffectsWindow(bitmap, path, taskSettings, taskManager);
+        var completion = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        window.Closed += async (_, _) =>
+        {
+            await ImageEditorOptionsStore.PersistAsync();
+            completion.TrySetResult();
+        };
+        window.Show();
+        await completion.Task;
+        return true;
+    }
+
+    internal static ImageEffectsToolWindow CreateImageEffectsWindow(SKBitmap image, string? path, TaskSettings? taskSettings,
+        IDesktopTaskManager taskManager)
+    {
+        var sourceSettings = taskSettings ?? SettingsManager.DefaultTaskSettings;
+        var savedSettings = SettingsManager.GetWorkflowById(sourceSettings.WorkflowId ?? string.Empty)?.TaskSettings ?? sourceSettings;
+        var viewModel = UiViewModelFactoryAccessor.GetRequired()
+            .CreateImageEffectsViewModel(savedSettings.ImageSettings ??= new TaskSettingsImage());
+        return new ImageEffectsToolWindow(viewModel, image, path,
+            result => UploadImageEffectsResultAsync(result, sourceSettings, taskManager));
+    }
+
+    /// <summary>
+    /// ShareX's Upload runs the image task (UploadManager.RunImageTask) with the workflow's after-capture tasks.
+    /// "Upload image to host" is added for this run so the button always uploads, even when the workflow's
+    /// after-capture tasks leave it out (ShareX's defaults include it). The preset is already applied, so
+    /// "Add image effects" is skipped instead of applying it a second time.
+    /// </summary>
+    internal static Task UploadImageEffectsResultAsync(SKBitmap result, TaskSettings sourceSettings, IDesktopTaskManager taskManager)
+    {
+        var executionSettings = WatchFolderManager.CloneTaskSettings(sourceSettings);
+        executionSettings.WorkflowId = sourceSettings.WorkflowId;
+        executionSettings.AfterCaptureJob = (executionSettings.AfterCaptureJob & ~AfterCaptureTasks.AddImageEffects)
+            | AfterCaptureTasks.UploadImageToHost;
+        return taskManager.StartTask(executionSettings, result.Copy());
     }
 }

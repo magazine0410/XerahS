@@ -112,6 +112,9 @@ namespace XerahS.Platform.Linux
         internal static extern int XNextEvent(IntPtr display, out XEvent event_return);
 
         [DllImport(libX11)]
+        internal static extern int XSendEvent(IntPtr display, IntPtr window, bool propagate, long eventMask, ref XEvent sendEvent);
+
+        [DllImport(libX11)]
         internal static extern int XPending(IntPtr display);
 
         [DllImport(libX11)]
@@ -138,9 +141,9 @@ namespace XerahS.Platform.Linux
         internal static extern int XGetClassHint(IntPtr display, IntPtr w, out XClassHint class_hints_return);
 
         // Window map state
-        internal const int IsUnviewable = 0;
-        internal const int IsViewable = 1;
-        internal const int IsViewableButNotMapped = 2; // Roughly speaking
+        internal const int IsUnmapped = 0;
+        internal const int IsUnviewable = 1;
+        internal const int IsViewable = 2;
         internal const int ZPixmap = 2;
 
         // Key events
@@ -249,6 +252,27 @@ internal struct XImage
 
         [FieldOffset(0)]
         public XKeyEvent key;
+
+        [FieldOffset(0)]
+        public XClientMessageEvent clientMessage;
+    }
+
+    [StructLayout(LayoutKind.Sequential)]
+    internal struct XClientMessageEvent
+    {
+        public int type;
+        public nuint serial;
+        public int send_event;
+        public IntPtr display;
+        public IntPtr window;
+        public IntPtr message_type;
+        public int format;
+        // Xlib stores format-32 data in five native longs, including on 64-bit systems.
+        public IntPtr data0;
+        public IntPtr data1;
+        public IntPtr data2;
+        public IntPtr data3;
+        public IntPtr data4;
     }
 
     [StructLayout(LayoutKind.Sequential)]

@@ -76,6 +76,57 @@ namespace XerahS.Core.Tasks.Pipeline
             var taskSettings = context.Info.TaskSettings;
             var metadata = context.Info.Metadata;
 
+            if (taskSettings.Job == WorkflowType.ActiveWindowTopMost)
+            {
+                if (!PlatformServices.IsWindowServiceInitialized || !PlatformServices.Window.SupportsTopmost)
+                    throw new PlatformNotSupportedException("The window system does not support changing the active window's topmost state.");
+                if (!PlatformServices.Window.ToggleActiveWindowTopmost())
+                    throw new InvalidOperationException("Could not change the active window's topmost state.");
+                context.Info.SuppressCompletionNotification = true;
+                return PipelineStageResult.Stop;
+            }
+
+            if (taskSettings.Job == WorkflowType.ActiveWindowBorderless)
+            {
+                if (!WorkflowCatalog.IsAvailable(taskSettings.Job))
+                    throw new PlatformNotSupportedException("The window system does not support making the active window borderless.");
+                // As in ShareX, "Keep taskbar visible" from the Borderless window settings applies here too.
+                bool excludeTaskbar = taskSettings.ToolsSettingsReference.BorderlessWindowSettings.ExcludeTaskbarArea;
+                if (!PlatformServices.Window.ToggleBorderlessWindow(PlatformServices.Window.GetForegroundWindow(), excludeTaskbar))
+                    throw new InvalidOperationException("Could not toggle the active window's borderless state.");
+                context.Info.SuppressCompletionNotification = true;
+                return PipelineStageResult.Stop;
+            }
+
+            if (taskSettings.Job == WorkflowType.StopUploads)
+            {
+                // As in ShareX, stop every task, including ones that have not reached their upload yet,
+                // then cancel the upload batches (folder and drop uploads, the Upload Content queue) so
+                // their remaining files are never started.
+                context.Info.SuppressCompletionNotification = true;
+                XerahS.Core.Managers.TaskManager.Instance.StopAllTasks(except: _workerTask);
+                XerahS.Uploaders.UploadCancellationScope.CancelAll();
+                return PipelineStageResult.Stop;
+            }
+
+            if (context.Info.Job == TaskJob.DownloadUpload)
+            {
+                if (!await new Processors.DownloadJobProcessor().ProcessAsync(context.Info, token))
+                {
+                    context.Status = TaskStatus.Canceled;
+                    return PipelineStageResult.Stop;
+                }
+                return PipelineStageResult.Continue;
+            }
+
+            // A supplied upload payload must not reopen its interactive workflow (or read the clipboard).
+            if ((context.Info.Job is TaskJob.TextUpload or TaskJob.ShortenURL &&
+                 !string.IsNullOrEmpty(context.Info.TextContent)) ||
+                (context.Info.Job == TaskJob.FileUpload && !string.IsNullOrEmpty(context.Info.FilePath)))
+            {
+                return PipelineStageResult.Continue;
+            }
+
             // Only capture if we don't already have an image (e.g. passed from UI)
             if (metadata!.Image != null || !PlatformServices.IsInitialized)
             {
@@ -153,6 +204,7 @@ namespace XerahS.Core.Tasks.Pipeline
 
             if (WorkflowCatalog.IsToolWorkflow(taskSettings.Job))
             {
+                context.Info.SuppressCompletionNotification = true;
                 await _workerTask.HandleToolWorkflowAsync(token);
                 return PipelineStageResult.Stop;
             }

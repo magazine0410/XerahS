@@ -33,7 +33,7 @@ namespace XerahS.Platform.Windows
     /// <summary>
     /// Windows implementation of IWindowService using NativeMethods
     /// </summary>
-    public class WindowsWindowService : IWindowService
+    public partial class WindowsWindowService : IWindowService
     {
         /// <summary>
         /// Window classes to ignore when enumerating visible windows.
@@ -51,6 +51,18 @@ namespace XerahS.Platform.Windows
         public IntPtr GetForegroundWindow()
         {
             return NativeMethods.GetForegroundWindow();
+        }
+
+        public bool SupportsTopmost => true;
+
+        public bool ToggleActiveWindowTopmost()
+        {
+            IntPtr handle = GetForegroundWindow();
+            if (handle == IntPtr.Zero) return false;
+            bool topmost = new WindowInfo(handle).TopMost;
+            return NativeMethods.SetWindowPos(handle,
+                (IntPtr)(topmost ? NativeConstants.HWND_NOTOPMOST : NativeConstants.HWND_TOPMOST),
+                0, 0, 0, 0, SetWindowPosFlags.SWP_NOMOVE | SetWindowPosFlags.SWP_NOSIZE | SetWindowPosFlags.SWP_NOACTIVATE);
         }
 
         public bool SetForegroundWindow(IntPtr handle)
@@ -291,7 +303,8 @@ namespace XerahS.Platform.Windows
                 // Add WS_EX_TRANSPARENT and WS_EX_LAYERED flags
                 NativeMethods.SetWindowLong(handle, GWL_EXSTYLE, extendedStyle | WS_EX_TRANSPARENT | WS_EX_LAYERED);
 
-                return true;
+                int updatedStyle = (int)NativeMethods.GetWindowLong(handle, GWL_EXSTYLE);
+                return (updatedStyle & (WS_EX_TRANSPARENT | WS_EX_LAYERED)) == (WS_EX_TRANSPARENT | WS_EX_LAYERED);
             }
             catch (Exception ex)
             {

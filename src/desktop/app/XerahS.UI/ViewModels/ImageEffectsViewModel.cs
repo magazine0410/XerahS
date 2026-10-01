@@ -303,6 +303,50 @@ namespace XerahS.UI.ViewModels
             }
         }
 
+        /// <summary>
+        /// Previews the preset on <paramref name="image"/> (the Image effects tool) instead of the generated
+        /// sample, or on the sample again when it is null. The preview uses a full-size copy, as in ShareX,
+        /// so effects measured in pixels look the same as in the result.
+        /// </summary>
+        public void SetPreviewSource(SKBitmap? image)
+        {
+            if (image == null)
+            {
+                GeneratePreviewImage();
+            }
+            else
+            {
+                sourcePreviewBitmap?.Dispose();
+                sourcePreviewBitmap = image.Copy();
+            }
+
+            UpdatePreview();
+        }
+
+        /// <summary>
+        /// Applies the preset to a copy of <paramref name="source"/>, the same way the "Add image effects"
+        /// after-capture task does. The caller owns the returned bitmap.
+        /// </summary>
+        public SKBitmap ApplyEffects(SKBitmap source)
+        {
+            var copy = source.Copy();
+            var result = XerahS.Core.TaskHelpers.ApplyImageEffects(copy, settings) ?? copy;
+            if (!ReferenceEquals(result, copy))
+            {
+                copy.Dispose();
+            }
+
+            return result;
+        }
+
+        /// <summary>Releases the preview bitmaps when the view that shows them closes.</summary>
+        public void ReleasePreview()
+        {
+            sourcePreviewBitmap?.Dispose();
+            sourcePreviewBitmap = null;
+            PreviewBitmap = null;
+        }
+
         [RelayCommand]
         public void RefreshPreview()
         {

@@ -521,6 +521,7 @@ public class TrayIconHelper : INotifyPropertyChanged
             TrayMenu.Items.Add(new NativeMenuItemSeparator());
         }
 
+        TrayMenu.Items.Add(new NativeMenuItem { Header = "Actions toolbar", Command = new AsyncRelayCommand(() => Core.Helpers.TaskHelpers.ExecuteJob(WorkflowType.ToggleActionsToolbar)) });
         TrayMenu.Items.Add(new NativeMenuItem { Header = "Open Main Window", Command = OpenMainWindowCommand });
         TrayMenu.Items.Add(new NativeMenuItem { Header = "Settings", Command = OpenSettingsCommand });
         TrayMenu.Items.Add(new NativeMenuItemSeparator());

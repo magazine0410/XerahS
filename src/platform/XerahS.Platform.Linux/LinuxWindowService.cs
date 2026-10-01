@@ -31,7 +31,7 @@ using XerahS.Platform.Linux.Wayland.WindowQuery;
 
 namespace XerahS.Platform.Linux
 {
-    public class LinuxWindowService : IWindowService, ILogicalWindowPointQueryService, IDisposable
+    public partial class LinuxWindowService : IWindowService, ILogicalWindowPointQueryService, IDisposable
     {
         private const long MaxPropertyLongLength = 4096;
         private static readonly string[] ExcludedWindowTypeNames =
@@ -54,7 +54,7 @@ namespace XerahS.Platform.Linux
         ];
         private readonly IntPtr _display;
         private readonly IntPtr _rootWindow;
-        private readonly Dictionary<string, IntPtr> _atomCache = new(StringComparer.Ordinal);
+        private readonly System.Collections.Concurrent.ConcurrentDictionary<string, IntPtr> _atomCache = new(StringComparer.Ordinal);
         private readonly IWaylandWindowPointQueryHelper _waylandWindowPointQueryHelper;
 
         public LinuxWindowService()
@@ -87,6 +87,47 @@ namespace XerahS.Platform.Linux
             return _waylandWindowPointQueryHelper.Capability;
         }
 
+        public bool SupportsTopmost
+        {
+            get
+            {
+                // An XWayland connection cannot change native Wayland windows.
+                if (LinuxScreenCaptureService.IsWayland || !TryGetProperty(_rootWindow, "_NET_SUPPORTED", out var property))
+                    return false;
+                using (property)
+                {
+                    return property.Format == 32 && ReadIntPtrArray(property.Data, property.ItemCount)
+                        .Contains(GetAtom("_NET_WM_STATE_ABOVE"));
+                }
+            }
+        }
+
+        public bool ToggleActiveWindowTopmost()
+        {
+            if (!SupportsTopmost || !TryGetProperty(_rootWindow, "_NET_ACTIVE_WINDOW", out var property)) return false;
+            IntPtr window;
+            using (property)
+            {
+                if (property.Format != 32) return false;
+                window = Marshal.ReadIntPtr(property.Data);
+            }
+            if (window == IntPtr.Zero || window == _rootWindow) return false;
+
+            // EWMH: ask the window manager to toggle ABOVE on the active client window.
+            var message = new XEvent
+            {
+                clientMessage = new XClientMessageEvent
+                {
+                    type = 33, display = _display, window = window,
+                    message_type = GetAtom("_NET_WM_STATE"), format = 32,
+                    data0 = new IntPtr(2), data1 = GetAtom("_NET_WM_STATE_ABOVE"), data3 = new IntPtr(2)
+                }
+            };
+            int result = NativeMethods.XSendEvent(_display, _rootWindow, false, (1L << 20) | (1L << 19), ref message);
+            NativeMethods.XFlush(_display);
+            return result != 0;
+        }
+
         public WindowInfo? GetWindowAtLogicalPoint(System.Drawing.Point logicalPoint)
         {
             return _waylandWindowPointQueryHelper.GetWindowAtPoint(logicalPoint);
@@ -109,6 +150,8 @@ namespace XerahS.Platform.Linux
                 return IntPtr.Zero;
             }
 
+            if (TryGetWindowHandleArrayProperty(_rootWindow, "_NET_ACTIVE_WINDOW", out var active) && active.Length > 0 && active[0] != IntPtr.Zero)
+                return active[0];
             NativeMethods.XGetInputFocus(_display, out IntPtr focus, out int revert_to);
             DebugHelper.WriteLine($"LinuxWindowService: XGetInputFocus returned: focus={focus} (0x{focus:X}), revert_to={revert_to}");
 
@@ -296,9 +339,9 @@ namespace XerahS.Platform.Linux
                 {
                     string mapStateStr = attrs.map_state switch
                     {
-                        0 => "IsUnviewable",
-                        1 => "IsViewable",
-                        2 => "IsUnmapped",
+                        0 => "IsUnmapped",
+                        1 => "IsUnviewable",
+                        2 => "IsViewable",
                         _ => $"Unknown({attrs.map_state})"
                     };
                     DebugHelper.WriteLine($"LinuxWindowService: Window map state: {mapStateStr}");
@@ -608,7 +651,7 @@ namespace XerahS.Platform.Linux
             }
         }
 
-        private bool TryGetProperty(IntPtr handle, string propertyName, out XProperty property)
+        private bool TryGetProperty(IntPtr handle, string propertyName, out XProperty property, long maximumLength = MaxPropertyLongLength)
         {
             property = default;
 
@@ -624,7 +667,7 @@ namespace XerahS.Platform.Linux
                 handle,
                 propertyAtom,
                 0,
-                MaxPropertyLongLength,
+                maximumLength,
                 false,
                 IntPtr.Zero,
                 out IntPtr actualType,
@@ -720,7 +763,8 @@ namespace XerahS.Platform.Linux
 
         public uint GetWindowProcessId(IntPtr handle)
         {
-            return 0;
+            return TryGetWindowHandleArrayProperty(handle, "_NET_WM_PID", out var ids) && ids.Length > 0
+                ? unchecked((uint)ids[0].ToInt64()) : 0;
         }
 
         public IntPtr SearchWindow(string windowTitle)
@@ -731,6 +775,8 @@ namespace XerahS.Platform.Linux
 
             // Fallback: iterate through all windows and find one with matching title
             var windows = GetAllWindows();
+            var exact = windows.FirstOrDefault(w => w.Title.Equals(windowTitle, StringComparison.OrdinalIgnoreCase));
+            if (exact != null) return exact.Handle;
             foreach (var w in windows)
             {
                 if (!string.IsNullOrEmpty(w.Title) && w.Title.Contains(windowTitle, StringComparison.OrdinalIgnoreCase))
@@ -749,9 +795,11 @@ namespace XerahS.Platform.Linux
 
         public bool SetWindowClickThrough(IntPtr handle)
         {
-            // Click-through windows are not easily supported on X11/Wayland without compositor extensions.
-            // This is a no-op for Linux; recording borders will still be visible but interactable.
-            return false;
+            if (!SupportsClickThrough || !TryGetWindowAttributes(handle, out _)) return false;
+            // SHAPE 1.1: an empty input region leaves visual pixels intact while forwarding all clicks.
+            XShapeCombineRectangles(_display, handle, 2, 0, 0, IntPtr.Zero, 0, 0, 0);
+            NativeMethods.XFlush(_display);
+            return true;
         }
 
         private readonly struct XProperty : IDisposable

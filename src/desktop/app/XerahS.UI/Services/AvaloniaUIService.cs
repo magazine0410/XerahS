@@ -49,6 +49,11 @@ namespace XerahS.UI.Services
 {
     public class AvaloniaUIService : IUIService
     {
+        public Task<FileConflictResolution?> ResolveFileConflictAsync(string filePath, CancellationToken cancellationToken = default)
+        {
+            return Dispatcher.UIThread.InvokeAsync(() => new Views.Dialogs.FileConflictWindow(filePath).ShowAsync(cancellationToken));
+        }
+
         private IDesktopTaskManager? _taskManager;
         private bool _wasMainWindowVisible;
         private Avalonia.Controls.WindowState _previousWindowState;

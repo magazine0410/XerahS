@@ -371,23 +371,27 @@ public partial class UploadContentViewModel : ViewModelBase, IDisposable
     [RelayCommand]
     private async Task UploadAllAsync()
     {
-        if (IsUploading) return;
-
         var pendingItems = Items.Where(i => i.Status == UploadQueueItemStatus.Pending).ToList();
-        if (pendingItems.Count == 0) return;
+        await UploadItemsAsync(pendingItems);
+    }
+
+    private async Task UploadItemsAsync(IReadOnlyList<UploadQueueItem> pendingItems)
+    {
+        if (IsUploading || _disposed || pendingItems.Count == 0) return;
 
         DebugHelper.WriteLine($"[UploadContentDebug] UploadAll started. pendingItems={pendingItems.Count}");
 
         IsUploading = true;
         _uploadCts = new CancellationTokenSource();
+        using var scope = new UploadCancellationScope(_uploadCts.Token);
 
         try
         {
             foreach (var item in pendingItems)
             {
-                if (_uploadCts.Token.IsCancellationRequested) break;
+                if (scope.Token.IsCancellationRequested) break;
 
-                await UploadItemAsync(item);
+                await UploadItemAsync(item, scope.Token);
                 UpdateStatus();
             }
         }
@@ -400,7 +404,7 @@ public partial class UploadContentViewModel : ViewModelBase, IDisposable
         }
     }
 
-    private async Task UploadItemAsync(UploadQueueItem item)
+    private async Task UploadItemAsync(UploadQueueItem item, CancellationToken token)
     {
         item.Status = UploadQueueItemStatus.Uploading;
         item.ProgressPercent = 0;
@@ -412,6 +416,8 @@ public partial class UploadContentViewModel : ViewModelBase, IDisposable
             $"textLength={(item.TextContent?.Length ?? 0)}");
 
         WorkerTask? capturedTask = null;
+        var settings = CreateUploadTaskSettings(item.DataType);
+        CancellationTokenRegistration cancellation = default;
 
         void OnUploadProgressChanged(ProgressManager progress)
         {
@@ -423,17 +429,19 @@ public partial class UploadContentViewModel : ViewModelBase, IDisposable
 
         void OnTaskStarted(object? sender, WorkerTask task)
         {
+            if (!ReferenceEquals(task.Info.TaskSettings, settings)) return;
             capturedTask = task;
             _taskManager.TaskStarted -= OnTaskStarted;
 
             task.Info.UploadProgressChanged += OnUploadProgressChanged;
+            cancellation = token.Register(task.Stop);
         }
 
         _taskManager.TaskStarted += OnTaskStarted;
 
         try
         {
-            var settings = CreateUploadTaskSettings(item.DataType);
+            token.ThrowIfCancellationRequested();
             DebugHelper.WriteLine(
                 $"[UploadContentDebug] TaskSettings resolved for item: job={settings.Job}, workflowId=\"{settings.WorkflowId ?? string.Empty}\", " +
                 $"destinationInstanceId=\"{settings.DestinationInstanceId ?? string.Empty}\", " +
@@ -457,7 +465,7 @@ public partial class UploadContentViewModel : ViewModelBase, IDisposable
                     break;
 
                 case EDataType.Text when !string.IsNullOrEmpty(item.TextContent):
-                    settings.Job = WorkflowType.ClipboardUploadWithContentViewer;
+                    settings.Job = WorkflowType.UploadText;
                     DebugHelper.WriteLine(
                         $"[UploadContentDebug] Starting text upload task. textLength={item.TextContent.Length}, " +
                         $"textPreview=\"{GetTextPreview(item.TextContent)}\"");
@@ -465,7 +473,7 @@ public partial class UploadContentViewModel : ViewModelBase, IDisposable
                     break;
 
                 case EDataType.URL when !string.IsNullOrEmpty(item.TextContent):
-                    settings.Job = WorkflowType.ClipboardUploadWithContentViewer;
+                    settings.Job = WorkflowType.ShortenURL;
                     DebugHelper.WriteLine(
                         $"[UploadContentDebug] Starting URL upload task. urlLength={item.TextContent.Length}, " +
                         $"urlPreview=\"{GetTextPreview(item.TextContent)}\"");
@@ -478,6 +486,7 @@ public partial class UploadContentViewModel : ViewModelBase, IDisposable
                     return;
             }
 
+            token.ThrowIfCancellationRequested();
             if (capturedTask?.IsSuccessful == true)
             {
                 item.Status = UploadQueueItemStatus.Completed;
@@ -493,6 +502,11 @@ public partial class UploadContentViewModel : ViewModelBase, IDisposable
                 DebugHelper.WriteLine($"[UploadContentDebug] UploadItem failed: error=\"{item.ErrorMessage}\"");
             }
         }
+        catch (OperationCanceledException)
+        {
+            item.Status = UploadQueueItemStatus.Failed;
+            item.ErrorMessage = "Upload cancelled";
+        }
         catch (Exception ex)
         {
             item.Status = UploadQueueItemStatus.Failed;
@@ -502,6 +516,7 @@ public partial class UploadContentViewModel : ViewModelBase, IDisposable
         }
         finally
         {
+            cancellation.Dispose();
             _taskManager.TaskStarted -= OnTaskStarted;
             if (capturedTask != null)
             {
@@ -512,17 +527,22 @@ public partial class UploadContentViewModel : ViewModelBase, IDisposable
 
     private static TaskSettings CreateUploadTaskSettings(EDataType dataType)
     {
-        var preferredWorkflowJob = dataType == EDataType.File
-            ? WorkflowType.FileUpload
-            : WorkflowType.ClipboardUploadWithContentViewer;
+        var preferredWorkflowJob = dataType switch
+        {
+            EDataType.File => WorkflowType.FileUpload,
+            EDataType.URL => WorkflowType.ShortenURL,
+            EDataType.Text => WorkflowType.UploadText,
+            _ => WorkflowType.ClipboardUploadWithContentViewer
+        };
 
         var workflow = SettingsManager.GetFirstWorkflow(preferredWorkflowJob);
 
         // Upload Content fallback:
         // if no clipboard workflow exists, use FileUpload workflow settings.
-        if (workflow == null && preferredWorkflowJob == WorkflowType.ClipboardUploadWithContentViewer)
+        if (workflow == null && preferredWorkflowJob != WorkflowType.FileUpload)
         {
-            workflow = SettingsManager.GetFirstWorkflow(WorkflowType.FileUpload);
+            workflow = SettingsManager.GetFirstWorkflow(WorkflowType.ClipboardUploadWithContentViewer)
+                ?? SettingsManager.GetFirstWorkflow(WorkflowType.FileUpload);
         }
 
         DebugHelper.WriteLine(
@@ -602,14 +622,14 @@ public partial class UploadContentViewModel : ViewModelBase, IDisposable
     [RelayCommand]
     private async Task RetryItemAsync(UploadQueueItem? item)
     {
-        if (item == null || item.Status != UploadQueueItemStatus.Failed) return;
+        if (item == null || item.Status != UploadQueueItemStatus.Failed || IsUploading) return;
 
         item.Status = UploadQueueItemStatus.Pending;
         item.ErrorMessage = null;
         item.ProgressPercent = 0;
         item.ResultURL = null;
 
-        await UploadItemAsync(item);
+        await UploadItemsAsync([item]);
         UpdateStatus();
     }
 
@@ -740,7 +760,6 @@ public partial class UploadContentViewModel : ViewModelBase, IDisposable
         _disposed = true;
 
         _uploadCts?.Cancel();
-        _uploadCts?.Dispose();
         SelectedPreviewImage = null;
 
         foreach (var item in Items)

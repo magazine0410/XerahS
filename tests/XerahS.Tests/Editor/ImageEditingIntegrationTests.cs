@@ -49,6 +49,7 @@ using XerahS.Platform.Abstractions;
 using XerahS.Tests.Xip0052;
 using XerahS.UI.Helpers;
 using XerahS.UI.Services;
+using XerahS.UI.Views;
 using HostEditorWindow = XerahS.UI.Views.EditorWindow;
 
 namespace XerahS.Tests.Editor;
@@ -99,6 +100,7 @@ public class ImageEditingIntegrationTests
     [TestCase(WorkflowType.ImageComparer)]
     [TestCase(WorkflowType.IconConverter)]
     [TestCase(WorkflowType.ImageBeautifier)]
+    [TestCase(WorkflowType.ImageEffects)]
     public void NewTools_AreRoutableImageWorkflows_WithoutRenumberingOldJobs(WorkflowType job)
     {
         Assert.Multiple(() =>
@@ -235,6 +237,86 @@ public class ImageEditingIntegrationTests
                 opened!.Close();
                 await task;
             }
+        }
+    }
+
+    [AvaloniaTest]
+    public void ImageEffectsWindow_EditsTheSavedWorkflowPreset_AndAppliesItToTheImage()
+    {
+        UiViewModelFactoryAccessor.Configure(new FakeUiViewModelFactory());
+        var saved = AddWorkflow("effects");
+        saved.ImageSettings.ImageEffectsPreset = new ImageEffectPreset { Name = "Flip" };
+        saved.AfterCaptureJob = AfterCaptureTasks.AddImageEffects | AfterCaptureTasks.CopyImageToClipboard;
+        // Left half red, right half blue, so a horizontal flip is visible.
+        using var image = new SKBitmap(80, 60);
+        using (var canvas = new SKCanvas(image))
+        {
+            canvas.Clear(SKColors.Red);
+            using var blue = new SKPaint { Color = SKColors.Blue };
+            canvas.DrawRect(40, 0, 40, 60, blue);
+        }
+        var manager = new RecordingTaskManager();
+        var executionCopy = new TaskSettings { WorkflowId = "effects", AfterCaptureJob = saved.AfterCaptureJob };
+
+        var window = ImageEditingToolService.CreateImageEffectsWindow(image, "effects.png", executionCopy, manager);
+        try
+        {
+            window.Show();
+            var vm = window.ViewModel;
+            Assert.That(vm.TryAddFlipHorizontalEffect(), Is.True);
+            window.UpdateLayout();
+            using var result = window.CreateResult();
+            Assert.Multiple(() =>
+            {
+                Assert.That(saved.ImageSettings.ImageEffectsPreset.Effects, Has.Count.EqualTo(1), "The preset belongs to the saved workflow.");
+                Assert.That(executionCopy.ImageSettings.ImageEffectsPreset.Effects, Is.Empty);
+                Assert.That(vm.PreviewBitmap!.PixelSize.Width, Is.EqualTo(80), "The preview shows the chosen image.");
+                Assert.That(result!.GetPixel(10, 30), Is.EqualTo(SKColors.Blue));
+                Assert.That(image.GetPixel(10, 30), Is.EqualTo(SKColors.Red), "The caller's image is not changed.");
+                Assert.That(window.Title, Does.Contain("effects.png"));
+            });
+            SavePreview(window, "ImageEffectsTool");
+
+            ImageEditingToolService.UploadImageEffectsResultAsync(result!, executionCopy, manager).GetAwaiter().GetResult();
+            Assert.Multiple(() =>
+            {
+                Assert.That(manager.Calls, Is.EqualTo(1));
+                Assert.That(manager.Settings!.AfterCaptureJob, Is.EqualTo(AfterCaptureTasks.CopyImageToClipboard | AfterCaptureTasks.UploadImageToHost),
+                    "Upload always uploads, keeps the other tasks, and skips Add image effects (the preset is already applied).");
+                Assert.That(manager.Settings.WorkflowId, Is.EqualTo("effects"));
+            });
+        }
+        finally
+        {
+            window.Close();
+            UiViewModelFactoryAccessor.Reset();
+        }
+    }
+
+    [AvaloniaTest]
+    public async Task ImageEffectsJob_OpensThePresetWindow_AndReturnsWhenItCloses()
+    {
+        UiViewModelFactoryAccessor.Configure(new FakeUiViewModelFactory());
+        ImageEffectsToolWindow? opened = null;
+        using var subscription = Window.WindowOpenedEvent.AddClassHandler<ImageEffectsToolWindow>((window, _) => opened = window);
+        string path = Path.Combine(_directory, "effects.png");
+        using (var bitmap = new SKBitmap(4, 3))
+        using (var data = bitmap.Encode(SKEncodedImageFormat.Png, 100))
+        using (var stream = File.Create(path)) data.SaveTo(stream);
+        try
+        {
+            Assert.That(await ImageEditingToolService.OpenImageEffectsAsync(Path.Combine(_directory, "missing.png"), null, new RecordingTaskManager()), Is.False);
+
+            var task = ImageEditingToolService.OpenImageEffectsAsync(path, null, new RecordingTaskManager());
+            Dispatcher.UIThread.RunJobs();
+            Assert.That(opened, Is.Not.Null);
+            Assert.That(task.IsCompleted, Is.False);
+            opened!.Close();
+            Assert.That(await task, Is.True);
+        }
+        finally
+        {
+            UiViewModelFactoryAccessor.Reset();
         }
     }
 
@@ -627,7 +709,10 @@ public class ImageEditingIntegrationTests
         window.UpdateLayout();
         using var frame = window.CaptureRenderedFrame();
         Assert.That(frame, Is.Not.Null);
-        string directory = Path.Combine(Path.GetTempPath(), "xerahs-image-editing-previews");
+        // Saved only on request, like MediaBrowserViewTests, so test runs do not leave files behind.
+        string? root = Environment.GetEnvironmentVariable("XERAHS_UI_CAPTURE_DIR");
+        if (string.IsNullOrEmpty(root)) return;
+        string directory = Path.Combine(root, "image-editing-previews");
         Directory.CreateDirectory(directory);
         using var stream = File.Create(Path.Combine(directory, $"{name}.png"));
         frame.Save(stream, PngBitmapEncoderOptions.Default);

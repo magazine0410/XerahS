@@ -279,9 +279,10 @@ namespace XerahS.Core.Tasks
 
         public void Stop()
         {
-            if (IsWorking)
+            if (IsBusy)
             {
-                Status = TaskStatus.Stopping;
+                // Keep queued tasks startable so StartAsync can finalize their cancellation.
+                if (IsWorking) Status = TaskStatus.Stopping;
                 OnStatusChanged();
                 _cancellationTokenSource.Cancel();
             }

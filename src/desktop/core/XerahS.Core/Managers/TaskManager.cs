@@ -188,8 +188,10 @@ namespace XerahS.Core.Managers
 
             var task = WorkerTask.Create(safeTaskSettings);
             task.Info.TextContent = text;
-            task.Info.DataType = EDataType.Text;
-            task.Info.Job = TaskJob.TextUpload;
+            bool shortenUrl = safeTaskSettings.Job == WorkflowType.ShortenURL;
+            bool downloadUrl = safeTaskSettings.Job == WorkflowType.UploadURL;
+            task.Info.DataType = downloadUrl ? EDataType.File : shortenUrl ? EDataType.URL : EDataType.Text;
+            task.Info.Job = downloadUrl ? TaskJob.DownloadUpload : shortenUrl ? TaskJob.ShortenURL : TaskJob.TextUpload;
 
             string extension = safeTaskSettings.AdvancedSettings?.TextFileExtension ?? "txt";
             task.Info.SetFileName(TaskHelpers.GetFileName(safeTaskSettings, extension, task.Info.Metadata));
@@ -238,9 +240,16 @@ namespace XerahS.Core.Managers
             }
         }
 
-        public void StopAllTasks()
+        /// <summary>
+        /// Stops every task that is queued or running, as ShareX's TaskManager.StopAllTasks does.
+        /// </summary>
+        public void StopAllTasks() => StopAllTasks(except: null);
+
+        /// <inheritdoc cref="StopAllTasks()"/>
+        /// <param name="except">A task to leave running, such as the task that asked for the stop.</param>
+        public void StopAllTasks(WorkerTask? except)
         {
-            foreach (var task in _tasks.Where(t => t.IsWorking))
+            foreach (var task in _tasks.Where(t => !ReferenceEquals(t, except)))
             {
                 task.Stop();
             }

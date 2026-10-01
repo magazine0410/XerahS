@@ -37,5 +37,8 @@ namespace XerahS.Platform.Abstractions
         /// </summary>
         /// <returns>The mouse position in physical pixels, or Point.Empty if unavailable</returns>
         Point GetCursorPosition();
+        bool SupportsGlobalMouseMonitoring => false;
+        IGlobalMouseMonitor CreateGlobalMouseMonitor(MouseHighlighterInputBuffer input) =>
+            throw new PlatformNotSupportedException("Global mouse monitoring is not supported on this window system.");
     }
 }

@@ -34,6 +34,9 @@ namespace XerahS.Platform.Windows
     /// </summary>
     public class WindowsInputService : IInputService
     {
+        public bool SupportsGlobalMouseMonitoring => true;
+        public IGlobalMouseMonitor CreateGlobalMouseMonitor(MouseHighlighterInputBuffer input) => new WindowsGlobalMouseMonitor(input);
+
         [StructLayout(LayoutKind.Sequential)]
         private struct POINT
         {

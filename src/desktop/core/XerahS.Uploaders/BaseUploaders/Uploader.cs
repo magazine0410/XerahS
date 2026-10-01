@@ -45,6 +45,7 @@ namespace XerahS.Uploaders
         protected bool StopUploadRequested { get; set; }
         protected bool AllowReportProgress { get; set; } = true;
         protected bool ReturnResponseOnError { get; set; }
+        internal CancellationToken RequestCancellationToken { get; set; }
 
         protected ResponseInfo? LastResponseInfo { get; set; }
 
@@ -202,8 +203,9 @@ namespace XerahS.Uploaders
                 long contentLength = bytesArguments.Length + bytesDataOpen.Length + data.Length + bytesDataClose.Length;
 
                 HttpWebRequest request = CreateWebRequest(method, url, headers, cookies, contentType, contentLength);
+                using var cancellation = RequestCancellationToken.Register(request.Abort);
 
-                using (Stream requestStream = request.GetRequestStream())
+                using (Stream requestStream = request.GetRequestStreamAsync().GetAwaiter().GetResult())
                 {
                     requestStream.Write(bytesArguments, 0, bytesArguments.Length);
                     requestStream.Write(bytesDataOpen, 0, bytesDataOpen.Length);
@@ -211,7 +213,7 @@ namespace XerahS.Uploaders
                     requestStream.Write(bytesDataClose, 0, bytesDataClose.Length);
                 }
 
-                using (HttpWebResponse response = (HttpWebResponse)request.GetResponse())
+                using (HttpWebResponse response = (HttpWebResponse)request.GetResponseAsync().GetAwaiter().GetResult())
                 {
                     result.ResponseInfo = ProcessWebResponse(response) ?? new ResponseInfo();
                     result.Response = result.ResponseInfo?.ResponseText;
@@ -269,8 +271,9 @@ namespace XerahS.Uploaders
                 headers.Add("Content-Range", $"bytes {startByte}-{endByte}/{dataLength}");
 
                 HttpWebRequest request = CreateWebRequest(method, url, headers, cookies, contentType, contentLength);
+                using var cancellation = RequestCancellationToken.Register(request.Abort);
 
-                using (Stream requestStream = request.GetRequestStream())
+                using (Stream requestStream = request.GetRequestStreamAsync().GetAwaiter().GetResult())
                 {
                     if (!TransferData(data, requestStream, contentPosition, contentLength))
                     {
@@ -278,7 +281,7 @@ namespace XerahS.Uploaders
                     }
                 }
 
-                using (HttpWebResponse response = (HttpWebResponse)request.GetResponse())
+                using (HttpWebResponse response = (HttpWebResponse)request.GetResponseAsync().GetAwaiter().GetResult())
                 {
                     result.ResponseInfo = ProcessWebResponse(response) ?? new ResponseInfo();
                     result.Response = result.ResponseInfo?.ResponseText;
@@ -324,10 +327,11 @@ namespace XerahS.Uploaders
                 }
 
                 HttpWebRequest request = CreateWebRequest(method, url, headers, cookies, contentType, contentLength);
+                using var cancellation = RequestCancellationToken.Register(request.Abort);
 
                 if (contentLength > 0 && data != null)
                 {
-                    using (Stream requestStream = request.GetRequestStream())
+                    using (Stream requestStream = request.GetRequestStreamAsync().GetAwaiter().GetResult())
                     {
                         if (!TransferData(data, requestStream))
                         {
@@ -336,7 +340,9 @@ namespace XerahS.Uploaders
                     }
                 }
 
-                return (HttpWebResponse)request.GetResponse();
+                // The async request API participates in Abort on .NET, while the legacy
+                // synchronous API can remain blocked waiting for a server response.
+                return (HttpWebResponse)request.GetResponseAsync().GetAwaiter().GetResult();
             }
             catch (WebException we) when (we.Response != null && allowNon2xxResponses)
             {
@@ -480,6 +486,7 @@ namespace XerahS.Uploaders
         private HttpWebRequest CreateWebRequest(HttpMethod method, string url, NameValueCollection? headers = null, CookieCollection? cookies = null,
             string? contentType = null, long contentLength = 0)
         {
+            RequestCancellationToken.ThrowIfCancellationRequested();
             LastResponseInfo = null;
 
             HttpWebRequest request = RequestHelpers.CreateWebRequest(method, url, headers, cookies, contentType, contentLength);
@@ -491,6 +498,8 @@ namespace XerahS.Uploaders
         {
             if (response != null)
             {
+                using var cancellation = RequestCancellationToken.Register(response.Close);
+                RequestCancellationToken.ThrowIfCancellationRequested();
                 ResponseInfo responseInfo = new ResponseInfo()
                 {
                     StatusCode = response.StatusCode,

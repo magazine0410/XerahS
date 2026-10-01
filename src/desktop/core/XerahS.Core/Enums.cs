@@ -363,7 +363,58 @@ public enum WorkflowType // Localized
     IconConverter,
     [Category(EnumExtensions.WorkflowType_Category_Tools)]
     [Description("Image beautifier")]
-    ImageBeautifier
+    ImageBeautifier,
+    [Category(EnumExtensions.WorkflowType_Category_Upload)]
+    [Description("Upload folder")]
+    FolderUpload,
+    [Category(EnumExtensions.WorkflowType_Category_Upload)]
+    [Description("Upload text")]
+    UploadText,
+    [Category(EnumExtensions.WorkflowType_Category_Upload)]
+    [Description("Drag and drop upload")]
+    DragDropUpload,
+    [Category(EnumExtensions.WorkflowType_Category_Upload)]
+    [Description("Shorten URL")]
+    ShortenURL,
+    [Category(EnumExtensions.WorkflowType_Category_Upload)]
+    [Description("Stop all uploads")]
+    StopUploads,
+    [Category(EnumExtensions.WorkflowType_Category_Tools)]
+    [Description("Image effects")]
+    ImageEffects,
+    [Category(EnumExtensions.WorkflowType_Category_Upload)]
+    [Description("Upload from URL")]
+    UploadURL,
+    [Category(EnumExtensions.WorkflowType_Category_Tools)]
+    [Description("Image viewer")]
+    ImageViewer,
+    [Category(EnumExtensions.WorkflowType_Category_Tools)]
+    [Description("Make active window topmost")]
+    ActiveWindowTopMost,
+    [Category(EnumExtensions.WorkflowType_Category_Other)]
+    [Description("Toggle tray menu")]
+    ToggleTrayMenu,
+    [Category(EnumExtensions.WorkflowType_Category_Tools)]
+    [Description("Metadata")]
+    Metadata,
+    [Category(EnumExtensions.WorkflowType_Category_Tools)]
+    [Description("Strip metadata")]
+    StripMetadata,
+    [Category(EnumExtensions.WorkflowType_Category_Tools)]
+    [Description("Inspect window")]
+    InspectWindow,
+    [Category(EnumExtensions.WorkflowType_Category_Tools)]
+    [Description("Borderless window")]
+    BorderlessWindow,
+    [Category(EnumExtensions.WorkflowType_Category_Tools)]
+    [Description("Make active window borderless")]
+    ActiveWindowBorderless,
+    [Category(EnumExtensions.WorkflowType_Category_Other)]
+    [Description("Toggle actions toolbar")]
+    ToggleActionsToolbar,
+    [Category(EnumExtensions.WorkflowType_Category_Tools)]
+    [Description("Mouse highlighter")]
+    MouseHighlighter
 }
 
 public enum ThumbnailViewClickAction // Localized

@@ -46,7 +46,14 @@
                     <Separator/>
                     <MenuItem Header="_Upload">
                         <MenuItem Header="Upload _File..." Command="{Binding NavigateMenuCommand}" CommandParameter="Upload_FileUpload"/>
+                        <MenuItem Header="Upload F_older..." Command="{Binding NavigateMenuCommand}" CommandParameter="Upload_FolderUpload"/>
                         <MenuItem Header="Upload _Content..." Command="{Binding NavigateMenuCommand}" CommandParameter="Upload_ClipboardUploadWithContentViewer"/>
+                        <MenuItem Header="Upload _Text..." Command="{Binding NavigateMenuCommand}" CommandParameter="Upload_UploadText"/>
+                        <MenuItem Header="Upload _URL..." Command="{Binding NavigateMenuCommand}" CommandParameter="Upload_UploadURL"/>
+                        <MenuItem Header="_Drag and Drop Upload" Command="{Binding NavigateMenuCommand}" CommandParameter="Upload_DragDropUpload"/>
+                        <MenuItem Header="_Shorten URL..." Command="{Binding NavigateMenuCommand}" CommandParameter="Upload_ShortenURL"/>
+                        <Separator/>
+                        <MenuItem Header="Stop _All Uploads" Command="{Binding NavigateMenuCommand}" CommandParameter="Upload_StopUploads"/>
                     </MenuItem>
                     <Separator/>
                     <MenuItem Header="_Save" Command="{Binding #MainWindowRoot.DataContext.SaveCommand}" InputGesture="Ctrl+S"/>
@@ -85,6 +92,7 @@
                 <MenuItem Header="_Tools">
                     <MenuItem Header="_Color Picker..." Command="{Binding NavigateMenuCommand}" CommandParameter="Tools_ColorPicker"/>
                     <MenuItem Header="Scr_een Color Picker" Command="{Binding NavigateMenuCommand}" CommandParameter="Tools_ScreenColorPicker"/>
+                    <MenuItem x:Name="MouseHighlighterMenuItem" Header="Mouse Highlighter..." Command="{Binding NavigateMenuCommand}" CommandParameter="Tools_MouseHighlighter"/>
                     <MenuItem Header="_Ruler" Command="{Binding NavigateMenuCommand}" CommandParameter="Tools_Ruler"/>
                     <Separator/>
                     <MenuItem Header="_QR Code">
@@ -103,8 +111,10 @@
                     <MenuItem Header="_Hash Checker..." Command="{Binding NavigateMenuCommand}" CommandParameter="Tools_HashCheck"/>
                     <MenuItem Header="_Media Browser..." Command="{Binding NavigateMenuCommand}" CommandParameter="Tools_MediaBrowser"/>
                     <MenuItem Header="_Index Folder..." Command="{Binding NavigateMenuCommand}" CommandParameter="Tools_IndexFolder"/>
+                    <MenuItem Header="Metadata..." Command="{Binding NavigateMenuCommand}" CommandParameter="Tools_Metadata"/>
                     <Separator/>
                     <MenuItem Header="_Image Combiner..." Command="{Binding NavigateMenuCommand}" CommandParameter="Tools_ImageCombiner"/>
+                    <MenuItem Header="Image E_ffects..." Command="{Binding NavigateMenuCommand}" CommandParameter="Tools_ImageEffects"/>
                     <MenuItem Header="Image Beautifier..." Command="{Binding NavigateMenuCommand}" CommandParameter="Tools_ImageBeautifier"/>
                     <MenuItem Header="Background Remover..." Command="{Binding NavigateMenuCommand}" CommandParameter="Tools_BackgroundRemover"/>
                     <MenuItem Header="Image Comparer..." Command="{Binding NavigateMenuCommand}" CommandParameter="Tools_ImageComparer"/>
@@ -113,6 +123,7 @@
                     <MenuItem Header="Image _Thumbnailer..." Command="{Binding NavigateMenuCommand}" CommandParameter="Tools_ImageThumbnailer"/>
                     <MenuItem Header="Image Resizer..." Command="{Binding NavigateMenuCommand}" CommandParameter="Tools_ImageResizer"/>
                     <MenuItem Header="Image Converter..." Command="{Binding NavigateMenuCommand}" CommandParameter="Tools_ImageConverter"/>
+                    <MenuItem Header="Image _Viewer..." Command="{Binding NavigateMenuCommand}" CommandParameter="Tools_ImageViewer"/>
                     <MenuItem Header="Image Watermark..." Command="{Binding NavigateMenuCommand}" CommandParameter="Tools_ImageWatermark"/>
                     <MenuItem Header="Animated GIF Maker..." Command="{Binding NavigateMenuCommand}" CommandParameter="Tools_AnimatedGifMaker"/>
                     <MenuItem Header="_Analyze Image..." Command="{Binding NavigateMenuCommand}" CommandParameter="Tools_AnalyzeImage"/>
@@ -122,7 +133,9 @@
                     <MenuItem Header="Video _Trimmer..." Command="{Binding NavigateMenuCommand}" CommandParameter="Tools_VideoTrimmer"/>
                     <MenuItem Header="Video Thumb_nailer..." Command="{Binding NavigateMenuCommand}" CommandParameter="Tools_VideoThumbnailer"/>
                     <Separator/>
+                    <MenuItem x:Name="BorderlessWindowMenuItem" Header="Borderless Window..." Command="{Binding NavigateMenuCommand}" CommandParameter="Tools_BorderlessWindow"/>
                     <MenuItem Header="Clipboard _Viewer" Command="{Binding NavigateMenuCommand}" CommandParameter="Tools_ClipboardViewer"/>
+                    <MenuItem x:Name="InspectWindowMenuItem" Header="Inspect Window..." Command="{Binding NavigateMenuCommand}" CommandParameter="Tools_InspectWindow"/>
                     <MenuItem Header="_Monitor Test" Command="{Binding NavigateMenuCommand}" CommandParameter="Tools_MonitorTest"/>
                     <MenuItem Header="_Network Monitor..." Command="{Binding NavigateMenuCommand}" CommandParameter="Tools_NetworkMonitor"/>
                 </MenuItem>
