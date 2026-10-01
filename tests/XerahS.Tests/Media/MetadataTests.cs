@@ -108,6 +108,127 @@ public class MetadataTests
         Assert.That(Directory.GetFiles(_directory), Has.Length.EqualTo(2), "No temporary files remain.");
     }
 
+    [Test]
+    public async Task Strip_UsesTheSelectedNamesExtension_ForASymbolicLink()
+    {
+        if (OperatingSystem.IsWindows()) Assert.Ignore("Creating symbolic links needs extra rights on Windows.");
+        string stored = Path.Combine(_directory, "stored.blob");
+        await File.WriteAllBytesAsync(stored, Mp4WithTitle());
+        string link = Path.Combine(_directory, "movie.mp4");
+        File.CreateSymbolicLink(link, stored);
+        Assert.That(MetadataService.CanStripMetadata(link), Is.True);
+
+        await MetadataService.StripMetadataAsync(link);
+
+        Assert.That(Encoding.ASCII.GetString(await File.ReadAllBytesAsync(stored)), Does.Not.Contain("Private title"));
+        Assert.That(new FileInfo(link).LinkTarget, Is.EqualTo(stored));
+    }
+
+    [Test]
+    public async Task HardLinkedFile_FailedWrite_RestoresTheOriginal_AndKeepsTheLink()
+    {
+        if (!OperatingSystem.IsLinux()) Assert.Ignore("The test creates hard links with libc.");
+        string path = Path.Combine(_directory, "video.mp4");
+        byte[] original = Mp4WithTitle(64 * 1024);
+        await File.WriteAllBytesAsync(path, original);
+        string other = Path.Combine(_directory, "other.mp4");
+        Assert.That(link(path, other), Is.Zero);
+        Assert.That(MetadataService.GetHardLinkCount(path), Is.EqualTo(2));
+
+        // Fail the first write after 10 KB; the restore from the backup is allowed.
+        int writes = 0;
+        MetadataService.WrapWriteIntoStream = stream => ++writes == 1 ? new FailingStream(stream, 10 * 1024) : stream;
+        try
+        {
+            var error = Assert.ThrowsAsync<IOException>(async () => await MetadataService.StripMetadataAsync(path));
+            Assert.That(error!.Message, Does.Contain("restored"));
+        }
+        finally { MetadataService.WrapWriteIntoStream = null; }
+
+        Assert.That(await File.ReadAllBytesAsync(path), Is.EqualTo(original));
+        Assert.That(await File.ReadAllBytesAsync(other), Is.EqualTo(original), "Both names must still be the same file.");
+        Assert.That(Directory.GetFiles(_directory), Has.Length.EqualTo(2), "The backup and the stripped copy are removed.");
+
+        await MetadataService.StripMetadataAsync(path);
+        Assert.That(Encoding.ASCII.GetString(await File.ReadAllBytesAsync(other)), Does.Not.Contain("Private title"));
+        Assert.That(MetadataService.GetHardLinkCount(path), Is.EqualTo(2));
+    }
+
+    [Test]
+    public async Task HardLinkedFile_FailedWriteAndRestore_KeepsTheBackup()
+    {
+        if (!OperatingSystem.IsLinux()) Assert.Ignore("The test creates hard links with libc.");
+        string path = Path.Combine(_directory, "video.mp4");
+        byte[] original = Mp4WithTitle(64 * 1024);
+        await File.WriteAllBytesAsync(path, original);
+        Assert.That(link(path, Path.Combine(_directory, "other.mp4")), Is.Zero);
+
+        MetadataService.WrapWriteIntoStream = stream => new FailingStream(stream, 10 * 1024);
+        try
+        {
+            var error = Assert.ThrowsAsync<IOException>(async () => await MetadataService.StripMetadataAsync(path));
+            string backup = Directory.GetFiles(_directory, "*.backup").Single();
+            Assert.That(error!.Message, Does.Contain(backup));
+            Assert.That(await File.ReadAllBytesAsync(backup), Is.EqualTo(original));
+        }
+        finally { MetadataService.WrapWriteIntoStream = null; }
+    }
+
+    [Test]
+    public async Task SingleLinkFile_IsReplacedAtOnce_KeepingItsPermissions()
+    {
+        if (OperatingSystem.IsWindows())
+        {
+            Assert.Ignore("Unix permissions only.");
+            return;
+        }
+        string path = Path.Combine(_directory, "video.mp4");
+        await File.WriteAllBytesAsync(path, Mp4WithTitle());
+        File.SetUnixFileMode(path, UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.GroupRead);
+        Assert.That(MetadataService.GetHardLinkCount(path), Is.EqualTo(1));
+
+        // The write-into path is not used, so a failing wrapper has no effect.
+        MetadataService.WrapWriteIntoStream = stream => new FailingStream(stream, 0);
+        try { await MetadataService.StripMetadataAsync(path); }
+        finally { MetadataService.WrapWriteIntoStream = null; }
+
+        Assert.That(Encoding.ASCII.GetString(await File.ReadAllBytesAsync(path)), Does.Not.Contain("Private title"));
+        Assert.That(File.GetUnixFileMode(path), Is.EqualTo(UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.GroupRead));
+        Assert.That(Directory.GetFiles(_directory), Has.Length.EqualTo(1));
+    }
+
+    private static byte[] Mp4WithTitle(int mediaLength = 6)
+    {
+        byte[] media = new byte[mediaLength];
+        for (int i = 0; i < media.Length; i++) media[i] = (byte)i;
+        return [.. Box("ftyp", "isom\0\0\0\0isom"u8.ToArray()), .. Box("moov", Box("udta", Box("name", "Private title"u8.ToArray()))), .. Box("mdat", media)];
+    }
+
+    [System.Runtime.InteropServices.DllImport("libc", SetLastError = true)]
+    private static extern int link(string existing, string created);
+
+    /// <summary>Passes writes through until the limit, writing the part that fits, then fails.</summary>
+    private sealed class FailingStream(Stream inner, long limit) : Stream
+    {
+        private long _written;
+        public override bool CanRead => false;
+        public override bool CanSeek => false;
+        public override bool CanWrite => true;
+        public override long Length => throw new NotSupportedException();
+        public override long Position { get => _written; set => throw new NotSupportedException(); }
+        public override void Flush() => inner.Flush();
+        public override int Read(byte[] buffer, int offset, int count) => throw new NotSupportedException();
+        public override long Seek(long offset, SeekOrigin origin) => throw new NotSupportedException();
+        public override void SetLength(long value) => throw new NotSupportedException();
+        public override void Write(byte[] buffer, int offset, int count)
+        {
+            int allowed = (int)Math.Clamp(limit - _written, 0, count);
+            inner.Write(buffer, offset, allowed);
+            _written += allowed;
+            if (allowed < count) throw new IOException("Simulated write failure.");
+        }
+    }
+
     private static byte[] Box(string type, byte[] data)
     {
         byte[] box = new byte[data.Length + 8];

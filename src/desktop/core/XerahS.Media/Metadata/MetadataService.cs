@@ -23,6 +23,10 @@
 
 #endregion License Information (GPL v3)
 
+using System.Buffers.Binary;
+using System.Runtime.InteropServices;
+using Microsoft.Win32.SafeHandles;
+
 namespace XerahS.Media.Metadata;
 
 public sealed record MetadataValue(string Group, string Tag, string Value);
@@ -71,6 +75,8 @@ public static class MetadataService
         ValidateFile(filePath);
 
         FileInfo original = new(Path.GetFullPath(filePath));
+        // The selected name decides the format (an .mp4 link to a .blob file is stripped as MP4).
+        string extension = original.Extension;
         // Strip the file a symbolic link points to, as ShareX does by writing through the link.
         if (original.ResolveLinkTarget(returnFinalTarget: true) is FileInfo target) original = target;
         string fullPath = original.FullName;
@@ -78,7 +84,8 @@ public static class MetadataService
             throw new UnauthorizedAccessException("The selected file is read-only.");
         long originalLength = original.Length;
         DateTime modified = original.LastWriteTimeUtc;
-        string temporaryPath = Path.Combine(original.DirectoryName!, $".{Guid.NewGuid():N}{original.Extension}");
+        string directory = original.DirectoryName!;
+        string temporaryPath = Path.Combine(directory, $".{Guid.NewGuid():N}{extension}");
         try
         {
             // Some video formats strip in place. Work on a copy so a failure or cancellation
@@ -93,20 +100,124 @@ public static class MetadataService
             if (original.Length != originalLength || original.LastWriteTimeUtc != modified)
                 throw new IOException("The file changed while its metadata was being stripped. Please try again.");
 
-            // Write the result into the original file instead of replacing it, so hard links, permissions,
-            // ownership, and the creation time are kept, and the modified time becomes now, as in ShareX.
-            // This final copy is not cancellable, so it cannot stop halfway.
-            await using (FileStream stripped = new(temporaryPath, FileMode.Open, FileAccess.Read, FileShare.Read))
-            await using (FileStream output = new(fullPath, FileMode.Open, FileAccess.Write, FileShare.None))
-            {
-                await stripped.CopyToAsync(output, CancellationToken.None);
-                output.SetLength(stripped.Length);
-            }
+            // Nothing below is cancellable, so the commit cannot stop halfway on request.
+            if (GetHardLinkCount(fullPath) == 1)
+                ReplaceAtomically(temporaryPath, fullPath, original);
+            else
+                await WriteIntoWithRollbackAsync(temporaryPath, fullPath, directory);
         }
         finally
         {
             if (File.Exists(temporaryPath)) File.Delete(temporaryPath);
         }
+    }
+
+    /// <summary>Test hook: wraps the stream that receives a write into the original file.</summary>
+    internal static Func<Stream, Stream>? WrapWriteIntoStream { get; set; }
+
+    // A rename either replaces the whole file or leaves the original as it was. The modified time
+    // becomes now, as in ShareX; permissions (and on Windows, attributes and the creation time) are kept.
+    private static void ReplaceAtomically(string strippedPath, string fullPath, FileInfo original)
+    {
+        using (FileStream stripped = new(strippedPath, FileMode.Open, FileAccess.ReadWrite, FileShare.None))
+            stripped.Flush(flushToDisk: true);
+        if (OperatingSystem.IsWindows())
+        {
+            File.SetCreationTimeUtc(strippedPath, original.CreationTimeUtc);
+            File.SetAttributes(strippedPath, original.Attributes);
+        }
+        else
+        {
+            // On Linux, .NET sets the modified time when asked to set the creation time, so it is left alone.
+            File.SetUnixFileMode(strippedPath, File.GetUnixFileMode(fullPath));
+        }
+        File.Move(strippedPath, fullPath, overwrite: true);
+    }
+
+    // A file with other hard links (or an unknown link count) is written into, so every link sees the
+    // result. A backup of the original is restored if the write fails, and kept if the restore fails too.
+    private static async Task WriteIntoWithRollbackAsync(string strippedPath, string fullPath, string directory)
+    {
+        string backupPath = Path.Combine(directory, $".{Path.GetFileName(fullPath)}.{Guid.NewGuid():N}.backup");
+        bool keepBackup = false;
+        File.Copy(fullPath, backupPath);
+        try
+        {
+            try
+            {
+                await WriteIntoAsync(strippedPath, fullPath);
+            }
+            catch (Exception writeError)
+            {
+                try
+                {
+                    await WriteIntoAsync(backupPath, fullPath);
+                }
+                catch (Exception restoreError)
+                {
+                    keepBackup = true;
+                    throw new IOException("Writing the stripped file failed, and restoring the original also failed. " +
+                        $"The original file is saved as {backupPath}.", new AggregateException(writeError, restoreError));
+                }
+                throw new IOException("Writing the stripped file failed. The original file was restored.", writeError);
+            }
+        }
+        finally
+        {
+            if (!keepBackup && File.Exists(backupPath)) File.Delete(backupPath);
+        }
+    }
+
+    private static async Task WriteIntoAsync(string sourcePath, string fullPath)
+    {
+        await using FileStream source = new(sourcePath, FileMode.Open, FileAccess.Read, FileShare.Read);
+        await using FileStream output = new(fullPath, FileMode.Open, FileAccess.Write, FileShare.None);
+        Stream destination = WrapWriteIntoStream?.Invoke(output) ?? output;
+        await source.CopyToAsync(destination, CancellationToken.None);
+        await destination.FlushAsync(CancellationToken.None);
+        output.SetLength(source.Length);
+        output.Flush(flushToDisk: true);
+    }
+
+    /// <summary>The number of hard links to the file, or null when the platform does not report it.</summary>
+    internal static int? GetHardLinkCount(string path)
+    {
+        try
+        {
+            if (OperatingSystem.IsWindows())
+            {
+                using SafeFileHandle handle = File.OpenHandle(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete);
+                return GetFileInformationByHandle(handle, out ByHandleFileInformation info) ? (int)info.NumberOfLinks : null;
+            }
+            if (OperatingSystem.IsLinux())
+            {
+                // struct statx has the same layout on every architecture; stx_nlink is at offset 16.
+                byte[] buffer = new byte[256];
+                const int AtCurrentDirectory = -100;
+                const uint StatxNlink = 0x4;
+                if (statx(AtCurrentDirectory, path, 0, StatxNlink, buffer) != 0) return null;
+                if ((BinaryPrimitives.ReadUInt32LittleEndian(buffer) & StatxNlink) == 0) return null;
+                return (int)BinaryPrimitives.ReadUInt32LittleEndian(buffer.AsSpan(16));
+            }
+        }
+        catch (Exception ex) when (ex is DllNotFoundException or EntryPointNotFoundException or IOException or UnauthorizedAccessException) { }
+        return null;
+    }
+
+    [DllImport("libc", SetLastError = true)]
+    private static extern int statx(int directory, string path, int flags, uint mask, byte[] buffer);
+
+    [DllImport("kernel32.dll", SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static extern bool GetFileInformationByHandle(SafeFileHandle handle, out ByHandleFileInformation information);
+
+    // FILETIME is two 32-bit values, so the fields are 4-byte aligned.
+    [StructLayout(LayoutKind.Sequential, Pack = 4)]
+    private struct ByHandleFileInformation
+    {
+        public uint FileAttributes;
+        public long CreationTime, LastAccessTime, LastWriteTime;
+        public uint VolumeSerialNumber, FileSizeHigh, FileSizeLow, NumberOfLinks, FileIndexHigh, FileIndexLow;
     }
 
     public static void StripFileMetadata(string filePath)
