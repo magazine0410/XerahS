@@ -88,23 +88,36 @@ namespace XerahS.RegionCapture
             int bestMatchIndex = 0;
             int bestIgnoreBottomOffset = 0;
 
+            bool inputStarted = false;
             try
             {
                 System.Drawing.Point preferredScrollPoint = GetPreferredScrollPoint(captureRegion);
 
-                // Focus target window
-                _windowService.ActivateWindow(windowHandle);
-                await Task.Delay(200, cancellationToken);
+                // On Wayland this starts a remote desktop session, which may ask the user for permission.
+                inputStarted = await _scrollService.BeginAsync(cancellationToken);
+                if (!inputStarted)
+                {
+                    result.Status = ScrollingCaptureStatus.Failed;
+                    result.InputUnavailable = true;
+                    return result;
+                }
 
-                // Optionally scroll to top
+                // As in ShareX: activate the window, wait the start delay, then optionally scroll to the top.
+                _windowService.ActivateWindow(windowHandle);
+                await Task.Delay(startDelayMs, cancellationToken);
+
                 if (autoScrollTop)
                 {
                     await _scrollService.ScrollToTopAsync(windowHandle, preferredScrollPoint);
-                    await Task.Delay(startDelayMs, cancellationToken);
+                    await Task.Delay(scrollDelayMs, cancellationToken);
                 }
 
-                // Wait start delay
-                await Task.Delay(startDelayMs, cancellationToken);
+                // As in ShareX, the frames leave out the cursor. Where screenshots include it anyway, the
+                // pointer waits outside the area, which also stops it hovering over the content.
+                var frameOptions = new CaptureOptions { ShowCursor = false };
+                var area = System.Drawing.Rectangle.FromLTRB(
+                    (int)captureRegion.Left, (int)captureRegion.Top, (int)captureRegion.Right, (int)captureRegion.Bottom);
+                await _scrollService.MovePointerOutsideAsync(area);
 
                 var stopwatch = new Stopwatch();
                 int frameIndex = 0;
@@ -115,10 +128,10 @@ namespace XerahS.RegionCapture
 
                 while (frameIndex < maxFrames && !cancellationToken.IsCancellationRequested)
                 {
-                    stopwatch.Restart();
+                    await _scrollService.WaitUntilAreaIsClearAsync(area, cancellationToken);
 
                     // Capture current frame
-                    var currentFrame = await _captureService.CaptureRectAsync(captureRegion);
+                    var currentFrame = await _captureService.CaptureRectAsync(captureRegion, frameOptions);
                     if (currentFrame == null)
                     {
                         DebugHelper.WriteLine("ScrollingCapture: Failed to capture frame.");
@@ -135,14 +148,8 @@ namespace XerahS.RegionCapture
                         LatestFrame = currentFrame
                     });
 
-                    if (previousFrame == null)
-                    {
-                        // First frame - use as initial result
-                        stitchedResult = currentFrame.Copy();
-                        previousFrame = currentFrame;
-                        lastResultHeight = stitchedResult.Height;
-                    }
-                    else
+                    bool scrollAtBottom = false;
+                    if (previousFrame != null)
                     {
                         // Check if frames are identical (bottom reached)
                         if (AreFramesIdentical(previousFrame, currentFrame))
@@ -153,9 +160,29 @@ namespace XerahS.RegionCapture
                         }
 
                         // Check scroll bar for bottom detection
-                        var scrollInfo = _scrollService.GetScrollBarInfo(windowHandle);
-                        bool scrollAtBottom = scrollInfo?.IsAtBottom ?? false;
+                        scrollAtBottom = _scrollService.GetScrollBarInfo(windowHandle)?.IsAtBottom ?? false;
+                    }
 
+                    // As in ShareX, scroll before stitching, so the content moves while this frame is
+                    // combined, and count the scroll delay from the scroll. Counting it from before the
+                    // capture left almost no time where capturing a frame is slow (the screenshot portal).
+                    if (!scrollAtBottom)
+                    {
+                        await _scrollService.ScrollWindowAsync(windowHandle, scrollMethod, scrollAmount, preferredScrollPoint);
+                        await _scrollService.MovePointerOutsideAsync(area);
+                    }
+
+                    stopwatch.Restart();
+
+                    if (previousFrame == null)
+                    {
+                        // First frame - use as initial result
+                        stitchedResult = currentFrame.Copy();
+                        previousFrame = currentFrame;
+                        lastResultHeight = stitchedResult.Height;
+                    }
+                    else
+                    {
                         // Stitch current frame onto result
                         var stitchResult = StitchFrame(
                             stitchedResult!,
@@ -214,14 +241,12 @@ namespace XerahS.RegionCapture
                         }
                     }
 
-                    // Scroll
-                    await _scrollService.ScrollWindowAsync(windowHandle, scrollMethod, scrollAmount, preferredScrollPoint);
-
-                    // Wait scroll delay, compensating for processing time
-                    stopwatch.Stop();
-                    int elapsed = (int)stopwatch.ElapsedMilliseconds;
-                    int remainingDelay = Math.Max(50, scrollDelayMs - elapsed);
-                    await Task.Delay(remainingDelay, cancellationToken);
+                    // Wait what remains of the scroll delay after stitching.
+                    int remainingDelay = scrollDelayMs - (int)stopwatch.ElapsedMilliseconds;
+                    if (remainingDelay > 0)
+                    {
+                        await Task.Delay(remainingDelay, cancellationToken);
+                    }
                 }
 
                 if (result.Status != ScrollingCaptureStatus.Failed &&
@@ -240,6 +265,10 @@ namespace XerahS.RegionCapture
             finally
             {
                 previousFrame?.Dispose();
+                if (inputStarted)
+                {
+                    await _scrollService.EndAsync();
+                }
             }
 
             return result;

@@ -373,6 +373,13 @@ namespace XerahS.Core.Tasks.Pipeline
                                     return PipelineStageResult.Stop;
                                 }
 
+                                // As in ShareX, bring the window to the front so the capture of its screen area shows it.
+                                if (PlatformServices.Window.GetForegroundWindow() != hWnd)
+                                {
+                                    PlatformServices.Window.ActivateWindow(hWnd);
+                                    await Task.Delay(100, token);
+                                }
+
                                 image = await PlatformServices.ScreenCapture.CaptureWindowAsync(hWnd, PlatformServices.Window, captureOptions);
                             }
                         }

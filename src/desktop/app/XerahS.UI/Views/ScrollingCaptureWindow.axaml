@@ -4,150 +4,109 @@
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         xmlns:vm="using:XerahS.UI.ViewModels"
+        xmlns:pa="using:XerahS.Platform.Abstractions"
         mc:Ignorable="d"
-        d:DesignWidth="800" d:DesignHeight="600"
+        d:DesignWidth="900" d:DesignHeight="650"
         x:Class="XerahS.UI.Views.ScrollingCaptureWindow"
         x:DataType="vm:ScrollingCaptureViewModel"
-        Title="Scrolling Capture"
-        Width="800" Height="600"
-        MinWidth="500" MinHeight="400"
-        WindowStartupLocation="CenterOwner"
+        Title="XerahS - Scrolling capture"
+        Width="900" Height="650"
+        MinWidth="620" MinHeight="440"
+        WindowStartupLocation="CenterScreen"
         CanResize="True">
 
-  <Grid RowDefinitions="*,Auto,Auto" Margin="16">
+  <!-- Layout and wording follow ShareX's scrolling capture window. -->
+  <Grid>
+    <Grid RowDefinitions="Auto,*,Auto" Margin="12" RowSpacing="8">
 
-    <!-- Image Preview Area -->
-    <Border Grid.Row="0"
-            BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}"
-            BorderThickness="1"
-            CornerRadius="4"
-            ClipToBounds="True">
-      <Panel>
-        <!-- Placeholder when no image -->
-        <TextBlock Text="No capture yet. Click Capture to begin."
-                   HorizontalAlignment="Center"
-                   VerticalAlignment="Center"
-                   Foreground="{DynamicResource TextFillColorSecondaryBrush}"
-                   IsVisible="{Binding !HasResult}" />
+      <Grid Grid.Row="0" ColumnDefinitions="Auto,Auto,Auto,Auto,*,Auto" ColumnSpacing="6">
+        <Button Grid.Column="0" Content="Capture..." Command="{Binding CaptureCommand}" IsEnabled="{Binding CanUseControls}"
+                Classes="accent" AutomationProperties.Name="Capture scrolling content"/>
+        <Button Grid.Column="1" Content="Upload / Save" Command="{Binding UploadCommand}" IsEnabled="{Binding CanUseResult}"/>
+        <Button Grid.Column="2" Content="Copy" Command="{Binding CopyToClipboardCommand}" IsEnabled="{Binding CanUseResult}"/>
+        <Button Grid.Column="3" Content="Options..." Command="{Binding OpenOptionsCommand}" IsEnabled="{Binding CanUseControls}"/>
+        <Button Grid.Column="5" Content="?" Width="34" MinWidth="34" HorizontalContentAlignment="Center"
+                Command="{Binding OpenHelpCommand}" ToolTip.Tip="Scrolling screenshot help"
+                AutomationProperties.Name="Scrolling screenshot help"/>
+      </Grid>
 
-        <!-- Scrollable image preview -->
-        <ScrollViewer HorizontalScrollBarVisibility="Auto"
-                      VerticalScrollBarVisibility="Auto"
-                      IsVisible="{Binding HasResult}">
-          <Image Source="{Binding PreviewImage}"
-                 Stretch="None"
-                 HorizontalAlignment="Left"
-                 VerticalAlignment="Top" />
-        </ScrollViewer>
+      <Border Grid.Row="1"
+              BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}"
+              BorderThickness="1"
+              CornerRadius="4"
+              ClipToBounds="True">
+        <Panel>
+          <TextBlock Text="Select a scrollable window to begin"
+                     HorizontalAlignment="Center"
+                     VerticalAlignment="Center"
+                     Foreground="{DynamicResource TextFillColorSecondaryBrush}"
+                     IsVisible="{Binding !HasResult}"/>
+          <ScrollViewer HorizontalScrollBarVisibility="Auto"
+                        VerticalScrollBarVisibility="Auto"
+                        IsVisible="{Binding HasResult}">
+            <Image Source="{Binding PreviewImage}"
+                   Stretch="None"
+                   HorizontalAlignment="Left"
+                   VerticalAlignment="Top"/>
+          </ScrollViewer>
+        </Panel>
+      </Border>
 
-        <!-- Progress overlay during capture -->
-        <Border Background="{DynamicResource XerahS.Brush.Overlay.Modal}"
-                IsVisible="{Binding IsCapturing}"
-                CornerRadius="4">
-          <StackPanel HorizontalAlignment="Center"
-                      VerticalAlignment="Center"
-                      Spacing="12">
-            <ProgressBar IsIndeterminate="True"
-                         Width="200" />
-            <TextBlock Text="{Binding StatusText}"
-                       Foreground="{DynamicResource XerahS.Brush.Overlay.Foreground}"
-                       HorizontalAlignment="Center" />
-            <TextBlock Text="Press Escape or the Scrolling Capture hotkey again to stop."
-                       Foreground="{DynamicResource XerahS.Brush.Overlay.ForegroundMuted}"
-                       FontSize="12"
-                       HorizontalAlignment="Center"
-                       TextAlignment="Center" />
+      <Grid Grid.Row="2" ColumnDefinitions="Auto,*,Auto" ColumnSpacing="8">
+        <Ellipse Grid.Column="0" Width="10" Height="10" VerticalAlignment="Center" Fill="{Binding StatusBrush}"/>
+        <TextBlock Grid.Column="1" Text="{Binding StatusText}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis"/>
+        <TextBlock Grid.Column="2" Text="{Binding ResultSize}" VerticalAlignment="Center"
+                   Foreground="{DynamicResource TextFillColorSecondaryBrush}"/>
+      </Grid>
+    </Grid>
+
+    <!-- Options -->
+    <Border Background="{DynamicResource XerahS.Brush.Overlay.Modal}" IsVisible="{Binding IsOptionsOpen}">
+      <Border Width="500" MaxHeight="620" Padding="20" CornerRadius="6"
+              HorizontalAlignment="Center" VerticalAlignment="Center"
+              Background="{DynamicResource SolidBackgroundFillColorBaseBrush}"
+              BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}" BorderThickness="1">
+        <StackPanel Spacing="14">
+          <TextBlock Text="Scrolling capture options" FontWeight="SemiBold" FontSize="16"/>
+          <Grid ColumnDefinitions="Auto,*,Auto" RowDefinitions="Auto,Auto,Auto,Auto" ColumnSpacing="10" RowSpacing="10">
+            <TextBlock Grid.Row="0" Text="Start delay:" VerticalAlignment="Center"/>
+            <NumericUpDown Grid.Row="0" Grid.Column="1" Value="{Binding StartDelay}" Minimum="100" Maximum="5000" Increment="100" FormatString="0"
+                           AutomationProperties.Name="Start delay"/>
+            <TextBlock Grid.Row="0" Grid.Column="2" Text="ms" VerticalAlignment="Center"/>
+
+            <TextBlock Grid.Row="1" Text="Scroll delay:" VerticalAlignment="Center"/>
+            <NumericUpDown Grid.Row="1" Grid.Column="1" Value="{Binding ScrollDelay}" Minimum="100" Maximum="5000" Increment="100" FormatString="0"
+                           AutomationProperties.Name="Scroll delay"/>
+            <TextBlock Grid.Row="1" Grid.Column="2" Text="ms" VerticalAlignment="Center"/>
+
+            <TextBlock Grid.Row="2" Text="Scroll method:" VerticalAlignment="Center"/>
+            <ComboBox Grid.Row="2" Grid.Column="1" Grid.ColumnSpan="2" HorizontalAlignment="Stretch"
+                      ItemsSource="{Binding ScrollMethods}" SelectedItem="{Binding ScrollMethod}"
+                      AutomationProperties.Name="Scroll method">
+              <ComboBox.ItemTemplate>
+                <DataTemplate x:DataType="pa:ScrollMethod">
+                  <TextBlock Text="{Binding Converter={x:Static ui:ScrollingCaptureWindow.ScrollMethodNameConverter}}"/>
+                </DataTemplate>
+              </ComboBox.ItemTemplate>
+            </ComboBox>
+
+            <TextBlock Grid.Row="3" Text="Scroll amount:" VerticalAlignment="Center" IsVisible="{Binding IsScrollAmountVisible}"/>
+            <NumericUpDown Grid.Row="3" Grid.Column="1" Value="{Binding ScrollAmount}" Minimum="1" Maximum="6" Increment="1" FormatString="0"
+                           IsVisible="{Binding IsScrollAmountVisible}" AutomationProperties.Name="Scroll amount"/>
+            <TextBlock Grid.Row="3" Grid.Column="2" Text="times" VerticalAlignment="Center" IsVisible="{Binding IsScrollAmountVisible}"/>
+          </Grid>
+          <StackPanel Spacing="8">
+            <CheckBox Content="Automatically scroll to top" IsChecked="{Binding AutoScrollTop}"/>
+            <CheckBox Content="Auto ignore bottom edge" IsChecked="{Binding AutoIgnoreBottomEdge}"/>
+            <CheckBox Content="Show scrolling capture region" IsChecked="{Binding ShowRegion}"/>
+            <CheckBox Content="Automatically upload / save" IsChecked="{Binding AutoUpload}"/>
           </StackPanel>
-        </Border>
-      </Panel>
+          <StackPanel Orientation="Horizontal" Spacing="8" HorizontalAlignment="Right">
+            <Button Content="Cancel" Command="{Binding CancelOptionsCommand}"/>
+            <Button Content="OK" Classes="accent" Command="{Binding SaveOptionsCommand}"/>
+          </StackPanel>
+        </StackPanel>
+      </Border>
     </Border>
-
-    <!-- Status Bar -->
-    <Grid Grid.Row="1"
-          ColumnDefinitions="Auto,*,Auto"
-          Margin="0,12,0,0">
-
-      <!-- Status indicator -->
-      <StackPanel Grid.Column="0"
-                  Orientation="Horizontal"
-                  Spacing="8"
-                  VerticalAlignment="Center">
-        <Ellipse Width="10" Height="10"
-                 VerticalAlignment="Center">
-          <Ellipse.Styles>
-            <Style Selector="Ellipse">
-              <Setter Property="Fill" Value="{DynamicResource TextFillColorSecondaryBrush}" />
-            </Style>
-          </Ellipse.Styles>
-        </Ellipse>
-        <TextBlock Text="{Binding StatusText}"
-                   VerticalAlignment="Center"
-                   TextTrimming="CharacterEllipsis"
-                   MaxWidth="400" />
-      </StackPanel>
-
-      <!-- Result dimensions and frame count -->
-      <StackPanel Grid.Column="2"
-                  Orientation="Horizontal"
-                  Spacing="16"
-                  VerticalAlignment="Center">
-        <TextBlock Text="{Binding ResultSize}"
-                   VerticalAlignment="Center"
-                   IsVisible="{Binding HasResult}"
-                   Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
-        <TextBlock VerticalAlignment="Center"
-                   Foreground="{DynamicResource TextFillColorSecondaryBrush}"
-                   IsVisible="{Binding HasResult}">
-          <TextBlock.Text>
-            <MultiBinding StringFormat="Frames: {0}">
-              <Binding Path="FramesCaptured" />
-            </MultiBinding>
-          </TextBlock.Text>
-        </TextBlock>
-      </StackPanel>
-    </Grid>
-
-    <!-- Action Buttons -->
-    <Grid Grid.Row="2"
-          ColumnDefinitions="Auto,Auto,*,Auto,Auto"
-          Margin="0,12,0,0">
-
-      <!-- Primary action: Capture / Stop -->
-      <Button Grid.Column="0"
-              Command="{Binding CaptureCommand}"
-              Classes="accent"
-              MinWidth="120"
-              HorizontalContentAlignment="Center"
-              AutomationProperties.Name="Capture scrolling content">
-        <TextBlock Text="Capture" />
-      </Button>
-
-      <Button Grid.Column="1"
-              Content="Stop"
-              Command="{Binding StopCaptureCommand}"
-              IsVisible="{Binding IsCapturing}"
-              Margin="8,0,0,0"
-              MinWidth="80"
-              HorizontalContentAlignment="Center"
-              AutomationProperties.Name="Stop capture" />
-
-      <!-- Secondary actions: Upload, Copy -->
-      <Button Grid.Column="3"
-              Content="Upload"
-              Command="{Binding UploadCommand}"
-              IsEnabled="{Binding HasResult}"
-              MinWidth="80"
-              HorizontalContentAlignment="Center"
-              AutomationProperties.Name="Upload captured image" />
-
-      <Button Grid.Column="4"
-              Content="Copy"
-              Command="{Binding CopyToClipboardCommand}"
-              IsEnabled="{Binding HasResult}"
-              Margin="8,0,0,0"
-              MinWidth="80"
-              HorizontalContentAlignment="Center"
-              AutomationProperties.Name="Copy image to clipboard" />
-    </Grid>
   </Grid>
 </ui:SurfaceWindow>

@@ -33,12 +33,12 @@ namespace XerahS.UI.ViewModels
 
         public bool PlaySoundAfterCapture
         {
-            get => _settings.GeneralSettings.PlaySoundAfterCapture;
+            get => GeneralSource.GeneralSettings.PlaySoundAfterCapture;
             set
             {
-                if (_settings.GeneralSettings.PlaySoundAfterCapture != value)
+                if (GeneralSource.GeneralSettings.PlaySoundAfterCapture != value)
                 {
-                    _settings.GeneralSettings.PlaySoundAfterCapture = value;
+                    GeneralSource.GeneralSettings.PlaySoundAfterCapture = value;
                     OnPropertyChanged();
                 }
             }
@@ -46,12 +46,12 @@ namespace XerahS.UI.ViewModels
 
         public bool ShowToastNotification
         {
-            get => _settings.GeneralSettings.ShowToastNotificationAfterTaskCompleted;
+            get => GeneralSource.GeneralSettings.ShowToastNotificationAfterTaskCompleted;
             set
             {
-                if (_settings.GeneralSettings.ShowToastNotificationAfterTaskCompleted != value)
+                if (GeneralSource.GeneralSettings.ShowToastNotificationAfterTaskCompleted != value)
                 {
-                    _settings.GeneralSettings.ShowToastNotificationAfterTaskCompleted = value;
+                    GeneralSource.GeneralSettings.ShowToastNotificationAfterTaskCompleted = value;
                     OnPropertyChanged();
                 }
             }
@@ -59,12 +59,12 @@ namespace XerahS.UI.ViewModels
 
         public bool PlaySoundAfterUpload
         {
-            get => _settings.GeneralSettings.PlaySoundAfterUpload;
+            get => GeneralSource.GeneralSettings.PlaySoundAfterUpload;
             set
             {
-                if (_settings.GeneralSettings.PlaySoundAfterUpload != value)
+                if (GeneralSource.GeneralSettings.PlaySoundAfterUpload != value)
                 {
-                    _settings.GeneralSettings.PlaySoundAfterUpload = value;
+                    GeneralSource.GeneralSettings.PlaySoundAfterUpload = value;
                     OnPropertyChanged();
                 }
             }
@@ -72,12 +72,12 @@ namespace XerahS.UI.ViewModels
 
         public bool PlaySoundAfterAction
         {
-            get => _settings.GeneralSettings.PlaySoundAfterAction;
+            get => GeneralSource.GeneralSettings.PlaySoundAfterAction;
             set
             {
-                if (_settings.GeneralSettings.PlaySoundAfterAction != value)
+                if (GeneralSource.GeneralSettings.PlaySoundAfterAction != value)
                 {
-                    _settings.GeneralSettings.PlaySoundAfterAction = value;
+                    GeneralSource.GeneralSettings.PlaySoundAfterAction = value;
                     OnPropertyChanged();
                 }
             }
@@ -85,12 +85,12 @@ namespace XerahS.UI.ViewModels
 
         public bool UseCustomCaptureSound
         {
-            get => _settings.GeneralSettings.UseCustomCaptureSound;
+            get => GeneralSource.GeneralSettings.UseCustomCaptureSound;
             set
             {
-                if (_settings.GeneralSettings.UseCustomCaptureSound != value)
+                if (GeneralSource.GeneralSettings.UseCustomCaptureSound != value)
                 {
-                    _settings.GeneralSettings.UseCustomCaptureSound = value;
+                    GeneralSource.GeneralSettings.UseCustomCaptureSound = value;
                     OnPropertyChanged();
                 }
             }
@@ -98,12 +98,12 @@ namespace XerahS.UI.ViewModels
 
         public string CustomCaptureSoundPath
         {
-            get => _settings.GeneralSettings.CustomCaptureSoundPath;
+            get => GeneralSource.GeneralSettings.CustomCaptureSoundPath;
             set
             {
-                if (_settings.GeneralSettings.CustomCaptureSoundPath != value)
+                if (GeneralSource.GeneralSettings.CustomCaptureSoundPath != value)
                 {
-                    _settings.GeneralSettings.CustomCaptureSoundPath = value;
+                    GeneralSource.GeneralSettings.CustomCaptureSoundPath = value;
                     OnPropertyChanged();
                 }
             }
@@ -111,12 +111,12 @@ namespace XerahS.UI.ViewModels
 
         public float ToastWindowDuration
         {
-            get => _settings.GeneralSettings.ToastWindowDuration;
+            get => GeneralSource.GeneralSettings.ToastWindowDuration;
             set
             {
-                if (Math.Abs(_settings.GeneralSettings.ToastWindowDuration - value) > 0.001f)
+                if (Math.Abs(GeneralSource.GeneralSettings.ToastWindowDuration - value) > 0.001f)
                 {
-                    _settings.GeneralSettings.ToastWindowDuration = value;
+                    GeneralSource.GeneralSettings.ToastWindowDuration = value;
                     OnPropertyChanged();
                 }
             }
@@ -124,12 +124,12 @@ namespace XerahS.UI.ViewModels
 
         public float ToastWindowFadeDuration
         {
-            get => _settings.GeneralSettings.ToastWindowFadeDuration;
+            get => GeneralSource.GeneralSettings.ToastWindowFadeDuration;
             set
             {
-                if (Math.Abs(_settings.GeneralSettings.ToastWindowFadeDuration - value) > 0.001f)
+                if (Math.Abs(GeneralSource.GeneralSettings.ToastWindowFadeDuration - value) > 0.001f)
                 {
-                    _settings.GeneralSettings.ToastWindowFadeDuration = value;
+                    GeneralSource.GeneralSettings.ToastWindowFadeDuration = value;
                     OnPropertyChanged();
                 }
             }
@@ -137,12 +137,12 @@ namespace XerahS.UI.ViewModels
 
         public ContentPlacement ToastWindowPlacement
         {
-            get => _settings.GeneralSettings.ToastWindowPlacement;
+            get => GeneralSource.GeneralSettings.ToastWindowPlacement;
             set
             {
-                if (_settings.GeneralSettings.ToastWindowPlacement != value)
+                if (GeneralSource.GeneralSettings.ToastWindowPlacement != value)
                 {
-                    _settings.GeneralSettings.ToastWindowPlacement = value;
+                    GeneralSource.GeneralSettings.ToastWindowPlacement = value;
                     OnPropertyChanged();
                 }
             }
@@ -150,12 +150,12 @@ namespace XerahS.UI.ViewModels
 
         public int ToastWindowWidth
         {
-            get => _settings.GeneralSettings.ToastWindowSize.Width;
+            get => GeneralSource.GeneralSettings.ToastWindowSize.Width;
             set
             {
-                if (_settings.GeneralSettings.ToastWindowSize.Width != value)
+                if (GeneralSource.GeneralSettings.ToastWindowSize.Width != value)
                 {
-                    _settings.GeneralSettings.ToastWindowSize = new SizeI(value, _settings.GeneralSettings.ToastWindowSize.Height);
+                    GeneralSource.GeneralSettings.ToastWindowSize = new SizeI(value, GeneralSource.GeneralSettings.ToastWindowSize.Height);
                     OnPropertyChanged();
                 }
             }
@@ -163,12 +163,12 @@ namespace XerahS.UI.ViewModels
 
         public int ToastWindowHeight
         {
-            get => _settings.GeneralSettings.ToastWindowSize.Height;
+            get => GeneralSource.GeneralSettings.ToastWindowSize.Height;
             set
             {
-                if (_settings.GeneralSettings.ToastWindowSize.Height != value)
+                if (GeneralSource.GeneralSettings.ToastWindowSize.Height != value)
                 {
-                    _settings.GeneralSettings.ToastWindowSize = new SizeI(_settings.GeneralSettings.ToastWindowSize.Width, value);
+                    GeneralSource.GeneralSettings.ToastWindowSize = new SizeI(GeneralSource.GeneralSettings.ToastWindowSize.Width, value);
                     OnPropertyChanged();
                 }
             }
@@ -176,12 +176,12 @@ namespace XerahS.UI.ViewModels
 
         public ToastClickAction ToastWindowLeftClickAction
         {
-            get => _settings.GeneralSettings.ToastWindowLeftClickAction;
+            get => GeneralSource.GeneralSettings.ToastWindowLeftClickAction;
             set
             {
-                if (_settings.GeneralSettings.ToastWindowLeftClickAction != value)
+                if (GeneralSource.GeneralSettings.ToastWindowLeftClickAction != value)
                 {
-                    _settings.GeneralSettings.ToastWindowLeftClickAction = value;
+                    GeneralSource.GeneralSettings.ToastWindowLeftClickAction = value;
                     OnPropertyChanged();
                 }
             }
@@ -189,12 +189,12 @@ namespace XerahS.UI.ViewModels
 
         public ToastClickAction ToastWindowRightClickAction
         {
-            get => _settings.GeneralSettings.ToastWindowRightClickAction;
+            get => GeneralSource.GeneralSettings.ToastWindowRightClickAction;
             set
             {
-                if (_settings.GeneralSettings.ToastWindowRightClickAction != value)
+                if (GeneralSource.GeneralSettings.ToastWindowRightClickAction != value)
                 {
-                    _settings.GeneralSettings.ToastWindowRightClickAction = value;
+                    GeneralSource.GeneralSettings.ToastWindowRightClickAction = value;
                     OnPropertyChanged();
                 }
             }
@@ -202,12 +202,12 @@ namespace XerahS.UI.ViewModels
 
         public ToastClickAction ToastWindowMiddleClickAction
         {
-            get => _settings.GeneralSettings.ToastWindowMiddleClickAction;
+            get => GeneralSource.GeneralSettings.ToastWindowMiddleClickAction;
             set
             {
-                if (_settings.GeneralSettings.ToastWindowMiddleClickAction != value)
+                if (GeneralSource.GeneralSettings.ToastWindowMiddleClickAction != value)
                 {
-                    _settings.GeneralSettings.ToastWindowMiddleClickAction = value;
+                    GeneralSource.GeneralSettings.ToastWindowMiddleClickAction = value;
                     OnPropertyChanged();
                 }
             }
@@ -215,12 +215,12 @@ namespace XerahS.UI.ViewModels
 
         public bool ToastWindowAutoHide
         {
-            get => _settings.GeneralSettings.ToastWindowAutoHide;
+            get => GeneralSource.GeneralSettings.ToastWindowAutoHide;
             set
             {
-                if (_settings.GeneralSettings.ToastWindowAutoHide != value)
+                if (GeneralSource.GeneralSettings.ToastWindowAutoHide != value)
                 {
-                    _settings.GeneralSettings.ToastWindowAutoHide = value;
+                    GeneralSource.GeneralSettings.ToastWindowAutoHide = value;
                     OnPropertyChanged();
                 }
             }

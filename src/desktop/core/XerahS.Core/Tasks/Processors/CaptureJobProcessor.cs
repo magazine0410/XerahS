@@ -691,14 +691,17 @@ namespace XerahS.Core.Tasks.Processors
                     return;
                 }
 
-                // Update the workflow's task settings
+                // Update the after capture tasks the workflow runs with: its own, or the defaults it uses.
+                TaskSettings target = workflow.TaskSettings.UseDefaultAfterCaptureJob && SettingsManager.DefaultTaskSettings != null
+                    ? SettingsManager.DefaultTaskSettings
+                    : workflow.TaskSettings;
                 if (showWindow)
                 {
-                    workflow.TaskSettings.AfterCaptureJob |= AfterCaptureTasks.ShowAfterCaptureWindow;
+                    target.AfterCaptureJob |= AfterCaptureTasks.ShowAfterCaptureWindow;
                 }
                 else
                 {
-                    workflow.TaskSettings.AfterCaptureJob &= ~AfterCaptureTasks.ShowAfterCaptureWindow;
+                    target.AfterCaptureJob &= ~AfterCaptureTasks.ShowAfterCaptureWindow;
                 }
 
                 // Use synchronous save to ensure the setting is persisted immediately

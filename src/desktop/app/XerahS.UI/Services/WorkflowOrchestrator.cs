@@ -432,7 +432,10 @@ public sealed class WorkflowOrchestrator : IWorkflowOrchestrator
 
             if (isWindowVisible)
             {
-                immediateMainWindow.NavigateToEditor();
+                // Switch the page only. Activating the window here took focus from the window the job
+                // acts on, so Make active window borderless/topmost acted on XerahS, and tools such as
+                // the screen color picker found XerahS on top. ShareX does not bring its window forward for hotkeys.
+                immediateMainWindow.NavigateToEditor(activate: false);
             }
         }
 

@@ -34,11 +34,13 @@ namespace XerahS.Platform.Linux;
 public partial class LinuxWindowService
 {
     private readonly Dictionary<IntPtr, BorderlessSnapshot> _borderlessWindows = [];
+    // Click-through is set on XerahS's own windows, which are X11 windows also on Wayland (through
+    // XWayland), so it does not need the inspection support that other applications' windows need.
     public bool SupportsClickThrough
     {
         get
         {
-            if (!SupportsWindowInspection) return false;
+            if (_display == IntPtr.Zero) return false;
             try { return XShapeQueryVersion(_display, out int major, out int minor) != 0 && (major > 1 || major == 1 && minor >= 1); }
             catch (DllNotFoundException) { return false; }
             catch (EntryPointNotFoundException) { return false; }
@@ -47,10 +49,12 @@ public partial class LinuxWindowService
     [DllImport("libXext.so.6")] private static extern int XShapeQueryVersion(IntPtr display, out int major, out int minor);
     [DllImport("libXext.so.6")] private static extern void XShapeCombineRectangles(IntPtr display, IntPtr window, int kind, int x, int y, IntPtr rectangles, int count, int operation, int ordering);
 
-    public bool SupportsWindowPositioning => !LinuxScreenCaptureService.IsWayland;
+    // XerahS's windows are X11 windows, also on Wayland through XWayland, where KWin and other
+    // compositors honour their positions. Only another application's native Wayland windows cannot be moved.
+    public bool SupportsWindowPositioning => _display != IntPtr.Zero;
     public bool SupportsWindowInspection => _display != IntPtr.Zero && !LinuxScreenCaptureService.IsWayland;
     public bool SupportsWindowOpacity => SupportsWindowInspection;
-    public bool SupportsBorderless => SupportsWindowInspection && HasAnyPropertyAtom(_rootWindow, "_NET_SUPPORTED", ["_NET_MOVERESIZE_WINDOW"]);
+    public bool SupportsBorderless => KWin != null || SupportsWindowInspection && HasAnyPropertyAtom(_rootWindow, "_NET_SUPPORTED", ["_NET_MOVERESIZE_WINDOW"]);
 
     public WindowDetails? GetWindowDetails(IntPtr handle)
     {
@@ -126,7 +130,9 @@ public partial class LinuxWindowService
         return GetAllWindows().FirstOrDefault(w => w.Bounds.Contains(point))?.Handle ?? IntPtr.Zero;
     }
 
-    public bool SetWindowTopmost(IntPtr handle, bool topmost) => SupportsTopmost &&
+    public bool SetWindowTopmost(IntPtr handle, bool topmost) => IsKWinHandle(handle)
+        ? KWin?.SetKeepAbove(handle, topmost) == true
+        : SupportsTopmost &&
         SendWindowMessage(handle, "_NET_WM_STATE", topmost ? 1 : 0, GetAtom("_NET_WM_STATE_ABOVE"), IntPtr.Zero, new IntPtr(2));
 
     public bool SetWindowOpacity(IntPtr handle, byte opacity)
@@ -139,6 +145,9 @@ public partial class LinuxWindowService
 
     public bool ToggleBorderlessWindow(IntPtr handle, bool useWorkingArea = false)
     {
+        if (IsKWinHandle(handle))
+            return KWin is { } kwin && GetKWinWindow(handle) is { } kwinWindow && ToggleKWinBorderlessWindow(kwin, handle, kwinWindow, useWorkingArea);
+
         lock (_borderlessWindows)
         {
             if (!SupportsBorderless || !TryGetWindowAttributes(handle, out var attributes)) { _borderlessWindows.Remove(handle); return false; }

@@ -82,7 +82,7 @@ public partial class OverlayWindow
             (int)_monitor.PhysicalBounds.X,
             (int)_monitor.PhysicalBounds.Y);
 
-        return new RegionSelectionResult(baseResult.Region, baseResult.CursorPosition, annotationLayer, monitorOrigin);
+        return baseResult with { AnnotationLayer = annotationLayer, MonitorOrigin = monitorOrigin };
     }
 
     /// <summary>

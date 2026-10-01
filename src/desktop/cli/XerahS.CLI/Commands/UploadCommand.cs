@@ -261,7 +261,7 @@ public static class UploadCommand
             // Use the first FileUpload workflow's settings so user-configured options
             // like FileUploadUseNamePattern are respected. Fall back to default.
             var workflow = SettingsManager.GetFirstWorkflowOrDefault(WorkflowType.FileUpload);
-            var taskSettings = CloneTaskSettings(workflow.TaskSettings);
+            var taskSettings = TaskSettings.GetSafeTaskSettings(workflow.TaskSettings);
             taskSettings.Job = WorkflowType.FileUpload;
             taskSettings.AfterCaptureJob = AfterCaptureTasks.UploadImageToHost;
             taskSettings.AfterUploadJob = AfterUploadTasks.CopyURLToClipboard;

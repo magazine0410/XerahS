@@ -718,16 +718,11 @@ namespace XerahS.UI.Views
             if (workflow != null && workflow.TaskSettings != null)
             {
                 // Clone workflow settings to avoid modifying the original instance during execution
-                var jsonSettings = new Newtonsoft.Json.JsonSerializerSettings
-                {
-                    TypeNameHandling = Newtonsoft.Json.TypeNameHandling.Auto,
-                    ObjectCreationHandling = Newtonsoft.Json.ObjectCreationHandling.Replace
-                };
                 var effectCount = workflow.TaskSettings?.ImageSettings?.ImageEffectsPreset?.Effects?.Count ?? 0;
                 var presetName = workflow.TaskSettings?.ImageSettings?.ImageEffectsPreset?.Name ?? "(null)";
                 Console.WriteLine($"[MainWindow] Clone workflow settings. Preset='{presetName}', Effects={effectCount}");
-                var json = Newtonsoft.Json.JsonConvert.SerializeObject(workflow.TaskSettings, jsonSettings);
-                settings = Newtonsoft.Json.JsonConvert.DeserializeObject<TaskSettings>(json, jsonSettings)!;
+                // The sections the workflow does not override come from the default task settings.
+                settings = TaskSettings.GetSafeTaskSettings(workflow.TaskSettings!);
 
                 // Store the workflow ID in the task settings for troubleshooting
                 settings.WorkflowId = workflow.Id;

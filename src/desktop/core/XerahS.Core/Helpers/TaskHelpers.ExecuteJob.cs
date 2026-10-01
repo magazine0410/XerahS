@@ -69,7 +69,9 @@ public static partial class TaskHelpers
         }
 
         XerahS.Common.TroubleshootingHelper.Log(logCategory, "EXECUTE_WORKFLOW", $"Calling ExecuteJob, TaskSettings={workflow.TaskSettings != null}");
-        await ExecuteJob(workflow.Job, workflow.TaskSettings, id, hideMainWindow);
+        // As in ShareX, the sections the workflow does not override come from the default task settings.
+        TaskSettings? taskSettings = workflow.TaskSettings != null ? TaskSettings.GetSafeTaskSettings(workflow.TaskSettings) : null;
+        await ExecuteJob(workflow.Job, taskSettings, id, hideMainWindow);
     }
 
     /// <summary>

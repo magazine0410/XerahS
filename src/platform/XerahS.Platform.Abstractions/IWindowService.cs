@@ -32,6 +32,7 @@ namespace XerahS.Platform.Abstractions
     /// </summary>
     public interface IWindowService
     {
+        /// <summary>Whether XerahS can place its own windows at a chosen screen position.</summary>
         bool SupportsWindowPositioning => true;
         bool SupportsWindowInspection => false;
         bool SupportsChildWindowPicking => false;

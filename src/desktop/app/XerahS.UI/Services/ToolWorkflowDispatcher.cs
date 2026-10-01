@@ -94,8 +94,7 @@ internal static class ToolWorkflowDispatcher
                 return true;
 
             case WorkflowType.ImageViewer:
-                new Views.ImageViewerWindow().Show();
-                dispatchTask = Task.CompletedTask;
+                dispatchTask = Views.ImageViewerWindow.OpenAsync(owner);
                 return true;
 
             case WorkflowType.VideoEditor:

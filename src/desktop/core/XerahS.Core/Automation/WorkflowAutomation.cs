@@ -25,6 +25,7 @@
 
 using XerahS.Common;
 using XerahS.Core.Helpers;
+using XerahS.Core.Managers;
 using XerahS.Core.Hotkeys;
 using XerahS.Platform.Abstractions;
 
@@ -202,6 +203,7 @@ public static class WorkflowAutomation
             ?? throw new AutomationException(AutomationErrorCodes.UnsupportedType,
                 $"Could not read image effects from '{presetPath}'. See the XerahS log for details.");
 
+        OverrideImageEffectSections(workflow);
         workflow.TaskSettings.ImageSettings.ImageEffectsPreset = preset;
         if (enable)
         {
@@ -213,8 +215,30 @@ public static class WorkflowAutomation
 
     public static void ClearImageEffects(WorkflowSettings workflow)
     {
+        OverrideImageEffectSections(workflow);
         workflow.TaskSettings.ImageSettings.ImageEffectsPreset = ImageEffectPreset.GetDefaultPreset();
         workflow.TaskSettings.AfterCaptureJob &= ~AfterCaptureTasks.AddImageEffects;
+    }
+
+    /// <summary>
+    /// An image effects change is for this workflow only, so it overrides the image settings and after
+    /// capture tasks. A section it used from the defaults starts from the current default values.
+    /// </summary>
+    private static void OverrideImageEffectSections(WorkflowSettings workflow)
+    {
+        TaskSettings settings = workflow.TaskSettings;
+        TaskSettings? defaults = SettingsManager.DefaultTaskSettings;
+        if (settings.UseDefaultImageSettings)
+        {
+            if (defaults != null) settings.ImageSettings = WatchFolderManager.CloneTaskSettings(defaults).ImageSettings;
+            settings.UseDefaultImageSettings = false;
+        }
+
+        if (settings.UseDefaultAfterCaptureJob)
+        {
+            if (defaults != null) settings.AfterCaptureJob = defaults.AfterCaptureJob;
+            settings.UseDefaultAfterCaptureJob = false;
+        }
     }
 
     /// <summary>

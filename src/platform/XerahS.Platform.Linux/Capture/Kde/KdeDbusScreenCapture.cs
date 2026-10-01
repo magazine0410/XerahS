@@ -36,6 +36,11 @@ using XerahS.Platform.Linux.Capture.Contracts;
 
 namespace XerahS.Platform.Linux.Capture.Kde;
 
+/// <summary>
+/// KWin's ScreenShot2 interface. KWin allows it only for a process whose executable matches the Exec
+/// path of a desktop entry with X-KDE-DBUS-Restricted-Interfaces=org.kde.KWin.ScreenShot2. An AppImage
+/// runs from a temporary mount, which no desktop entry names, so KWin refuses it there.
+/// </summary>
 internal static class KdeDbusScreenCapture
 {
     private const string KdeScreenShotBusName = "org.kde.KWin.ScreenShot2";
@@ -45,6 +50,7 @@ internal static class KdeDbusScreenCapture
     {
         InteractiveRegion,
         ActiveWindow,
+        Window,
         Workspace
     }
 
@@ -72,7 +78,15 @@ internal static class KdeDbusScreenCapture
         return await CaptureWithKdeScreenShot2Async(captureKind.Value, options).ConfigureAwait(false);
     }
 
-    private static async Task<SKBitmap?> CaptureWithKdeScreenShot2Async(KdeCaptureKind captureKind, CaptureOptions? options)
+    /// <summary>
+    /// Captures one window by its KWin ID, with transparency, as ShareX's transparent window capture
+    /// does: the shadow is included when "Capture shadow" is on. KWin renders the window itself, so
+    /// windows above it are not included. Returns null when KWin refuses the caller (see the class notes).
+    /// </summary>
+    public static Task<SKBitmap?> CaptureWindowAsync(string windowId, CaptureOptions? options) =>
+        CaptureWithKdeScreenShot2Async(KdeCaptureKind.Window, options, windowId);
+
+    private static async Task<SKBitmap?> CaptureWithKdeScreenShot2Async(KdeCaptureKind captureKind, CaptureOptions? options, string? windowId = null)
     {
         var tempFile = Path.Combine(Path.GetTempPath(), $"sharex_kwin_raw_{Guid.NewGuid():N}.bin");
 
@@ -91,6 +105,7 @@ internal static class KdeDbusScreenCapture
                 {
                     KdeCaptureKind.InteractiveRegion => await proxy.CaptureInteractiveAsync((uint)KdeInteractiveKind.Screen, kdeOptions, stream.SafeFileHandle).ConfigureAwait(false),
                     KdeCaptureKind.ActiveWindow => await proxy.CaptureActiveWindowAsync(kdeOptions, stream.SafeFileHandle).ConfigureAwait(false),
+                    KdeCaptureKind.Window => await proxy.CaptureWindowAsync(windowId!, kdeOptions, stream.SafeFileHandle).ConfigureAwait(false),
                     KdeCaptureKind.Workspace => await proxy.CaptureWorkspaceAsync(kdeOptions, stream.SafeFileHandle).ConfigureAwait(false),
                     _ => new Dictionary<string, object>()
                 };
@@ -165,10 +180,11 @@ internal static class KdeDbusScreenCapture
             ["include-cursor"] = includeCursor,
             ["native-resolution"] = true
         };
-        if (captureKind == KdeCaptureKind.ActiveWindow)
+        if (captureKind is KdeCaptureKind.ActiveWindow or KdeCaptureKind.Window)
         {
-            dbusOptions["include-decoration"] = true;
-            dbusOptions["include-shadow"] = true;
+            // As in ShareX, the shadow is only part of a transparent capture.
+            dbusOptions["include-decoration"] = options?.CaptureClientArea != true;
+            dbusOptions["include-shadow"] = options?.CaptureTransparent == true && options.CaptureShadow;
         }
         return dbusOptions;
     }
@@ -346,5 +362,6 @@ public interface IKdeScreenShot2 : IDBusObject
     Task<uint> GetVersionAsync();
     Task<IDictionary<string, object>> CaptureInteractiveAsync(uint kind, IDictionary<string, object> options, SafeFileHandle pipe);
     Task<IDictionary<string, object>> CaptureActiveWindowAsync(IDictionary<string, object> options, SafeFileHandle pipe);
+    Task<IDictionary<string, object>> CaptureWindowAsync(string handle, IDictionary<string, object> options, SafeFileHandle pipe);
     Task<IDictionary<string, object>> CaptureWorkspaceAsync(IDictionary<string, object> options, SafeFileHandle pipe);
 }

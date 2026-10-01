@@ -37,6 +37,13 @@ namespace XerahS.Platform.Abstractions
         /// </summary>
         /// <returns>The mouse position in physical pixels, or Point.Empty if unavailable</returns>
         Point GetCursorPosition();
+
+        /// <summary>
+        /// Whether <see cref="GetCursorPosition"/> reports where the pointer is now. False where the
+        /// window system only knows an old position, such as XWayland and the InputCapture portal on
+        /// Wayland compositors other than KDE Plasma.
+        /// </summary>
+        bool IsCursorPositionReliable => true;
         bool SupportsGlobalMouseMonitoring => false;
         IGlobalMouseMonitor CreateGlobalMouseMonitor(MouseHighlighterInputBuffer input) =>
             throw new PlatformNotSupportedException("Global mouse monitoring is not supported on this window system.");

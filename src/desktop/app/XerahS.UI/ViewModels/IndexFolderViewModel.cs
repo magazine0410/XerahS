@@ -774,7 +774,7 @@ public partial class IndexFolderViewModel : ViewModelBase
         var uploadWorkflow = SettingsManager.GetFirstWorkflow(WorkflowType.FileUpload);
         if (uploadWorkflow?.TaskSettings != null)
         {
-            var settings = CloneTaskSettings(uploadWorkflow.TaskSettings);
+            var settings = TaskSettings.GetSafeTaskSettings(uploadWorkflow.TaskSettings);
             settings.WorkflowId = uploadWorkflow.Id;
             return settings;
         }

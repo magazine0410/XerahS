@@ -46,6 +46,7 @@ namespace XerahS.UI.ViewModels
     ///   TaskSettingsViewModel.Image.cs         — image format, quality, thumbnails
     ///   TaskSettingsViewModel.IndexFolder.cs   — index folder settings + browse commands
     ///   TaskSettingsViewModel.Tools.cs         — tool settings and default inheritance
+    ///   TaskSettingsViewModel.Overrides.cs     — default inheritance for the other sections
     /// </summary>
     public partial class TaskSettingsViewModel : ObservableObject
     {
@@ -62,7 +63,7 @@ namespace XerahS.UI.ViewModels
             _settings = settings;
             _dialogService = dialogService;
             _effectsEditorCore = editorCore ?? new EditorCore();
-            ImageEffects = new ImageEffectsViewModel(Model.ImageSettings, _effectsEditorCore, _dialogService);
+            ImageEffects = new ImageEffectsViewModel(ImageSource.ImageSettings, _effectsEditorCore, _dialogService);
             ImageEffects.UpdatePreview();
             RefreshFFmpegState();
         }
@@ -74,7 +75,7 @@ namespace XerahS.UI.ViewModels
 
         // Expose underlying model if needed
         public TaskSettings Model => _settings;
-        public TaskSettingsAdvanced AdvancedSettings => _settings.AdvancedSettings;
+        public TaskSettingsAdvanced AdvancedSettings => AdvancedSource.AdvancedSettings;
 
         public WorkflowType Job
         {

@@ -392,7 +392,8 @@ public sealed class RegionCaptureControl : UserControl
             _lastCrosshairInvalidateTicks = 0; // Allow immediate redraw on drag start
             if (_mode == RegionCaptureMode.ScreenColorPicker)
             {
-                _stateMachine.ConfirmPoint(physicalPoint);
+                // As in ShareX, Ctrl + click copies the color with the Ctrl format.
+                _stateMachine.ConfirmPoint(physicalPoint, e.KeyModifiers.HasFlag(KeyModifiers.Control));
                 e.Handled = true;
                 return;
             }

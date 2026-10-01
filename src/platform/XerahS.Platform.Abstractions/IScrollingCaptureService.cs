@@ -39,6 +39,32 @@ namespace XerahS.Platform.Abstractions
         bool IsSupported { get; }
 
         /// <summary>
+        /// The scroll methods this platform can perform. Windows-message methods exist only on Windows.
+        /// </summary>
+        IReadOnlyList<ScrollMethod> SupportedScrollMethods => Enum.GetValues<ScrollMethod>();
+
+        /// <summary>
+        /// Prepares scroll input for one capture, such as a remote desktop portal session on Wayland,
+        /// which may ask the user for permission. Returns false when input cannot be sent.
+        /// </summary>
+        Task<bool> BeginAsync(CancellationToken cancellationToken = default) => Task.FromResult(true);
+
+        /// <summary>
+        /// Moves the pointer out of the captured area, so it is not in the frames and does not hover over
+        /// the content. Needed where screenshots include the cursor (the Wayland screenshot portal).
+        /// </summary>
+        Task MovePointerOutsideAsync(System.Drawing.Rectangle area) => Task.CompletedTask;
+
+        /// <summary>
+        /// Waits while something the desktop shows above every window, such as a notification popup,
+        /// covers the area, because a fixed popup over scrolling content keeps the frames from matching.
+        /// </summary>
+        Task WaitUntilAreaIsClearAsync(System.Drawing.Rectangle area, CancellationToken cancellationToken = default) => Task.CompletedTask;
+
+        /// <summary>Ends what <see cref="BeginAsync"/> started.</summary>
+        Task EndAsync() => Task.CompletedTask;
+
+        /// <summary>
         /// Scrolls the specified window using the given method and amount.
         /// </summary>
         /// <param name="windowHandle">Target window handle</param>
@@ -80,9 +106,9 @@ namespace XerahS.Platform.Abstractions
         MouseWheel,
         [Description("Mouse wheel message (no cursor movement)")]
         MouseWheelMessage,
-        [Description("Down arrow key")]
+        [Description("Down arrow")]
         DownArrow,
-        [Description("Page down key")]
+        [Description("Page down")]
         PageDown,
         [Description("Scroll message")]
         ScrollMessage
@@ -106,6 +132,9 @@ namespace XerahS.Platform.Abstractions
         public SkiaSharp.SKBitmap? Image { get; set; }
         public ScrollingCaptureStatus Status { get; set; }
         public int FramesCaptured { get; set; }
+
+        /// <summary>True when the platform could not send scroll input, for example because the user refused it.</summary>
+        public bool InputUnavailable { get; set; }
     }
 
     /// <summary>

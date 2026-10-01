@@ -138,8 +138,7 @@ internal static class ImageEditingToolService
         if (result != null && session!.TaskResult == MainViewModel.EditorTaskResult.Continue)
         {
             var sourceSettings = taskSettings ?? SettingsManager.DefaultTaskSettings;
-            var executionSettings = WatchFolderManager.CloneTaskSettings(sourceSettings);
-            executionSettings.WorkflowId = sourceSettings.WorkflowId;
+            var executionSettings = TaskSettings.GetSafeTaskSettings(sourceSettings);
             await taskManager.StartTask(executionSettings, result.Copy());
         }
         return true;
@@ -190,8 +189,7 @@ internal static class ImageEditingToolService
     /// </summary>
     internal static Task UploadImageEffectsResultAsync(SKBitmap result, TaskSettings sourceSettings, IDesktopTaskManager taskManager)
     {
-        var executionSettings = WatchFolderManager.CloneTaskSettings(sourceSettings);
-        executionSettings.WorkflowId = sourceSettings.WorkflowId;
+        var executionSettings = TaskSettings.GetSafeTaskSettings(sourceSettings);
         executionSettings.AfterCaptureJob = (executionSettings.AfterCaptureJob & ~AfterCaptureTasks.AddImageEffects)
             | AfterCaptureTasks.UploadImageToHost;
         return taskManager.StartTask(executionSettings, result.Copy());

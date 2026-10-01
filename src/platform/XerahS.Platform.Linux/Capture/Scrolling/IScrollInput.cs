@@ -23,18 +23,29 @@
 
 #endregion License Information (GPL v3)
 
-using SkiaSharp;
+using System.Drawing;
 
-namespace XerahS.RegionCapture.Models;
+namespace XerahS.Platform.Linux.Capture.Scrolling;
 
-/// <summary>
-/// Represents a completed region selection with the cursor position at confirmation time.
-/// Optionally includes an annotation layer to be composited onto the captured image.
-/// ControlPressed reports whether Ctrl was held when the screen color picker confirmed its point.
-/// </summary>
-public readonly record struct RegionSelectionResult(
-    PixelRect Region,
-    PixelPoint CursorPosition,
-    SKBitmap? AnnotationLayer = null,
-    PixelPoint MonitorOrigin = default,
-    bool ControlPressed = false);
+/// <summary>Sends the input a scrolling capture needs: pointer moves, wheel notches, and keys.</summary>
+internal interface IScrollInput : IAsyncDisposable
+{
+    /// <summary>Starts sending input. False when the window system or the user does not allow it.</summary>
+    Task<bool> BeginAsync(CancellationToken cancellationToken);
+
+    /// <summary>Moves the pointer to a point in XerahS's X11 screen coordinates, where possible.</summary>
+    Task MovePointerAsync(Point target);
+
+    /// <summary>Turns the mouse wheel down by the given number of notches.</summary>
+    Task ScrollWheelAsync(int notches);
+
+    /// <summary>Presses and releases a key, given as an X11 keysym.</summary>
+    Task PressKeyAsync(int keysym);
+}
+
+internal static class Keysyms
+{
+    public const int Home = 0xff50;
+    public const int Down = 0xff54;
+    public const int PageDown = 0xff56;
+}

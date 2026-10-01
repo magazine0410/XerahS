@@ -52,7 +52,7 @@ internal static class WaylandWindowPointQueryHelperFactory
             "HYPRLAND" => new HyprlandWindowPointQueryHelper(),
             "SWAY" => new SwayWindowPointQueryHelper(),
             _ when string.Equals(desktop, "GNOME", StringComparison.Ordinal) => new GnomeShellWindowPointQueryHelper(),
-            _ when string.Equals(desktop, "KDE", StringComparison.Ordinal) => new KdeKdotoolWindowPointQueryHelper(),
+            _ when string.Equals(desktop, "KDE", StringComparison.Ordinal) => new KWinWindowPointQueryHelper(),
             _ => new UnsupportedWaylandWindowPointQueryHelper(
                 $"Wayland session: no compositor helper is available for '{desktop ?? compositor}'.")
         };

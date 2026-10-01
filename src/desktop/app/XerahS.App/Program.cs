@@ -1292,7 +1292,7 @@ namespace XerahS.App
             var uploadWorkflow = SettingsManager.GetFirstWorkflow(WorkflowType.FileUpload);
             if (uploadWorkflow?.TaskSettings != null)
             {
-                TaskSettings cloned = CloneTaskSettings(uploadWorkflow.TaskSettings);
+                TaskSettings cloned = TaskSettings.GetSafeTaskSettings(uploadWorkflow.TaskSettings);
                 cloned.WorkflowId = uploadWorkflow.Id;
                 return cloned;
             }

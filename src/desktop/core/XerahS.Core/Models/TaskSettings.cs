@@ -30,6 +30,7 @@ using System.Drawing;
 using Newtonsoft.Json;
 using ShareX.ImageEditor.Hosting;
 using XerahS.Common;
+using XerahS.Core.Managers;
 using XerahS.Indexer;
 using XerahS.Services.Abstractions;
 using XerahS.Uploaders;
@@ -60,9 +61,17 @@ public class TaskSettings
 
     public WorkflowType Job = WorkflowType.None;
 
+    // As in ShareX, each section of a workflow's settings uses the default task settings unless the
+    // workflow overrides it ("Override ... settings" in the workflow editor). The defaults are
+    // applied when the workflow runs; see GetSafeTaskSettings.
+    public bool UseDefaultAfterCaptureJob = true;
     public AfterCaptureTasks AfterCaptureJob = AfterCaptureTasks.CopyImageToClipboard | AfterCaptureTasks.SaveImageToFile;
 
+    public bool UseDefaultAfterUploadJob = true;
     public AfterUploadTasks AfterUploadJob = AfterUploadTasks.CopyURLToClipboard;
+
+    /// <summary>Covers the destination, the URL shortener, and the FTP and custom uploader choices.</summary>
+    public bool UseDefaultDestinations = true;
 
     /// <summary>Legacy; not used by runtime. Use UrlShortenerDestinationInstanceId (plugin system). Kept for config serialization.</summary>
     [Obsolete("Legacy; use UrlShortenerDestinationInstanceId (plugin system). Kept for config serialization.")]
@@ -94,14 +103,19 @@ public class TaskSettings
     public bool OverrideScreenshotsFolder = false;
     public string ScreenshotsFolder = "";
 
+    public bool UseDefaultGeneralSettings = true;
     public TaskSettingsGeneral GeneralSettings = new TaskSettingsGeneral();
 
+    public bool UseDefaultImageSettings = true;
     public TaskSettingsImage ImageSettings = new TaskSettingsImage();
 
+    public bool UseDefaultCaptureSettings = true;
     public TaskSettingsCapture CaptureSettings = new TaskSettingsCapture();
 
+    public bool UseDefaultUploadSettings = true;
     public TaskSettingsUpload UploadSettings = new TaskSettingsUpload();
 
+    public bool UseDefaultActions = true;
     public List<ExternalProgram> ExternalPrograms = new List<ExternalProgram>();
 
     /// <summary>
@@ -135,7 +149,31 @@ public class TaskSettings
         }
     }
 
+    public bool UseDefaultAdvancedSettings = true;
     public TaskSettingsAdvanced AdvancedSettings = new TaskSettingsAdvanced();
+
+    /// <summary>
+    /// ShareX's CaptureSettingsReference: the capture settings this task's workflow saves, which are the
+    /// default task settings' unless the workflow overrides capture settings. Tools that keep their
+    /// options in the capture settings (scrolling capture) edit this object, so changes are kept.
+    /// </summary>
+    [JsonIgnore]
+    public TaskSettingsCapture CaptureSettingsReference
+    {
+        get
+        {
+            var settings = TaskSettingsReference
+                ?? SettingsManager.GetWorkflowById(WorkflowId ?? string.Empty)?.TaskSettings
+                ?? this;
+            var defaults = SettingsManager.DefaultTaskSettings;
+            if (settings.UseDefaultCaptureSettings && defaults != null)
+            {
+                settings = defaults;
+            }
+
+            return settings.CaptureSettings ??= new TaskSettingsCapture();
+        }
+    }
 
     public bool WatchFolderEnabled = false;
     public List<WatchFolderSettings> WatchFolderList = new List<WatchFolderSettings>();
@@ -143,6 +181,91 @@ public class TaskSettings
     public override string ToString()
     {
         return !string.IsNullOrEmpty(Description) ? Description : EnumExtensions.GetDescription(Job);
+    }
+
+    /// <summary>
+    /// ShareX's GetSafeTaskSettings: the settings a saved workflow runs with. Returns a copy of the
+    /// workflow's settings in which every section it does not override is replaced by the default
+    /// task settings. The copy refers back to the workflow's settings, so interactive tools save
+    /// their preferences there (see <see cref="ToolsSettingsReference"/>).
+    /// </summary>
+    public static TaskSettings GetSafeTaskSettings(TaskSettings taskSettings, TaskSettings? defaultTaskSettings = null)
+    {
+        ArgumentNullException.ThrowIfNull(taskSettings);
+        defaultTaskSettings ??= SettingsManager.DefaultTaskSettings;
+
+        TaskSettings safeTaskSettings = WatchFolderManager.CloneTaskSettings(taskSettings);
+        safeTaskSettings.WorkflowId = taskSettings.WorkflowId;
+        // A running task's settings already have the defaults applied, and may have been changed since.
+        if (!taskSettings.IsSafeTaskSettings && defaultTaskSettings != null && !ReferenceEquals(defaultTaskSettings, taskSettings))
+        {
+            safeTaskSettings.SetDefaultSettings(defaultTaskSettings);
+        }
+
+        safeTaskSettings.TaskSettingsReference = taskSettings.TaskSettingsReference ?? taskSettings;
+        return safeTaskSettings;
+    }
+
+    /// <summary>ShareX's SetDefaultSettings: copies each section this task does not override from the defaults.</summary>
+    public void SetDefaultSettings(TaskSettings defaultTaskSettings)
+    {
+        ArgumentNullException.ThrowIfNull(defaultTaskSettings);
+        TaskSettings defaults = WatchFolderManager.CloneTaskSettings(defaultTaskSettings);
+
+        if (UseDefaultAfterCaptureJob)
+        {
+            AfterCaptureJob = defaults.AfterCaptureJob;
+        }
+
+        if (UseDefaultAfterUploadJob)
+        {
+            AfterUploadJob = defaults.AfterUploadJob;
+        }
+
+        if (UseDefaultDestinations)
+        {
+            DestinationInstanceId = defaults.DestinationInstanceId;
+            UrlShortenerDestinationInstanceId = defaults.UrlShortenerDestinationInstanceId;
+            OverrideFTP = defaults.OverrideFTP;
+            FTPIndex = defaults.FTPIndex;
+            OverrideCustomUploader = defaults.OverrideCustomUploader;
+            CustomUploaderIndex = defaults.CustomUploaderIndex;
+        }
+
+        if (UseDefaultGeneralSettings)
+        {
+            GeneralSettings = defaults.GeneralSettings;
+        }
+
+        if (UseDefaultImageSettings)
+        {
+            ImageSettings = defaults.ImageSettings;
+        }
+
+        if (UseDefaultCaptureSettings)
+        {
+            CaptureSettings = defaults.CaptureSettings;
+        }
+
+        if (UseDefaultUploadSettings)
+        {
+            UploadSettings = defaults.UploadSettings;
+        }
+
+        if (UseDefaultActions)
+        {
+            ExternalPrograms = defaults.ExternalPrograms;
+        }
+
+        if (UseDefaultToolsSettings)
+        {
+            ToolsSettings = defaults.ToolsSettings;
+        }
+
+        if (UseDefaultAdvancedSettings)
+        {
+            AdvancedSettings = defaults.AdvancedSettings;
+        }
     }
 
     /// <summary>
@@ -429,9 +552,11 @@ public class TaskSettingsTools
     public ImageEditorOptions ImageEditorOptions = new ImageEditorOptions();
     public BackgroundRemoverOptions BackgroundRemoverOptions = new BackgroundRemoverOptions();
 
-    public string ScreenColorPickerFormat = "$hex";
+    // Defaults match ShareX's ScreenColorPickerOptions.
+    public string ScreenColorPickerFormat = "$HEX";
     public string ScreenColorPickerFormatCtrl = "$r255, $g255, $b255";
-    public string ScreenColorPickerInfoText = "RGB: $r255, $g255, $b255$nHex: $hex$nX: $x Y: $y";
+    public string ScreenColorPickerInfoText = "#$HEX";
+    public bool ScreenColorPickerShowMagnifier = true;
 
     public PinToScreenOptions PinToScreenOptions = new PinToScreenOptions();
     public IndexerSettings IndexerSettings = new IndexerSettings();

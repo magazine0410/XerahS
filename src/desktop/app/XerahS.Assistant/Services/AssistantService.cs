@@ -682,7 +682,7 @@ public sealed class AssistantService : IAssistantService
             return AssistantResponse.Error("Configured workflow not found.");
         }
 
-        TaskSettings settings = WatchFolderManager.CloneTaskSettings(workflow.TaskSettings);
+        TaskSettings settings = TaskSettings.GetSafeTaskSettings(workflow.TaskSettings);
         settings.WorkflowId = workflow.Id;
         await _taskManager.StartTask(settings);
         return AssistantResponse.Info($"Workflow finished: {GetWorkflowDisplayName(workflow)}");
@@ -779,7 +779,7 @@ public sealed class AssistantService : IAssistantService
     {
         var uploadWorkflow = SettingsManager.GetFirstWorkflow(WorkflowType.FileUpload);
         TaskSettings settings = uploadWorkflow?.TaskSettings != null
-            ? WatchFolderManager.CloneTaskSettings(uploadWorkflow.TaskSettings)
+            ? TaskSettings.GetSafeTaskSettings(uploadWorkflow.TaskSettings)
             : WatchFolderManager.CloneTaskSettings(SettingsManager.DefaultTaskSettings ?? new TaskSettings());
 
         settings.Job = WorkflowType.FileUpload;

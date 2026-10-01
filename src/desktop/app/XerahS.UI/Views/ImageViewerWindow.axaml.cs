@@ -49,7 +49,6 @@ public partial class ImageViewerWindow : Window
     public ImageViewerWindow()
     {
         Initialize();
-        Opened += OnOpened;
     }
 
     public ImageViewerWindow(string filePath)
@@ -86,36 +85,33 @@ public partial class ImageViewerWindow : Window
         Closed += (_, _) => _viewModel.Dispose();
     }
 
-    private async void OnOpened(object? sender, EventArgs e)
+    /// <summary>
+    /// Asks for an image, then shows it. ShareX opens the full-screen viewer first and asks from it;
+    /// on Linux the portal's file dialog is a separate window that KWin keeps below the topmost
+    /// full-screen viewer, so the file is chosen before the viewer opens.
+    /// </summary>
+    public static async Task OpenAsync(Window? owner)
     {
-        Opened -= OnOpened;
         try
         {
-            if (!await SelectImageAsync()) Close();
+            var storage = StorageProviderResolver.Resolve(owner);
+            if (storage == null) return;
+            IReadOnlyList<IStorageFile> files = await storage.OpenFilePickerAsync(new FilePickerOpenOptions
+            {
+                Title = "Open image",
+                AllowMultiple = false,
+                FileTypeFilter = [FilePickerFileTypes.ImageAll]
+            });
+
+            if (files.FirstOrDefault()?.TryGetLocalPath() is not { Length: > 0 } filePath) return;
+            var window = new ImageViewerWindow(filePath);
+            if (window._viewModel.HasImage) window.Show();
+            else window.Close();
         }
         catch (Exception ex)
         {
             UploadWorkflowService.ReportError(ex, "Could not open image");
-            Close();
         }
-    }
-
-    private async Task<bool> SelectImageAsync()
-    {
-        _closeOnDeactivate = false;
-        IReadOnlyList<IStorageFile> files = await StorageProvider.OpenFilePickerAsync(new FilePickerOpenOptions
-        {
-            Title = "Open image",
-            AllowMultiple = false,
-            FileTypeFilter = [FilePickerFileTypes.ImageAll]
-        });
-
-        string? filePath = files.FirstOrDefault()?.TryGetLocalPath();
-        bool loaded = !string.IsNullOrWhiteSpace(filePath) && _viewModel.LoadFile(filePath);
-        _closeOnDeactivate = _viewModel.HasImage;
-        Activate();
-        Focus();
-        return loaded;
     }
 
     private void OnPreviousClick(object? sender, RoutedEventArgs e) => _viewModel.Navigate(-1);

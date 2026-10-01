@@ -31,12 +31,12 @@ namespace XerahS.UI.ViewModels
 
         public string NameFormatPattern
         {
-            get => _settings.UploadSettings.NameFormatPattern;
+            get => UploadSource.UploadSettings.NameFormatPattern;
             set
             {
-                if (_settings.UploadSettings.NameFormatPattern != value)
+                if (UploadSource.UploadSettings.NameFormatPattern != value)
                 {
-                    _settings.UploadSettings.NameFormatPattern = value;
+                    UploadSource.UploadSettings.NameFormatPattern = value;
                     OnPropertyChanged();
                 }
             }
@@ -44,12 +44,12 @@ namespace XerahS.UI.ViewModels
 
         public string NameFormatPatternActiveWindow
         {
-            get => _settings.UploadSettings.NameFormatPatternActiveWindow;
+            get => UploadSource.UploadSettings.NameFormatPatternActiveWindow;
             set
             {
-                if (_settings.UploadSettings.NameFormatPatternActiveWindow != value)
+                if (UploadSource.UploadSettings.NameFormatPatternActiveWindow != value)
                 {
-                    _settings.UploadSettings.NameFormatPatternActiveWindow = value;
+                    UploadSource.UploadSettings.NameFormatPatternActiveWindow = value;
                     OnPropertyChanged();
                 }
             }
@@ -57,12 +57,12 @@ namespace XerahS.UI.ViewModels
 
         public bool FileUploadUseNamePattern
         {
-            get => _settings.UploadSettings.FileUploadUseNamePattern;
+            get => UploadSource.UploadSettings.FileUploadUseNamePattern;
             set
             {
-                if (_settings.UploadSettings.FileUploadUseNamePattern != value)
+                if (UploadSource.UploadSettings.FileUploadUseNamePattern != value)
                 {
-                    _settings.UploadSettings.FileUploadUseNamePattern = value;
+                    UploadSource.UploadSettings.FileUploadUseNamePattern = value;
                     OnPropertyChanged();
                 }
             }
@@ -70,12 +70,12 @@ namespace XerahS.UI.ViewModels
 
         public bool FileUploadReplaceProblematicCharacters
         {
-            get => _settings.UploadSettings.FileUploadReplaceProblematicCharacters;
+            get => UploadSource.UploadSettings.FileUploadReplaceProblematicCharacters;
             set
             {
-                if (_settings.UploadSettings.FileUploadReplaceProblematicCharacters != value)
+                if (UploadSource.UploadSettings.FileUploadReplaceProblematicCharacters != value)
                 {
-                    _settings.UploadSettings.FileUploadReplaceProblematicCharacters = value;
+                    UploadSource.UploadSettings.FileUploadReplaceProblematicCharacters = value;
                     OnPropertyChanged();
                 }
             }
@@ -83,12 +83,12 @@ namespace XerahS.UI.ViewModels
 
         public bool URLRegexReplace
         {
-            get => _settings.UploadSettings.URLRegexReplace;
+            get => UploadSource.UploadSettings.URLRegexReplace;
             set
             {
-                if (_settings.UploadSettings.URLRegexReplace != value)
+                if (UploadSource.UploadSettings.URLRegexReplace != value)
                 {
-                    _settings.UploadSettings.URLRegexReplace = value;
+                    UploadSource.UploadSettings.URLRegexReplace = value;
                     OnPropertyChanged();
                 }
             }
@@ -96,12 +96,12 @@ namespace XerahS.UI.ViewModels
 
         public string URLRegexReplacePattern
         {
-            get => _settings.UploadSettings.URLRegexReplacePattern;
+            get => UploadSource.UploadSettings.URLRegexReplacePattern;
             set
             {
-                if (_settings.UploadSettings.URLRegexReplacePattern != value)
+                if (UploadSource.UploadSettings.URLRegexReplacePattern != value)
                 {
-                    _settings.UploadSettings.URLRegexReplacePattern = value;
+                    UploadSource.UploadSettings.URLRegexReplacePattern = value;
                     OnPropertyChanged();
                 }
             }
@@ -109,12 +109,12 @@ namespace XerahS.UI.ViewModels
 
         public string URLRegexReplaceReplacement
         {
-            get => _settings.UploadSettings.URLRegexReplaceReplacement;
+            get => UploadSource.UploadSettings.URLRegexReplaceReplacement;
             set
             {
-                if (_settings.UploadSettings.URLRegexReplaceReplacement != value)
+                if (UploadSource.UploadSettings.URLRegexReplaceReplacement != value)
                 {
-                    _settings.UploadSettings.URLRegexReplaceReplacement = value;
+                    UploadSource.UploadSettings.URLRegexReplaceReplacement = value;
                     OnPropertyChanged();
                 }
             }
@@ -122,12 +122,12 @@ namespace XerahS.UI.ViewModels
 
         public bool ClipboardUploadURLContents
         {
-            get => _settings.UploadSettings.ClipboardUploadURLContents;
+            get => UploadSource.UploadSettings.ClipboardUploadURLContents;
             set
             {
-                if (_settings.UploadSettings.ClipboardUploadURLContents != value)
+                if (UploadSource.UploadSettings.ClipboardUploadURLContents != value)
                 {
-                    _settings.UploadSettings.ClipboardUploadURLContents = value;
+                    UploadSource.UploadSettings.ClipboardUploadURLContents = value;
                     OnPropertyChanged();
                 }
             }
@@ -135,12 +135,12 @@ namespace XerahS.UI.ViewModels
 
         public bool ClipboardUploadShortenURL
         {
-            get => _settings.UploadSettings.ClipboardUploadShortenURL;
+            get => UploadSource.UploadSettings.ClipboardUploadShortenURL;
             set
             {
-                if (_settings.UploadSettings.ClipboardUploadShortenURL != value)
+                if (UploadSource.UploadSettings.ClipboardUploadShortenURL != value)
                 {
-                    _settings.UploadSettings.ClipboardUploadShortenURL = value;
+                    UploadSource.UploadSettings.ClipboardUploadShortenURL = value;
                     OnPropertyChanged();
                 }
             }

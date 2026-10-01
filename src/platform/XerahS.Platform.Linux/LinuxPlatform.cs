@@ -124,6 +124,8 @@ namespace XerahS.Platform.Linux
             // Register OCR service stub (Tesseract integration planned)
             PlatformServices.Ocr = new LinuxOcrService();
 
+            PlatformServices.ScrollingCapture = new LinuxScrollingCaptureService();
+
             // Initialize theme service for dark mode detection
             PlatformServices.Theme = new LinuxThemeService();
             DebugHelper.WriteLine($"Linux: Theme service initialized. Dark mode preferred: {PlatformServices.Theme.IsDarkModePreferred}");

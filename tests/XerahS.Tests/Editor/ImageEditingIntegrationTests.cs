@@ -256,7 +256,7 @@ public class ImageEditingIntegrationTests
             canvas.DrawRect(40, 0, 40, 60, blue);
         }
         var manager = new RecordingTaskManager();
-        var executionCopy = new TaskSettings { WorkflowId = "effects", AfterCaptureJob = saved.AfterCaptureJob };
+        var executionCopy = new TaskSettings { WorkflowId = "effects", UseDefaultAfterCaptureJob = false, AfterCaptureJob = saved.AfterCaptureJob };
 
         var window = ImageEditingToolService.CreateImageEffectsWindow(image, "effects.png", executionCopy, manager);
         try

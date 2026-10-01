@@ -26,10 +26,14 @@
             <TabItem Header="Capture">
                 <ScrollViewer>
                     <StackPanel Spacing="24" Margin="20">
+                        <CheckBox Content="Override capture settings"
+                                  IsChecked="{Binding OverrideCaptureSettings}"
+                                  IsVisible="{Binding ShowOverrideSettings}"
+                                  ToolTip.Tip="When off, this workflow uses the capture settings from Settings &gt; Task Settings."/>
                         <!-- General Capture Settings -->
                         <StackPanel Spacing="8">
                             <TextBlock Text="General" FontWeight="SemiBold"/>
-                            <Border BorderBrush="{DynamicResource SystemControlForegroundBaseLowBrush}" BorderThickness="1" CornerRadius="4" Padding="16">
+                            <Border BorderBrush="{DynamicResource SystemControlForegroundBaseLowBrush}" BorderThickness="1" CornerRadius="4" Padding="16" IsEnabled="{Binding CaptureSettingsEnabled}">
                                 <StackPanel Spacing="16">
                                     <CheckBox IsChecked="{Binding UseModernCapture}"
                                               Content="Use modern screen capture (Direct3D11)"
@@ -110,11 +114,12 @@
                         <!-- Region Capture Section -->
                         <StackPanel Spacing="8">
                             <TextBlock Text="Region capture" FontWeight="SemiBold"/>
-                            <Border BorderBrush="{DynamicResource SystemControlForegroundBaseLowBrush}" BorderThickness="1" CornerRadius="4" Padding="16">
+                            <Border BorderBrush="{DynamicResource SystemControlForegroundBaseLowBrush}" BorderThickness="1" CornerRadius="4" Padding="16" IsEnabled="{Binding CaptureSettingsEnabled}">
                                 <StackPanel Spacing="10">
                                     <CheckBox IsChecked="{Binding RegionCaptureQuickCapture}" Content="Quick capture"/>
                                     <CheckBox IsChecked="{Binding RegionCaptureActiveMonitorMode}" Content="Active monitor only"/>
-                                    <CheckBox IsChecked="{Binding RegionCaptureDisableAnnotation}" Content="Disable annotation"/>
+                                    <!-- An advanced setting in ShareX, so it follows "Override advanced settings". -->
+                                    <CheckBox IsChecked="{Binding RegionCaptureDisableAnnotation}" Content="Disable annotation" IsEnabled="{Binding AdvancedSettingsEnabled}"/>
                                     <CheckBox IsChecked="{Binding RegionCaptureUseDimming}" Content="Dim background"/>
                                     <Grid ColumnDefinitions="Auto,16,*,Auto" Margin="24,0,0,0" IsEnabled="{Binding RegionCaptureUseDimming}">
                                         <TextBlock Text="Dim strength:" VerticalAlignment="Center"/>
@@ -165,7 +170,11 @@
                         <!-- After Capture Tasks Section -->
                         <StackPanel Spacing="8">
                             <TextBlock Text="After capture" FontWeight="SemiBold"/>
-                            <Border BorderBrush="{DynamicResource SystemControlForegroundBaseLowBrush}" BorderThickness="1" CornerRadius="4" Padding="16">
+                            <CheckBox Content="Override after capture tasks"
+                                  IsChecked="{Binding OverrideAfterCaptureTasks}"
+                                  IsVisible="{Binding ShowOverrideSettings}"
+                                  ToolTip.Tip="When off, this workflow uses the after capture tasks from Settings &gt; Task Settings."/>
+                            <Border BorderBrush="{DynamicResource SystemControlForegroundBaseLowBrush}" BorderThickness="1" CornerRadius="4" Padding="16" IsEnabled="{Binding AfterCaptureTasksEnabled}">
                                 <StackPanel Spacing="12">
                                     <TextBlock Text="Choose actions to perform automatically after capturing" 
                                                FontSize="12" 
@@ -275,7 +284,11 @@
                 <ScrollViewer>
                      <StackPanel Spacing="8" Margin="20">
                         <TextBlock Text="File naming" FontWeight="SemiBold"/>
-                        <Border BorderBrush="{DynamicResource SystemControlForegroundBaseLowBrush}" BorderThickness="1" CornerRadius="4" Padding="16">
+                        <CheckBox Content="Override upload settings"
+                                  IsChecked="{Binding OverrideUploadSettings}"
+                                  IsVisible="{Binding ShowOverrideSettings}"
+                                  ToolTip.Tip="When off, this workflow uses the upload settings (file naming and clipboard upload) from Settings &gt; Task Settings."/>
+                        <Border BorderBrush="{DynamicResource SystemControlForegroundBaseLowBrush}" BorderThickness="1" CornerRadius="4" Padding="16" IsEnabled="{Binding UploadSettingsEnabled}">
                             <StackPanel Spacing="16">
                                 <Grid ColumnDefinitions="Auto, 16, *">
                                     <TextBlock Grid.Column="0" Text="Name pattern:" VerticalAlignment="Center"/>
@@ -312,7 +325,11 @@
                         <!-- Destinations Section (New) -->
                         <StackPanel Spacing="8">
                             <TextBlock Text="Destinations" FontWeight="SemiBold"/>
-                            <Border BorderBrush="{DynamicResource SystemControlForegroundBaseLowBrush}" BorderThickness="1" CornerRadius="4" Padding="16">
+                            <CheckBox Content="Override destinations"
+                                  IsChecked="{Binding OverrideDestinations}"
+                                  IsVisible="{Binding ShowOverrideSettings}"
+                                  ToolTip.Tip="When off, this workflow uses the destination from Settings &gt; Task Settings."/>
+                            <Border BorderBrush="{DynamicResource SystemControlForegroundBaseLowBrush}" BorderThickness="1" CornerRadius="4" Padding="16" IsEnabled="{Binding DestinationsEnabled}">
                                 <StackPanel Spacing="16">
                                     <TextBlock Text="Select the destination for this task:" VerticalAlignment="Center"/>
                                     <ComboBox ItemsSource="{Binding $parent[views:WorkflowEditorView].((vm:WorkflowEditorViewModel)DataContext).AvailableDestinations}"
@@ -335,7 +352,11 @@
                         <!-- Clipboard Upload -->
                         <StackPanel Spacing="8">
                             <TextBlock Text="Clipboard upload" FontWeight="SemiBold"/>
-                            <Border BorderBrush="{DynamicResource SystemControlForegroundBaseLowBrush}" BorderThickness="1" CornerRadius="4" Padding="16">
+                            <CheckBox Content="Override upload settings"
+                                  IsChecked="{Binding OverrideUploadSettings}"
+                                  IsVisible="{Binding ShowOverrideSettings}"
+                                  ToolTip.Tip="When off, this workflow uses the upload settings (file naming and clipboard upload) from Settings &gt; Task Settings."/>
+                            <Border BorderBrush="{DynamicResource SystemControlForegroundBaseLowBrush}" BorderThickness="1" CornerRadius="4" Padding="16" IsEnabled="{Binding UploadSettingsEnabled}">
                                 <StackPanel Spacing="10">
                                     <CheckBox IsChecked="{Binding ClipboardUploadURLContents}" Content="Upload URL contents"/>
                                     <CheckBox IsChecked="{Binding ClipboardUploadShortenURL}" Content="Shorten URL"/>
@@ -346,7 +367,11 @@
                         <!-- After Upload Tasks -->
                         <StackPanel Spacing="8">
                             <TextBlock Text="After upload" FontWeight="SemiBold"/>
-                            <Border BorderBrush="{DynamicResource SystemControlForegroundBaseLowBrush}" BorderThickness="1" CornerRadius="4" Padding="16">
+                            <CheckBox Content="Override after upload tasks"
+                                  IsChecked="{Binding OverrideAfterUploadTasks}"
+                                  IsVisible="{Binding ShowOverrideSettings}"
+                                  ToolTip.Tip="When off, this workflow uses the after upload tasks from Settings &gt; Task Settings."/>
+                            <Border BorderBrush="{DynamicResource SystemControlForegroundBaseLowBrush}" BorderThickness="1" CornerRadius="4" Padding="16" IsEnabled="{Binding AfterUploadTasksEnabled}">
                                 <StackPanel Spacing="12">
                                     <TextBlock Text="Choose actions to perform automatically after upload" 
                                                FontSize="12" 
@@ -372,10 +397,14 @@
             <TabItem Header="Notifications">
                 <ScrollViewer>
                     <StackPanel Spacing="24" Margin="20">
+                        <CheckBox Content="Override general settings"
+                                  IsChecked="{Binding OverrideGeneralSettings}"
+                                  IsVisible="{Binding ShowOverrideSettings}"
+                                  ToolTip.Tip="When off, this workflow uses the notification and sound settings from Settings &gt; Task Settings."/>
                         <!-- Notifications Section -->
                         <StackPanel Spacing="8">
                             <TextBlock Text="Notifications" FontWeight="SemiBold"/>
-                            <Border BorderBrush="{DynamicResource SystemControlForegroundBaseLowBrush}" BorderThickness="1" CornerRadius="4" Padding="16">
+                            <Border BorderBrush="{DynamicResource SystemControlForegroundBaseLowBrush}" BorderThickness="1" CornerRadius="4" Padding="16" IsEnabled="{Binding GeneralSettingsEnabled}">
                                 <StackPanel Spacing="16">
                                     <StackPanel Spacing="10">
                                         <CheckBox IsChecked="{Binding PlaySoundAfterCapture}" Content="Play sound after capture"/>
@@ -436,7 +465,7 @@
                         <!-- Sound Section -->
                         <StackPanel Spacing="8">
                             <TextBlock Text="Sound" FontWeight="SemiBold"/>
-                            <Border BorderBrush="{DynamicResource SystemControlForegroundBaseLowBrush}" BorderThickness="1" CornerRadius="4" Padding="16">
+                            <Border BorderBrush="{DynamicResource SystemControlForegroundBaseLowBrush}" BorderThickness="1" CornerRadius="4" Padding="16" IsEnabled="{Binding GeneralSettingsEnabled}">
                                 <StackPanel Spacing="16">
                                     <CheckBox IsChecked="{Binding UseCustomCaptureSound}" Content="Use custom capture sound"/>
                                     <Grid ColumnDefinitions="Auto, 16, *" IsVisible="{Binding UseCustomCaptureSound}">
@@ -463,13 +492,14 @@
                             <StackPanel Spacing="8">
                                 <TextBlock Text="Screen color picker" FontWeight="SemiBold"/>
                                 <Border BorderBrush="{DynamicResource SystemControlForegroundBaseLowBrush}" BorderThickness="1" CornerRadius="4" Padding="16">
-                                    <Grid ColumnDefinitions="Auto, 16, *" RowDefinitions="Auto, 12, Auto, 12, Auto">
+                                    <Grid ColumnDefinitions="Auto, 16, *" RowDefinitions="Auto, 12, Auto, 12, Auto, 12, Auto">
                                         <TextBlock Grid.Row="0" Text="Format:" VerticalAlignment="Center"/>
                                         <TextBox Grid.Row="0" Grid.Column="2" Text="{Binding ScreenColorPickerFormat}" AutomationProperties.Name="Screen Color Picker Format"/>
                                         <TextBlock Grid.Row="2" Text="Format (Ctrl + click):" VerticalAlignment="Center"/>
                                         <TextBox Grid.Row="2" Grid.Column="2" Text="{Binding ScreenColorPickerFormatCtrl}" AutomationProperties.Name="Screen Color Picker Ctrl Format"/>
                                         <TextBlock Grid.Row="4" Text="Info text:" VerticalAlignment="Top" Margin="0,6,0,0"/>
                                         <TextBox Grid.Row="4" Grid.Column="2" Text="{Binding ScreenColorPickerInfoText}" AcceptsReturn="True" TextWrapping="Wrap" AutomationProperties.Name="Screen Color Picker Info Text"/>
+                                        <CheckBox Grid.Row="6" Grid.ColumnSpan="3" Content="Show magnifier" IsChecked="{Binding ScreenColorPickerShowMagnifier}"/>
                                     </Grid>
                                 </Border>
                             </StackPanel>
@@ -497,12 +527,17 @@
 
             <!-- Advanced Tab -->
             <TabItem Header="Advanced">
-                <Grid Margin="24" RowDefinitions="Auto, *">
+                <Grid Margin="24" RowDefinitions="Auto, Auto, *">
                     <TextBlock Grid.Row="0"
                                Text="Advanced Properties"
                                 FontWeight="SemiBold"
                                 Margin="0,0,0,12"/>
-                    <Border Grid.Row="1"
+                    <CheckBox Grid.Row="1" Margin="0,0,0,12"
+                              Content="Override advanced settings"
+                              IsChecked="{Binding OverrideAdvancedSettings}"
+                              IsVisible="{Binding ShowOverrideSettings}"
+                              ToolTip.Tip="When off, this workflow uses the advanced settings from Settings &gt; Task Settings."/>
+                    <Border Grid.Row="2" IsEnabled="{Binding AdvancedSettingsEnabled}"
                             BorderThickness="1"
                             BorderBrush="{DynamicResource SystemControlForegroundBaseLowBrush}"
                             CornerRadius="4"

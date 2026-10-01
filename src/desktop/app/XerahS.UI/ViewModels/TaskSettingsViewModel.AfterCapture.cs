@@ -32,7 +32,7 @@ namespace XerahS.UI.ViewModels
 
         public bool SaveImageToFile
         {
-            get => _settings.AfterCaptureJob.HasFlag(AfterCaptureTasks.SaveImageToFile);
+            get => AfterCaptureSource.AfterCaptureJob.HasFlag(AfterCaptureTasks.SaveImageToFile);
             set
             {
                 if (SaveImageToFile != value)
@@ -45,7 +45,7 @@ namespace XerahS.UI.ViewModels
 
         public bool CopyImageToClipboard
         {
-            get => _settings.AfterCaptureJob.HasFlag(AfterCaptureTasks.CopyImageToClipboard);
+            get => AfterCaptureSource.AfterCaptureJob.HasFlag(AfterCaptureTasks.CopyImageToClipboard);
             set
             {
                 if (CopyImageToClipboard != value)
@@ -58,7 +58,7 @@ namespace XerahS.UI.ViewModels
 
         public bool UploadImageToHost
         {
-            get => _settings.AfterCaptureJob.HasFlag(AfterCaptureTasks.UploadImageToHost);
+            get => AfterCaptureSource.AfterCaptureJob.HasFlag(AfterCaptureTasks.UploadImageToHost);
             set
             {
                 if (UploadImageToHost != value)
@@ -71,7 +71,7 @@ namespace XerahS.UI.ViewModels
 
         public bool AnnotateMedia
         {
-            get => _settings.AfterCaptureJob.HasFlag(AfterCaptureTasks.AnnotateMedia);
+            get => AfterCaptureSource.AfterCaptureJob.HasFlag(AfterCaptureTasks.AnnotateMedia);
             set
             {
                 if (AnnotateMedia != value)
@@ -84,7 +84,7 @@ namespace XerahS.UI.ViewModels
 
         public bool ApplyImageEffects
         {
-            get => _settings.AfterCaptureJob.HasFlag(AfterCaptureTasks.AddImageEffects);
+            get => AfterCaptureSource.AfterCaptureJob.HasFlag(AfterCaptureTasks.AddImageEffects);
             set
             {
                 if (ApplyImageEffects != value)
@@ -97,7 +97,7 @@ namespace XerahS.UI.ViewModels
 
         public bool ShowAfterCaptureWindow
         {
-            get => _settings.AfterCaptureJob.HasFlag(AfterCaptureTasks.ShowAfterCaptureWindow);
+            get => AfterCaptureSource.AfterCaptureJob.HasFlag(AfterCaptureTasks.ShowAfterCaptureWindow);
             set
             {
                 if (ShowAfterCaptureWindow != value)
@@ -110,7 +110,7 @@ namespace XerahS.UI.ViewModels
 
         public bool DoOCR
         {
-            get => _settings.AfterCaptureJob.HasFlag(AfterCaptureTasks.DoOCR);
+            get => AfterCaptureSource.AfterCaptureJob.HasFlag(AfterCaptureTasks.DoOCR);
             set
             {
                 if (DoOCR != value)
@@ -123,7 +123,7 @@ namespace XerahS.UI.ViewModels
 
         public bool CopyOcrTextToClipboard
         {
-            get => _settings.AfterCaptureJob.HasFlag(AfterCaptureTasks.CopyOcrTextToClipboard);
+            get => AfterCaptureSource.AfterCaptureJob.HasFlag(AfterCaptureTasks.CopyOcrTextToClipboard);
             set
             {
                 if (CopyOcrTextToClipboard != value)
@@ -138,9 +138,9 @@ namespace XerahS.UI.ViewModels
         private void UpdateAfterCaptureTask(AfterCaptureTasks task, bool enabled)
         {
             if (enabled)
-                _settings.AfterCaptureJob |= task;
+                AfterCaptureSource.AfterCaptureJob |= task;
             else
-                _settings.AfterCaptureJob &= ~task;
+                AfterCaptureSource.AfterCaptureJob &= ~task;
         }
 
         #endregion

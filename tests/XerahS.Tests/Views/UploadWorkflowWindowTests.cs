@@ -133,7 +133,7 @@ public class UploadWorkflowWindowTests
     public async Task DropWindow_AppliesPreferences_AndUploadsDroppedText()
     {
         using var manager = new RecordingManager();
-        var settings = new TaskSettings { Job = WorkflowType.DragDropUpload, DestinationInstanceId = "selected-destination", WorkflowId = "drop-workflow" };
+        var settings = new TaskSettings { Job = WorkflowType.DragDropUpload, UseDefaultDestinations = false, DestinationInstanceId = "selected-destination", WorkflowId = "drop-workflow" };
         var window = new DragDropUploadWindow();
         window.Configure(settings, manager);
         window.ApplySettings(new ApplicationConfig { DropSize = 180, DropOffset = 25, DropOpacity = 128, DropHoverOpacity = 240 });
@@ -161,7 +161,7 @@ public class UploadWorkflowWindowTests
     public async Task DropWindow_AppliesTheCustomTextTemplateToDroppedText()
     {
         using var manager = new RecordingManager();
-        var settings = new TaskSettings { Job = WorkflowType.DragDropUpload };
+        var settings = new TaskSettings { Job = WorkflowType.DragDropUpload, UseDefaultAdvancedSettings = false };
         settings.AdvancedSettings.TextCustom = "<p>%input</p>";
         var window = new DragDropUploadWindow();
         window.Configure(settings, manager);
@@ -257,7 +257,7 @@ public class UploadWorkflowWindowTests
         try
         {
             using var manager = new RecordingManager();
-            var settings = new TaskSettings { Job = WorkflowType.FolderUpload, WorkflowId = "folder-workflow", DestinationInstanceId = "destination", AfterUploadJob = AfterUploadTasks.None };
+            var settings = new TaskSettings { Job = WorkflowType.FolderUpload, WorkflowId = "folder-workflow", UseDefaultDestinations = false, DestinationInstanceId = "destination", UseDefaultAfterUploadJob = false, AfterUploadJob = AfterUploadTasks.None };
             await UploadWorkflowService.UploadPathsAsync([directory, first], settings, manager);
             Assert.That(manager.Files, Is.EquivalentTo(new[] { first, nested }));
             Assert.That(manager.LastSettings!.DestinationInstanceId, Is.EqualTo("destination"));

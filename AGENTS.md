@@ -13,6 +13,7 @@ XerahS is the Avalonia implementation of ShareX.
 
 - When adding a feature that ShareX has and XerahS lacks, mirror ShareX's behavior wherever possible: defaults, options, wording, menu placement, and results. Confirm the behavior in the ShareX source (a local ShareX checkout, or https://github.com/ShareX/ShareX) instead of assuming it.
 - Deviate only where ShareX's behavior cannot work in XerahS (for example, a Windows-only API on Linux), where it is a clear bug, or where the user decides otherwise. When a deviation is a choice rather than a necessity, ask the user. Report every deviation and its reason.
+- Linux is the priority platform. Do not work on Windows-only features or Windows parts of a feature unless the user asks; keep them listed in the feature gap notes for later. Linux work must not break the existing Windows code.
 - Syncing the `ShareX.ImageEditor` submodule with upstream follows [.ai/skills/port-imageeditor/SKILL.md](.ai/skills/port-imageeditor/SKILL.md) instead.
 
 ## Git identity
