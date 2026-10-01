@@ -28,6 +28,7 @@ using System.Drawing;
 using System.Runtime.InteropServices;
 using System.Text;
 using XerahS.Platform.Linux.Wayland.WindowQuery;
+using XerahS.Platform.Linux.Services.Kde;
 
 namespace XerahS.Platform.Linux
 {
@@ -91,6 +92,9 @@ namespace XerahS.Platform.Linux
         {
             get
             {
+                if (KWin != null)
+                    return true;
+
                 // An XWayland connection cannot change native Wayland windows.
                 if (LinuxScreenCaptureService.IsWayland || !TryGetProperty(_rootWindow, "_NET_SUPPORTED", out var property))
                     return false;
@@ -104,6 +108,8 @@ namespace XerahS.Platform.Linux
 
         public bool ToggleActiveWindowTopmost()
         {
+            if (KWin is { } kwin)
+                return kwin.ToggleActiveWindowKeepAbove();
             if (!SupportsTopmost || !TryGetProperty(_rootWindow, "_NET_ACTIVE_WINDOW", out var property)) return false;
             IntPtr window;
             using (property)
@@ -144,6 +150,9 @@ namespace XerahS.Platform.Linux
         public IntPtr GetForegroundWindow()
         {
             DebugHelper.WriteLine("LinuxWindowService: GetForegroundWindow called");
+            if (TryGetKWinForegroundWindow(out IntPtr kwinWindow))
+                return kwinWindow;
+
             if (_display == IntPtr.Zero)
             {
                 DebugHelper.WriteLine("LinuxWindowService: GetForegroundWindow: Display is IntPtr.Zero");
@@ -251,6 +260,8 @@ namespace XerahS.Platform.Linux
 
         public bool SetForegroundWindow(IntPtr handle)
         {
+            if (IsKWinHandle(handle))
+                return KWin?.Activate(handle) == true;
             if (_display == IntPtr.Zero) return false;
             NativeMethods.XSetInputFocus(_display, handle, 1 /* RevertToParent */, IntPtr.Zero /* CurrentTime */);
             NativeMethods.XRaiseWindow(_display, handle);
@@ -259,6 +270,8 @@ namespace XerahS.Platform.Linux
 
         public string GetWindowText(IntPtr handle)
         {
+            if (IsKWinHandle(handle))
+                return GetKWinWindow(handle)?.Caption ?? string.Empty;
             if (_display == IntPtr.Zero) return string.Empty;
 
             if (TryGetUtf8StringProperty(handle, "_NET_WM_VISIBLE_NAME", out string visibleName))
@@ -287,6 +300,8 @@ namespace XerahS.Platform.Linux
 
         public string GetWindowClassName(IntPtr handle)
         {
+            if (IsKWinHandle(handle))
+                return GetKWinWindow(handle)?.ResourceClass ?? string.Empty;
             if (_display == IntPtr.Zero) return string.Empty;
             if (NativeMethods.XGetClassHint(_display, handle, out XClassHint hint) != 0)
             {
@@ -300,6 +315,8 @@ namespace XerahS.Platform.Linux
 
         public Rectangle GetWindowBounds(IntPtr handle)
         {
+            if (IsKWinHandle(handle))
+                return GetKWinWindow(handle) is { } kwinWindow ? KWinWindowManager.ToX11(kwinWindow.FrameGeometry, KWinWindowManager.X11Scale) : Rectangle.Empty;
             return GetWindowBoundsCore(handle, logDiagnostics: true);
         }
 
@@ -401,11 +418,15 @@ namespace XerahS.Platform.Linux
 
         public Rectangle GetWindowClientBounds(IntPtr handle)
         {
+            if (IsKWinHandle(handle))
+                return GetKWinWindow(handle) is { } kwinWindow ? KWinWindowManager.ToX11(kwinWindow.ClientGeometry, KWinWindowManager.X11Scale) : Rectangle.Empty;
             return GetWindowBounds(handle);
         }
 
         public bool IsWindowVisible(IntPtr handle)
         {
+            if (IsKWinHandle(handle))
+                return GetKWinWindow(handle) != null;
             if (_display == IntPtr.Zero) return false;
             var attrs = new XWindowAttributes();
             if (NativeMethods.XGetWindowAttributes(_display, handle, ref attrs) != 0)
@@ -417,18 +438,25 @@ namespace XerahS.Platform.Linux
 
         public bool IsWindowMaximized(IntPtr handle)
         {
+            if (IsKWinHandle(handle))
+                return GetKWinWindow(handle)?.Maximized == true;
             // Not implemented in MVP
             return false;
         }
 
         public bool IsWindowMinimized(IntPtr handle)
         {
+            if (IsKWinHandle(handle))
+                return GetKWinWindow(handle)?.Minimized == true;
             // Not implemented in MVP
             return false;
         }
 
         public bool ShowWindow(IntPtr handle, int cmdShow)
         {
+            // SW_HIDE (0), SW_SHOWMINIMIZED (2), SW_MINIMIZE (6) minimize; the other commands restore.
+            if (IsKWinHandle(handle))
+                return KWin?.SetMinimized(handle, cmdShow is 0 or 2 or 6) == true;
             if (_display == IntPtr.Zero) return false;
 
             if (cmdShow == 0)
@@ -441,13 +469,16 @@ namespace XerahS.Platform.Linux
 
         public bool SetWindowPos(IntPtr handle, IntPtr handleInsertAfter, int x, int y, int width, int height, uint flags)
         {
-            if (_display == IntPtr.Zero) return false;
+            if (_display == IntPtr.Zero || IsKWinHandle(handle)) return false;
             NativeMethods.XMoveResizeWindow(_display, handle, x, y, width, height);
             return true;
         }
 
         public WindowInfo[] GetAllWindows()
         {
+            if (TryGetKWinWindows(out var kwinWindows))
+                return kwinWindows;
+
             if (_display == IntPtr.Zero) return Array.Empty<WindowInfo>();
 
             var list = new List<WindowInfo>();
@@ -763,6 +794,8 @@ namespace XerahS.Platform.Linux
 
         public uint GetWindowProcessId(IntPtr handle)
         {
+            if (IsKWinHandle(handle))
+                return GetKWinWindow(handle)?.ProcessId ?? 0;
             return TryGetWindowHandleArrayProperty(handle, "_NET_WM_PID", out var ids) && ids.Length > 0
                 ? unchecked((uint)ids[0].ToInt64()) : 0;
         }
@@ -770,7 +803,7 @@ namespace XerahS.Platform.Linux
         public IntPtr SearchWindow(string windowTitle)
         {
             // TODO: Implement proper X11 window search
-            if (string.IsNullOrEmpty(windowTitle) || _display == IntPtr.Zero)
+            if (string.IsNullOrEmpty(windowTitle) || (_display == IntPtr.Zero && KWin == null))
                 return IntPtr.Zero;
 
             // Fallback: iterate through all windows and find one with matching title

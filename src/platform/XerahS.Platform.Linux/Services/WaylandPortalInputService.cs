@@ -32,6 +32,7 @@ using Tmds.DBus;
 using XerahS.Common;
 using XerahS.Platform.Abstractions;
 using XerahS.Platform.Linux.Capture;
+using XerahS.Platform.Linux.Services.Kde;
 
 namespace XerahS.Platform.Linux.Services;
 
@@ -98,8 +99,13 @@ public sealed class WaylandPortalInputService : IInputService
         }
     }
 
+    public bool IsCursorPositionReliable => KWinWindowManager.Shared != null;
+
     public System.Drawing.Point GetCursorPosition()
     {
+        if (LinuxInputService.TryGetKWinCursorPosition(out var kwinPoint))
+            return kwinPoint;
+
         lock (_cursorLock)
         {
             return _lastCursor;

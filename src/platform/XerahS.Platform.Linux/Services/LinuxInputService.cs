@@ -26,6 +26,7 @@
 using System.Diagnostics;
 using System.Drawing;
 using XerahS.Platform.Abstractions;
+using XerahS.Platform.Linux.Services.Kde;
 
 namespace XerahS.Platform.Linux.Services;
 
@@ -37,8 +38,32 @@ public sealed class LinuxInputService : IInputService
     public bool SupportsGlobalMouseMonitoring => LinuxGlobalMouseMonitor.IsSupported;
     public IGlobalMouseMonitor CreateGlobalMouseMonitor(MouseHighlighterInputBuffer input) => new LinuxGlobalMouseMonitor(input);
 
+    public bool IsCursorPositionReliable => IsCursorPositionReliableFor(
+        Environment.GetEnvironmentVariable("XDG_SESSION_TYPE"),
+        Environment.GetEnvironmentVariable("WAYLAND_DISPLAY"),
+        hasKWin: KWinWindowManager.Shared != null);
+
+    /// <summary>
+    /// On Wayland, XWayland only knows where the pointer was last over an X11 window; KWin knows
+    /// where it is now.
+    /// </summary>
+    internal static bool IsCursorPositionReliableFor(string? sessionType, string? waylandDisplay, bool hasKWin) =>
+        hasKWin || (!string.Equals(sessionType, "wayland", StringComparison.OrdinalIgnoreCase) && string.IsNullOrEmpty(waylandDisplay));
+
+    /// <summary>The pointer position from KWin on KDE Plasma Wayland, in XerahS's X11 coordinates.</summary>
+    internal static bool TryGetKWinCursorPosition(out Point point)
+    {
+        point = Point.Empty;
+        if (KWinWindowManager.Shared?.GetSnapshot() is not { } snapshot)
+            return false;
+
+        point = KWinWindowManager.ToX11(snapshot.CursorPosition, KWinWindowManager.X11Scale);
+        return true;
+    }
+
     public Point GetCursorPosition()
     {
+        if (TryGetKWinCursorPosition(out var kwinPoint)) return kwinPoint;
         if (LinuxGlobalMouseMonitor.TryGetCursorPosition(out var nativePoint)) return nativePoint;
         // Fall back to xdotool if the native query is unavailable.
         if (TryGetWithXdotool(out var point))

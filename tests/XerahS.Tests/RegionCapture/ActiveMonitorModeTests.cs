@@ -134,12 +134,12 @@ public class ActiveMonitorModeTests
     }
 
     [Test]
-    public void CursorPosition_IsNotTrustedOnWayland()
+    public void CursorPosition_IsNotTrustedOnWaylandWithoutKWin()
     {
-        Assert.That(CoordinateTranslationService.IsCursorPositionReliable(true, "wayland", null), Is.False);
-        Assert.That(CoordinateTranslationService.IsCursorPositionReliable(true, "x11", "wayland-0"), Is.False);
-        Assert.That(CoordinateTranslationService.IsCursorPositionReliable(true, "x11", null), Is.True);
-        Assert.That(CoordinateTranslationService.IsCursorPositionReliable(false, "wayland", "wayland-0"), Is.True);
+        Assert.That(XerahS.Platform.Linux.Services.LinuxInputService.IsCursorPositionReliableFor("wayland", null, hasKWin: false), Is.False);
+        Assert.That(XerahS.Platform.Linux.Services.LinuxInputService.IsCursorPositionReliableFor("x11", "wayland-0", hasKWin: false), Is.False);
+        Assert.That(XerahS.Platform.Linux.Services.LinuxInputService.IsCursorPositionReliableFor("x11", null, hasKWin: false), Is.True);
+        Assert.That(XerahS.Platform.Linux.Services.LinuxInputService.IsCursorPositionReliableFor("wayland", "wayland-0", hasKWin: true), Is.True);
     }
 
     [AvaloniaTest]

@@ -37,6 +37,7 @@ using XerahS.Platform.Linux.Capture.OmaSnap;
 using XerahS.Platform.Linux.Capture.Portal;
 using XerahS.Platform.Linux.Capture.Wayland;
 using XerahS.Platform.Linux.Capture.X11;
+using XerahS.Platform.Linux.Services.Kde;
 using SkiaSharp;
 
 namespace XerahS.Platform.Linux
@@ -466,6 +467,16 @@ namespace XerahS.Platform.Linux
         public async Task<SKBitmap?> CaptureActiveWindowAsync(IWindowService windowService, CaptureOptions? options = null)
         {
             DebugHelper.WriteLine("LinuxScreenCaptureService: CaptureActiveWindowAsync started");
+
+            // KDE Plasma Wayland: KWin knows the active window, so it is captured like any other window
+            // instead of through the portal's interactive dialog.
+            if (KWinWindowManager.Shared != null)
+            {
+                IntPtr activeWindow = windowService.GetForegroundWindow();
+                if (KWinWindowManager.TryGetId(activeWindow, out _))
+                    return await CaptureWindowAsync(activeWindow, windowService, options).ConfigureAwait(false);
+            }
+
             var context = LinuxRuntimeContextDetector.Detect();
             var request = new LinuxCaptureRequest(LinuxCaptureKind.ActiveWindow, options, windowService);
             var execution = await _captureCoordinator.CaptureWithTraceAsync(request, context).ConfigureAwait(false);
@@ -495,7 +506,21 @@ namespace XerahS.Platform.Linux
                 return null;
             }
 
-            var bounds = windowService.GetWindowBounds(windowHandle);
+            bool transparent = options?.CaptureTransparent == true && options.CaptureClientArea != true;
+            if (transparent && KWinWindowManager.TryGetId(windowHandle, out string kwinWindowId))
+            {
+                var transparentBitmap = await KdeDbusScreenCapture.CaptureWindowAsync(kwinWindowId, options).ConfigureAwait(false);
+                if (transparentBitmap != null)
+                    return transparentBitmap;
+
+                DebugHelper.WriteLine("LinuxScreenCaptureService: KWin did not capture the window with transparency; capturing its screen area instead.");
+            }
+
+            // As in ShareX, a capture without transparency copies the window's area of the screen,
+            // or only its client area when "Capture client area" is on.
+            var bounds = options?.CaptureClientArea == true
+                ? windowService.GetWindowClientBounds(windowHandle)
+                : windowService.GetWindowBounds(windowHandle);
             DebugHelper.WriteLine($"LinuxScreenCaptureService: Capturing window {windowHandle} bounds: {bounds} (X={bounds.X}, Y={bounds.Y}, W={bounds.Width}, H={bounds.Height})");
 
             if (bounds.Width <= 0 || bounds.Height <= 0)

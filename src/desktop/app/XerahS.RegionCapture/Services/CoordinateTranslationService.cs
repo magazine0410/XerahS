@@ -68,8 +68,8 @@ public sealed class CoordinateTranslationService
 
     /// <summary>
     /// Gets the cursor position only when the platform reports it reliably. Returns false on
-    /// Wayland sessions: the InputCapture portal reports a position only after a pointer barrier
-    /// is crossed, and XWayland only knows where the pointer was last over an X11 window.
+    /// Wayland sessions other than KDE Plasma: the InputCapture portal reports a position only after
+    /// a pointer barrier is crossed, and XWayland only knows where the pointer was last over an X11 window.
     /// </summary>
     public bool TryGetReliableCursorPosition(out PixelPoint point)
     {
@@ -78,10 +78,8 @@ public sealed class CoordinateTranslationService
         return true;
 #else
         point = PixelPoint.Origin;
-        if (!IsCursorPositionReliable(OperatingSystem.IsLinux(),
-                Environment.GetEnvironmentVariable("XDG_SESSION_TYPE"),
-                Environment.GetEnvironmentVariable("WAYLAND_DISPLAY")) ||
-            !XerahS.Platform.Abstractions.PlatformServices.IsInitialized)
+        if (!XerahS.Platform.Abstractions.PlatformServices.IsInitialized ||
+            !XerahS.Platform.Abstractions.PlatformServices.Input.IsCursorPositionReliable)
         {
             return false;
         }
@@ -101,15 +99,6 @@ public sealed class CoordinateTranslationService
             return false;
         }
 #endif
-    }
-
-    internal static bool IsCursorPositionReliable(bool isLinux, string? sessionType, string? waylandDisplay)
-    {
-        if (!isLinux)
-            return true;
-
-        return !string.Equals(sessionType, "wayland", StringComparison.OrdinalIgnoreCase) &&
-               string.IsNullOrEmpty(waylandDisplay);
     }
 
     /// <summary>
