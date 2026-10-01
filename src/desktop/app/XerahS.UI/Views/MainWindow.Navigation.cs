@@ -373,9 +373,10 @@ namespace XerahS.UI.Views
             QueueNavigationFilterUpdate();
         }
 
-        public void NavigateToEditor()
+        /// <param name="activate">False switches the page without bringing the window to the front.</param>
+        public void NavigateToEditor(bool activate = true)
         {
-            NavigateTo("Editor");
+            NavigateTo("Editor", activate);
         }
 
         public void NavigateToSettings()
@@ -393,7 +394,7 @@ namespace XerahS.UI.Views
             NavigateTo("About");
         }
 
-        private void NavigateTo(string navTag)
+        private void NavigateTo(string navTag, bool activate = true)
         {
             bool handled = false;
             bool openedExternalWindow = false;
@@ -431,7 +432,7 @@ namespace XerahS.UI.Views
                 HandleNavigationTag(navTag, contentFrame, out openedExternalWindow);
             }
 
-            if (!SilentRunStartupPolicy.ShouldActivateWindowOnNavigate(_suppressWindowActivation))
+            if (!activate || !SilentRunStartupPolicy.ShouldActivateWindowOnNavigate(_suppressWindowActivation))
             {
                 return;
             }
