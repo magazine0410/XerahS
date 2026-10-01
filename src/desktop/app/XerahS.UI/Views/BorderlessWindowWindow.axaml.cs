@@ -52,6 +52,7 @@ public partial class BorderlessWindowWindow : Window
         _viewModel = viewModel;
         DataContext = _viewModel;
         AvaloniaXamlLoader.Load(this);
+        RequestedThemeVariant = ShareX.ImageEditor.Presentation.Theming.ThemeManager.GetCurrentTheme();
         _viewModel.CloseRequested = Close;
         Opened += OnOpened;
         Closed += (_, _) => _viewModel.Dispose();

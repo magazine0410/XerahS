@@ -58,6 +58,7 @@ public partial class ActionsToolbarEditorWindow : Window
     public ActionsToolbarEditorWindow(Action toolbarChanged, Action? saveSettings = null)
     {
         InitializeComponent();
+        RequestedThemeVariant = ShareX.ImageEditor.Presentation.Theming.ThemeManager.GetCurrentTheme();
         _toolbarChanged = toolbarChanged;
         _saveSettings = saveSettings ?? (() => _ = SettingsManager.SaveApplicationConfigAsync());
 

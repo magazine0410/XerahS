@@ -46,6 +46,7 @@ public sealed class MouseHighlighterWindow : Window
             Source = new Uri("avares://ShareX.ImageEditor/Presentation/Theming/ImageEditorTheme.axaml")
         });
         Title = "XerahS - " + "Mouse highlighter";
+        RequestedThemeVariant = ShareX.ImageEditor.Presentation.Theming.ThemeManager.GetCurrentTheme();
         Width = 620;
         Height = 690;
         MinWidth = 520;

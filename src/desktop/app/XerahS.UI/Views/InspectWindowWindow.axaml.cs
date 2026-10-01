@@ -47,6 +47,7 @@ public partial class InspectWindowWindow : Window
         _viewModel = viewModel;
         DataContext = _viewModel;
         AvaloniaXamlLoader.Load(this);
+        RequestedThemeVariant = ShareX.ImageEditor.Presentation.Theming.ThemeManager.GetCurrentTheme();
         Opened += OnOpened;
         Closed += (_, _) =>
         {

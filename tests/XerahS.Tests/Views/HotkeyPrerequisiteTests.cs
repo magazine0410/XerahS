@@ -165,6 +165,42 @@ public class HotkeyPrerequisiteTests
         finally { inspect.Close(); borderless.Close(); mouse.Close(); }
     }
 
+    [AvaloniaTest]
+    public void ToolWindows_UseTheShareXThemeVariant_SoTheirColorsResolve()
+    {
+        // The ShareX brushes exist only under the ShareXDark/ShareXLight variants; without one,
+        // the windows render on a black background with invisible secondary text.
+        // The test app runs entirely in ShareXDark; XerahS itself uses the plain Dark or Light variant.
+        var application = global::Avalonia.Application.Current!;
+        var appTheme = application.RequestedThemeVariant;
+        application.RequestedThemeVariant = global::Avalonia.Styling.ThemeVariant.Dark;
+        var native = new TestWindowService();
+        Window[] windows =
+        [
+            new MetadataWindow(),
+            new InspectWindowWindow(new InspectWindowViewModel(native)),
+            new InspectWindowPickerOverlay(),
+            new BorderlessWindowWindow(new BorderlessWindowViewModel(new BorderlessWindowSettings(), (_, _) => true, windows: native)),
+            new ActionsToolbarWindow(),
+            new ActionsToolbarEditorWindow(() => { }, () => { }),
+            new MouseHighlighterWindow(new MouseHighlighterOptions(), () => { })
+        ];
+        try
+        {
+            foreach (var window in windows)
+            {
+                window.Show();
+                foreach (string key in new[] { "ShareX.Brush.Background.Main", "ShareX.Brush.Text.Secondary", "ShareX.Brush.Border" })
+                    Assert.That(window.TryFindResource(key, window.ActualThemeVariant, out var brush) && brush != null, Is.True, $"{window.GetType().Name}: {key}");
+            }
+        }
+        finally
+        {
+            foreach (var window in windows) window.Close();
+            application.RequestedThemeVariant = appTheme;
+        }
+    }
+
     [Test]
     public void Toolbar_AllJobsHaveAnExplicitIcon()
     {

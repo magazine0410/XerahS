@@ -60,6 +60,7 @@ public partial class ActionsToolbarWindow : Window
     {
         _taskManager = taskManager;
         InitializeComponent();
+        RequestedThemeVariant = ShareX.ImageEditor.Presentation.Theming.ThemeManager.GetCurrentTheme();
         Topmost = SettingsManager.Settings.ActionsToolbarStayTopMost;
         SettingsManager.Settings.ActionsToolbarList ??= [];
 

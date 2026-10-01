@@ -42,6 +42,7 @@ public partial class InspectWindowPickerOverlay : Window
     public InspectWindowPickerOverlay()
     {
         AvaloniaXamlLoader.Load(this);
+        RequestedThemeVariant = ShareX.ImageEditor.Presentation.Theming.ThemeManager.GetCurrentTheme();
     }
 
     public InspectWindowPickerOverlay(Screen screen, bool selectTopLevelWindow) : this()

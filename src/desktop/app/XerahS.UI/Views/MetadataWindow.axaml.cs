@@ -45,6 +45,7 @@ public partial class MetadataWindow : Window
         _viewModel = new MetadataViewModel(filePath, playNotificationSound);
         DataContext = _viewModel;
         AvaloniaXamlLoader.Load(this);
+        RequestedThemeVariant = ShareX.ImageEditor.Presentation.Theming.ThemeManager.GetCurrentTheme();
 
         _viewModel.SelectFileRequested = SelectFileAsync;
         _viewModel.CopyTextRequested = CopyTextAsync;
