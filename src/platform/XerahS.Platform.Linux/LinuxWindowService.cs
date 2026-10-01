@@ -828,7 +828,7 @@ namespace XerahS.Platform.Linux
 
         public bool SetWindowClickThrough(IntPtr handle)
         {
-            if (!SupportsClickThrough || !TryGetWindowAttributes(handle, out _)) return false;
+            if (IsKWinHandle(handle) || !SupportsClickThrough || !TryGetWindowAttributes(handle, out _)) return false;
             // SHAPE 1.1: an empty input region leaves visual pixels intact while forwarding all clicks.
             XShapeCombineRectangles(_display, handle, 2, 0, 0, IntPtr.Zero, 0, 0, 0);
             NativeMethods.XFlush(_display);

@@ -34,11 +34,13 @@ namespace XerahS.Platform.Linux;
 public partial class LinuxWindowService
 {
     private readonly Dictionary<IntPtr, BorderlessSnapshot> _borderlessWindows = [];
+    // Click-through is set on XerahS's own windows, which are X11 windows also on Wayland (through
+    // XWayland), so it does not need the inspection support that other applications' windows need.
     public bool SupportsClickThrough
     {
         get
         {
-            if (!SupportsWindowInspection) return false;
+            if (_display == IntPtr.Zero) return false;
             try { return XShapeQueryVersion(_display, out int major, out int minor) != 0 && (major > 1 || major == 1 && minor >= 1); }
             catch (DllNotFoundException) { return false; }
             catch (EntryPointNotFoundException) { return false; }

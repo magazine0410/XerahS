@@ -43,7 +43,8 @@ internal sealed record KWinWindow(
     bool Maximized,
     bool KeepAbove,
     bool NoBorder,
-    bool Listed);
+    bool Listed,
+    bool IsNotification = false);
 
 /// <summary>The window stack (bottom to top), the active window, and the pointer position.</summary>
 internal sealed record KWinSnapshot(IReadOnlyList<KWinWindow> Windows, string? ActiveWindowId, Point CursorPosition);
@@ -106,6 +107,23 @@ internal sealed class KWinWindowManager
 
         return snapshot;
     }
+
+    /// <summary>The pointer position now, in KWin's logical coordinates, without the snapshot cache.</summary>
+    public Point? QueryCursorPosition()
+    {
+        using JsonDocument? result = _bridge.Run("report([workspace.cursorPos.x, workspace.cursorPos.y]);");
+        if (result == null || result.RootElement.ValueKind != JsonValueKind.Array || result.RootElement.GetArrayLength() != 2 ||
+            !result.RootElement[0].TryGetDouble(out double x) || !result.RootElement[1].TryGetDouble(out double y))
+        {
+            return null;
+        }
+
+        return new Point((int)Math.Round(x), (int)Math.Round(y));
+    }
+
+    /// <summary>Where notification popups and on-screen displays are now, in KWin's logical coordinates.</summary>
+    public IReadOnlyList<Rectangle> GetNotificationBounds() =>
+        GetSnapshot()?.Windows.Where(window => window.IsNotification && !window.Minimized).Select(window => window.FrameGeometry).ToArray() ?? [];
 
     public KWinWindow? GetWindow(nint handle) =>
         TryGetId(handle, out string id) ? GetSnapshot()?.Windows.FirstOrDefault(window => window.Id == id) : null;
@@ -261,7 +279,8 @@ internal sealed class KWinWindowManager
                 GetBool(element, "maximized"),
                 GetBool(element, "keepAbove"),
                 GetBool(element, "noBorder"),
-                listed));
+                listed,
+                GetBool(element, "notification")));
         }
 
         return new KWinSnapshot(windows, GetString(root, "active"), cursor);

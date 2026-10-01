@@ -24,10 +24,13 @@
 #endregion License Information (GPL v3)
 
 using System.ComponentModel;
+using System.Globalization;
 using Avalonia.Controls;
+using Avalonia.Data.Converters;
 using Avalonia.Input;
 using Avalonia.Markup.Xaml;
 using Avalonia.Threading;
+using XerahS.Common;
 using XerahS.Platform.Abstractions;
 using XerahS.UI.ViewModels;
 
@@ -37,10 +40,18 @@ public partial class ScrollingCaptureWindow : SurfaceWindow
 {
     private static readonly HotkeyInfo s_escapeStopHotkey = new(Key.Escape);
     private bool _escapeHotkeyRegistered;
+    private bool _closeRequested;
+
+    /// <summary>Shows a scroll method by its description, as ShareX's localized names.</summary>
+    public static IValueConverter ScrollMethodNameConverter { get; } = new FuncValueConverter<ScrollMethod, string>(method => EnumExtensions.GetDescription(method));
 
     public ScrollingCaptureWindow()
     {
         InitializeComponent();
+        // As in ShareX, the window starts minimized and the area selection starts when it opens.
+        WindowState = WindowState.Minimized;
+        // As in ShareX, clicking the window stops a running capture.
+        Activated += (_, _) => ViewModel?.StopCapture();
     }
 
     private void InitializeComponent()
@@ -48,49 +59,91 @@ public partial class ScrollingCaptureWindow : SurfaceWindow
         AvaloniaXamlLoader.Load(this);
     }
 
-    protected override void OnOpened(EventArgs e)
+    private ScrollingCaptureViewModel? ViewModel => DataContext as ScrollingCaptureViewModel;
+
+    protected override async void OnOpened(EventArgs e)
     {
         base.OnOpened(e);
-        if (DataContext is ScrollingCaptureViewModel vm)
-        {
-            vm.PropertyChanged += OnViewModelPropertyChanged;
-        }
-    }
-
-    protected override void OnClosing(WindowClosingEventArgs e)
-    {
-        UnregisterEscapeStopHotkey();
-        if (DataContext is ScrollingCaptureViewModel vm)
-        {
-            vm.PropertyChanged -= OnViewModelPropertyChanged;
-        }
-        (DataContext as ScrollingCaptureViewModel)?.Cleanup();
-        base.OnClosing(e);
-    }
-
-    private void OnViewModelPropertyChanged(object? sender, PropertyChangedEventArgs e)
-    {
-        if (e.PropertyName != nameof(ScrollingCaptureViewModel.IsCapturing))
+        if (ViewModel is not { } vm)
         {
             return;
         }
 
-        if (DataContext is ScrollingCaptureViewModel vm)
+        vm.PropertyChanged += OnViewModelPropertyChanged;
+        vm.CaptureFinished += OnCaptureFinished;
+        vm.SetMinimizedRequested = SetMinimized;
+        await vm.StartStopAsync();
+    }
+
+    protected override void OnClosing(WindowClosingEventArgs e)
+    {
+        if (ViewModel is { IsCapturing: true } capturing)
         {
-            if (vm.IsCapturing)
-            {
-                RegisterEscapeStopHotkey();
-            }
-            else
-            {
-                UnregisterEscapeStopHotkey();
-            }
+            // Stop first, then close when the capture has ended, as ShareX does.
+            _closeRequested = true;
+            capturing.StopCapture();
+            e.Cancel = true;
+            return;
+        }
+
+        UnregisterEscapeStopHotkey();
+        if (ViewModel is { } vm)
+        {
+            vm.PropertyChanged -= OnViewModelPropertyChanged;
+            vm.CaptureFinished -= OnCaptureFinished;
+            vm.Cleanup();
+        }
+
+        base.OnClosing(e);
+    }
+
+    private void OnCaptureFinished(object? sender, EventArgs e)
+    {
+        if (_closeRequested)
+        {
+            Dispatcher.UIThread.Post(Close);
+        }
+    }
+
+    private void SetMinimized(bool minimized)
+    {
+        if (minimized)
+        {
+            WindowState = WindowState.Minimized;
+            return;
+        }
+
+        WindowState = WindowState.Normal;
+        if (!IsVisible)
+        {
+            Show();
+        }
+
+        Activate();
+    }
+
+    private void OnViewModelPropertyChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName != nameof(ScrollingCaptureViewModel.IsCapturing) || ViewModel is not { } vm)
+        {
+            return;
+        }
+
+        if (vm.IsCapturing)
+        {
+            RegisterEscapeStopHotkey();
+        }
+        else
+        {
+            UnregisterEscapeStopHotkey();
         }
     }
 
     private void RegisterEscapeStopHotkey()
     {
-        if (_escapeHotkeyRegistered || !PlatformServices.IsInitialized)
+        // Windows only: on Wayland a global shortcut goes through the portal, which would bind Escape
+        // for the whole desktop. ShareX stops with the hotkey again or by activating the window.
+        if (_escapeHotkeyRegistered || !PlatformServices.IsInitialized || !OperatingSystem.IsWindows())
         {
             return;
         }
@@ -129,11 +182,11 @@ public partial class ScrollingCaptureWindow : SurfaceWindow
 
     private void OnHotkeyTriggered(object? sender, HotkeyTriggeredEventArgs e)
     {
-        if (e.HotkeyInfo.Key != Key.Escape || DataContext is not ScrollingCaptureViewModel vm || !vm.IsCapturing)
+        if (e.HotkeyInfo.Key != Key.Escape || ViewModel is not { IsCapturing: true } vm)
         {
             return;
         }
 
-        Dispatcher.UIThread.Post(() => vm.StopCapture());
+        Dispatcher.UIThread.Post(vm.StopCapture);
     }
 }

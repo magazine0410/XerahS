@@ -23,6 +23,7 @@
 
 #endregion License Information (GPL v3)
 
+using System.Diagnostics;
 using System.Drawing;
 using NUnit.Framework;
 using SkiaSharp;
@@ -204,6 +205,82 @@ public class ScrollingCaptureManagerTests
             autoIgnoreBottomEdge: autoIgnoreBottomEdge);
     }
 
+    [Test]
+    public async Task CaptureAsync_CapturesNothing_WhenScrollInputIsRefused()
+    {
+        using var frame = CreateFrame(contentStartIndex: 0);
+        var scroll = new SessionScrollingCaptureService(begins: false);
+        var capture = new StubScreenCaptureService([frame]);
+        var manager = new ScrollingCaptureManager(scroll, capture, new StubWindowService());
+
+        ScrollingCaptureResult result = await manager.CaptureAsync(IntPtr.Zero, new SKRect(0, 0, FrameWidth, FrameHeight), ScrollMethod.MouseWheel,
+            startDelayMs: 0, scrollDelayMs: 0, autoScrollTop: true);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(result.InputUnavailable, Is.True);
+            Assert.That(result.Status, Is.EqualTo(ScrollingCaptureStatus.Failed));
+            Assert.That(result.FramesCaptured, Is.Zero);
+            Assert.That(result.Image, Is.Null);
+            Assert.That(scroll.Calls, Is.EqualTo(new[] { "Begin" }), "Nothing is scrolled, and there is no session to end.");
+        });
+    }
+
+    [Test]
+    public async Task CaptureAsync_FollowsShareXsOrder_AndEndsTheInputSession()
+    {
+        using var first = CreateFrame(contentStartIndex: 0);
+        using var second = CreateFrame(contentStartIndex: ScrollStep);
+        var scroll = new SessionScrollingCaptureService(begins: true);
+        var capture = new StubScreenCaptureService([first, second, second]);
+        var windows = new ActivationTrackingWindowService(scroll.Calls);
+        var manager = new ScrollingCaptureManager(scroll, capture, windows);
+
+        ScrollingCaptureResult result = await manager.CaptureAsync(new IntPtr(42), new SKRect(0, 0, FrameWidth, FrameHeight), ScrollMethod.MouseWheel,
+            startDelayMs: 0, scrollDelayMs: 0, autoScrollTop: true, autoIgnoreBottomEdge: false);
+
+        try
+        {
+            Assert.Multiple(() =>
+            {
+                Assert.That(scroll.Calls.Take(6), Is.EqualTo(new[] { "Begin", "Activate 42", "ScrollToTop", "Park", "Wait", "Scroll" }),
+                    "As in ShareX: activate, wait the start delay, then scroll to the top; the pointer waits outside the area.");
+                var afterScrolls = scroll.Calls.Select((call, index) => (call, index)).Where(entry => entry.call == "Scroll")
+                    .Select(entry => scroll.Calls[entry.index + 1]);
+                Assert.That(afterScrolls, Has.All.EqualTo("Park"), "Every scroll is followed by moving the pointer out of the area.");
+                Assert.That(scroll.Calls.Count(call => call == "Wait"), Is.EqualTo(capture.CaptureStartTimes.Count),
+                    "Each frame waits until no popup covers the area.");
+                Assert.That(scroll.Calls.Last(), Is.EqualTo("End"));
+                Assert.That(scroll.Calls.Count(call => call == "End"), Is.EqualTo(1));
+                Assert.That(capture.LastOptions?.ShowCursor, Is.False, "As in ShareX, the frames leave out the cursor.");
+                Assert.That(result.Image!.Height, Is.EqualTo(FrameHeight + ScrollStep));
+            });
+        }
+        finally
+        {
+            result.Image?.Dispose();
+        }
+    }
+
+    [Test]
+    public async Task CaptureAsync_CountsTheScrollDelayFromTheScroll_WhenCapturingIsSlow()
+    {
+        using var first = CreateFrame(contentStartIndex: 0);
+        using var second = CreateFrame(contentStartIndex: ScrollStep);
+        var clock = Stopwatch.StartNew();
+        var scroll = new SessionScrollingCaptureService(begins: true, clock);
+        var capture = new StubScreenCaptureService([first, second, second], captureDelayMs: 150, clock);
+        var manager = new ScrollingCaptureManager(scroll, capture, new StubWindowService());
+
+        ScrollingCaptureResult result = await manager.CaptureAsync(IntPtr.Zero, new SKRect(0, 0, FrameWidth, FrameHeight), ScrollMethod.MouseWheel,
+            startDelayMs: 0, scrollDelayMs: 300, autoIgnoreBottomEdge: false);
+        result.Image?.Dispose();
+
+        // Before, the delay also counted the slow capture, which left the page no time to settle.
+        Assert.That(capture.CaptureStartTimes[1] - scroll.ScrollTimes[0], Is.GreaterThanOrEqualTo(280),
+            "The next frame is taken a full scroll delay after the scroll.");
+    }
+
     private static SKBitmap CreateFrame(int contentStartIndex, int fixedTopRows = 0, int fixedBottomRows = 0)
     {
         int contentRows = FrameHeight - fixedTopRows - fixedBottomRows;
@@ -311,8 +388,83 @@ public class ScrollingCaptureManagerTests
         }
     }
 
-    private sealed class StubScreenCaptureService(IReadOnlyList<SKBitmap> frames) : IScreenCaptureService
+    private sealed class SessionScrollingCaptureService(bool begins, Stopwatch? clock = null) : IScrollingCaptureService
     {
+        public List<string> Calls { get; } = [];
+        public List<long> ScrollTimes { get; } = [];
+
+        public Task MovePointerOutsideAsync(Rectangle area)
+        {
+            Calls.Add("Park");
+            return Task.CompletedTask;
+        }
+
+        public Task WaitUntilAreaIsClearAsync(Rectangle area, CancellationToken cancellationToken = default)
+        {
+            Calls.Add("Wait");
+            return Task.CompletedTask;
+        }
+
+        public bool IsSupported => true;
+
+        public Task<bool> BeginAsync(CancellationToken cancellationToken = default)
+        {
+            Calls.Add("Begin");
+            return Task.FromResult(begins);
+        }
+
+        public Task EndAsync()
+        {
+            Calls.Add("End");
+            return Task.CompletedTask;
+        }
+
+        public ScrollBarInfo? GetScrollBarInfo(IntPtr windowHandle) => null;
+
+        public Task ScrollWindowAsync(IntPtr windowHandle, ScrollMethod method, int amount, Point? targetPoint = null)
+        {
+            Calls.Add("Scroll");
+            ScrollTimes.Add(clock?.ElapsedMilliseconds ?? 0);
+            return Task.CompletedTask;
+        }
+
+        public Task ScrollToTopAsync(IntPtr windowHandle, Point? targetPoint = null)
+        {
+            Calls.Add("ScrollToTop");
+            return Task.CompletedTask;
+        }
+    }
+
+    private sealed class ActivationTrackingWindowService(List<string> calls) : IWindowService
+    {
+        private readonly StubWindowService _inner = new();
+        public IntPtr GetForegroundWindow() => IntPtr.Zero;
+        public bool SetForegroundWindow(IntPtr handle) => true;
+        public string GetWindowText(IntPtr handle) => string.Empty;
+        public string GetWindowClassName(IntPtr handle) => string.Empty;
+        public Rectangle GetWindowBounds(IntPtr handle) => Rectangle.Empty;
+        public Rectangle GetWindowClientBounds(IntPtr handle) => Rectangle.Empty;
+        public bool IsWindowVisible(IntPtr handle) => true;
+        public bool IsWindowMaximized(IntPtr handle) => false;
+        public bool IsWindowMinimized(IntPtr handle) => false;
+        public bool ShowWindow(IntPtr handle, int cmdShow) => true;
+        public bool SetWindowPos(IntPtr handle, IntPtr handleInsertAfter, int x, int y, int width, int height, uint flags) => true;
+        public WindowInfo[] GetAllWindows() => _inner.GetAllWindows();
+        public uint GetWindowProcessId(IntPtr handle) => 0;
+        public IntPtr SearchWindow(string windowTitle) => IntPtr.Zero;
+        public bool SetWindowClickThrough(IntPtr handle) => true;
+
+        public bool ActivateWindow(IntPtr handle)
+        {
+            calls.Add($"Activate {handle}");
+            return true;
+        }
+    }
+
+    private sealed class StubScreenCaptureService(IReadOnlyList<SKBitmap> frames, int captureDelayMs = 0, Stopwatch? clock = null) : IScreenCaptureService
+    {
+        public List<long> CaptureStartTimes { get; } = [];
+
         private readonly IReadOnlyList<SKBitmap> _frames = frames;
         private int _captureIndex;
 
@@ -326,11 +478,20 @@ public class ScrollingCaptureManagerTests
             throw new NotSupportedException();
         }
 
-        public Task<SKBitmap?> CaptureRectAsync(SKRect rect, CaptureOptions? options = null)
+        public CaptureOptions? LastOptions { get; private set; }
+
+        public async Task<SKBitmap?> CaptureRectAsync(SKRect rect, CaptureOptions? options = null)
         {
+            LastOptions = options;
+            CaptureStartTimes.Add(clock?.ElapsedMilliseconds ?? 0);
+            if (captureDelayMs > 0)
+            {
+                await Task.Delay(captureDelayMs);
+            }
+
             int index = Math.Min(_captureIndex, _frames.Count - 1);
             _captureIndex++;
-            return Task.FromResult<SKBitmap?>(_frames[index].Copy());
+            return _frames[index].Copy();
         }
 
         public Task<SKBitmap?> CaptureFullScreenAsync(CaptureOptions? options = null)

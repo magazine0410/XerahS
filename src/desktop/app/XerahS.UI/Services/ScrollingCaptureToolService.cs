@@ -32,13 +32,20 @@ using XerahS.Core;
 using XerahS.Core.Managers;
 using XerahS.Core.Services;
 using XerahS.Platform.Abstractions;
+using XerahS.RegionCapture;
 using XerahS.UI.ViewModels;
 using XerahS.UI.Views;
 
 namespace XerahS.UI.Services;
 
+/// <summary>
+/// ShareX's scrolling capture: the hotkey or menu item opens the window, which starts an area
+/// selection; invoking it again stops a running capture or starts a new selection.
+/// </summary>
 public static class ScrollingCaptureToolService
 {
+    private static ScrollingCaptureWindow? s_window;
+
     /// <summary>
     /// The view model of the currently open scrolling capture window, if any.
     /// Used so the Scrolling Capture hotkey can stop an in-progress capture.
@@ -53,7 +60,7 @@ public static class ScrollingCaptureToolService
     {
         return job switch
         {
-            WorkflowType.ScrollingCapture => ShowScrollingCaptureWindowAsync(owner, taskManager, taskSettings),
+            WorkflowType.ScrollingCapture => StartStopAsync(taskManager, taskSettings),
             _ => Task.CompletedTask
         };
     }
@@ -69,176 +76,131 @@ public static class ScrollingCaptureToolService
         }
     }
 
-    private static Task ShowScrollingCaptureWindowAsync(Window? owner, IDesktopTaskManager taskManager, TaskSettings? taskSettings)
+    private static async Task StartStopAsync(IDesktopTaskManager taskManager, TaskSettings? taskSettings)
     {
-        var viewModel = new ScrollingCaptureViewModel();
-        var window = new ScrollingCaptureWindow
+        if (s_window != null && CurrentCapture != null)
         {
-            DataContext = viewModel
-        };
+            await CurrentCapture.StartStopAsync();
+            return;
+        }
 
+        // As in ShareX, the options live in the capture settings the workflow uses, so changes are kept.
+        TaskSettings settings = taskSettings ?? TaskSettings.GetSafeTaskSettings(SettingsManager.DefaultTaskSettings);
+        ScrollingCaptureOptions options = settings.CaptureSettingsReference.ScrollingCaptureOptions ??= new ScrollingCaptureOptions();
+        IReadOnlyList<ScrollMethod> methods = PlatformServices.ScrollingCapture?.SupportedScrollMethods ?? Enum.GetValues<ScrollMethod>();
+
+        var viewModel = new ScrollingCaptureViewModel(options, methods)
+        {
+            SelectTargetRequested = SelectTargetAsync,
+            ShowRegionRequested = ShowRegionBorder,
+            UploadRequested = image => UploadCapturedImageAsync(taskManager, image, settings),
+            SaveOptionsRequested = SettingsManager.SaveWorkflowsConfig
+        };
+        var window = new ScrollingCaptureWindow { DataContext = viewModel };
+
+        s_window = window;
         CurrentCapture = viewModel;
         window.Closed += (_, _) =>
         {
-            if (ReferenceEquals(CurrentCapture, viewModel))
+            if (ReferenceEquals(s_window, window))
+            {
+                s_window = null;
                 CurrentCapture = null;
+            }
         };
 
-        // Wire window selection callback
-        viewModel.SelectWindowRequested = async () =>
-        {
-            return await SelectTargetWindowAsync(window);
-        };
-
-        // Wire upload callback
-        viewModel.UploadRequested = async (image) =>
-        {
-            await UploadCapturedImageAsync(taskManager, image, taskSettings);
-        };
-
-        if (CanUseOwner(owner))
-        {
-            window.Show(owner!);
-        }
-        else
-        {
-            window.Show();
-        }
-
-        return Task.CompletedTask;
+        window.Show();
     }
 
-    private static async Task<(IntPtr Handle, Rectangle ClientBounds)?> SelectTargetWindowAsync(Window parentWindow)
+    /// <summary>
+    /// ShareX selects the area with region capture and scrolls the window it snapped to, or else the
+    /// topmost window under the middle of the area.
+    /// </summary>
+    private static async Task<ScrollingCaptureTarget?> SelectTargetAsync()
     {
         if (!PlatformServices.IsInitialized)
         {
             return null;
         }
 
-        // Hide parent window during selection
-        bool wasVisible = parentWindow.IsVisible;
-        var previousState = parentWindow.WindowState;
-
-        if (wasVisible)
-        {
-            parentWindow.WindowState = Avalonia.Controls.WindowState.Minimized;
-        }
-
+        SKBitmap? background = null;
         try
         {
-            await Task.Delay(300); // Allow window to minimize
-
-            // Use the existing window selector dialog to pick a target window
-            var windowService = PlatformServices.Window;
-            var allWindows = windowService.GetAllWindows();
-
-            if (allWindows.Length == 0)
-            {
-                return null;
-            }
-
-            // Show window selector via MainWindow ModalContent
-            var selected = await Avalonia.Threading.Dispatcher.UIThread.InvokeAsync(async () =>
-            {
-                var selectorViewModel = new WindowSelectorViewModel();
-                WindowInfo? picked = null;
-                await ModalDialogHost.ShowAsync(
-                    selectorViewModel,
-                    set =>
-                    {
-                        selectorViewModel.OnWindowSelected = w =>
-                        {
-                            picked = w;
-                            set(true);
-                        };
-                        selectorViewModel.OnCancelled = () => set(false);
-                    },
-                    dismissResult: false,
-                    debugSource: "ScrollingCapture.WindowSelector");
-                return picked;
-            });
-
-            if (selected == null || selected.Handle == IntPtr.Zero)
-            {
-                return null;
-            }
-
-            // Get client bounds of the selected window
-            var clientBounds = windowService.GetWindowClientBounds(selected.Handle);
-            if (clientBounds.IsEmpty)
-            {
-                // Fallback to window bounds
-                clientBounds = windowService.GetWindowBounds(selected.Handle);
-            }
-
-            if (clientBounds.IsEmpty)
-            {
-                return null;
-            }
-
-            return (selected.Handle, clientBounds);
+            background = await PlatformServices.ScreenCapture.CaptureFullScreenAsync(new CaptureOptions { ShowCursor = false });
         }
         catch (Exception ex)
         {
-            DebugHelper.WriteException(ex, "ScrollingCapture window selection");
-            return null;
+            DebugHelper.WriteException(ex, "ScrollingCapture background capture");
+        }
+
+        try
+        {
+            var regionCapture = new XerahS.RegionCapture.RegionCaptureService
+            {
+                Options = new XerahS.RegionCapture.RegionCaptureOptions
+                {
+                    EnableAnnotations = false,
+                    ShowCursor = false,
+                    BackgroundImage = background
+                }
+            };
+
+            var selection = await regionCapture.CaptureRegionAsync();
+            if (selection is not { } result || result.Region.Width < 1 || result.Region.Height < 1)
+            {
+                return null;
+            }
+
+            // As in ShareX, whole pixels that cover the selection.
+            var region = Rectangle.FromLTRB(
+                (int)Math.Floor(result.Region.Left), (int)Math.Floor(result.Region.Top),
+                (int)Math.Ceiling(result.Region.Right), (int)Math.Ceiling(result.Region.Bottom));
+            IntPtr window = FindWindowUnder(PlatformServices.Window.GetAllWindows(), region);
+            return window == IntPtr.Zero ? null : new ScrollingCaptureTarget(window, region);
         }
         finally
         {
-            // Restore parent window
-            if (wasVisible)
-            {
-                parentWindow.WindowState = previousState;
-                parentWindow.Show();
-                parentWindow.Activate();
-            }
+            background?.Dispose();
         }
     }
 
-    private static bool CanUseOwner(Window? owner)
+    /// <summary>The topmost visible window containing the middle of the area. Windows are listed topmost first.</summary>
+    internal static IntPtr FindWindowUnder(IEnumerable<WindowInfo> windows, Rectangle region)
     {
-        return owner != null &&
-               owner.IsVisible &&
-               owner.WindowState != Avalonia.Controls.WindowState.Minimized &&
-               owner.ShowInTaskbar;
+        var middle = new System.Drawing.Point(region.Left + region.Width / 2, region.Top + region.Height / 2);
+        return windows.FirstOrDefault(window => window.IsVisible && !window.IsMinimized && window.Bounds.Contains(middle))?.Handle ?? IntPtr.Zero;
     }
 
-    private static async Task UploadCapturedImageAsync(IDesktopTaskManager taskManager, SKBitmap image, TaskSettings? taskSettings)
+    private static IDisposable? ShowRegionBorder(Rectangle region)
     {
         try
         {
-            var effectiveTaskSettings = taskSettings ?? SettingsManager.DefaultTaskSettings
-                ?? new TaskSettings();
+            var border = new ScrollingCaptureRegionWindow(region);
+            border.Show();
+            return new RegionBorderHandle(border);
+        }
+        catch (Exception ex)
+        {
+            DebugHelper.WriteException(ex, "ScrollingCapture region border");
+            return null;
+        }
+    }
 
-            // Create a new task to process the captured image through the pipeline
-            await taskManager.StartTask(effectiveTaskSettings, image);
+    private sealed class RegionBorderHandle(Window window) : IDisposable
+    {
+        public void Dispose() => window.Close();
+    }
+
+    private static async Task UploadCapturedImageAsync(IDesktopTaskManager taskManager, SKBitmap image, TaskSettings taskSettings)
+    {
+        try
+        {
+            // ShareX's "Upload / Save" runs the image through the workflow's after capture tasks.
+            await taskManager.StartTask(TaskSettings.GetSafeTaskSettings(taskSettings), image);
         }
         catch (Exception ex)
         {
             DebugHelper.WriteException(ex, "ScrollingCapture upload");
-        }
-    }
-
-    private static void ShowToast(string title, string text)
-    {
-        try
-        {
-            if (PlatformServices.IsToastServiceInitialized)
-            {
-                PlatformServices.Toast.ShowToast(new ToastConfig
-                {
-                    Title = title,
-                    Text = text,
-                    Duration = 4f,
-                    Size = new SizeI(420, 120),
-                    AutoHide = true,
-                    LeftClickAction = ToastClickAction.CloseNotification
-                });
-            }
-        }
-        catch (Exception ex)
-        {
-            DebugHelper.WriteException(ex, "ScrollingCapture toast");
         }
     }
 }

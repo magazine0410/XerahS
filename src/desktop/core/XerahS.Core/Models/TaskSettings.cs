@@ -152,6 +152,29 @@ public class TaskSettings
     public bool UseDefaultAdvancedSettings = true;
     public TaskSettingsAdvanced AdvancedSettings = new TaskSettingsAdvanced();
 
+    /// <summary>
+    /// ShareX's CaptureSettingsReference: the capture settings this task's workflow saves, which are the
+    /// default task settings' unless the workflow overrides capture settings. Tools that keep their
+    /// options in the capture settings (scrolling capture) edit this object, so changes are kept.
+    /// </summary>
+    [JsonIgnore]
+    public TaskSettingsCapture CaptureSettingsReference
+    {
+        get
+        {
+            var settings = TaskSettingsReference
+                ?? SettingsManager.GetWorkflowById(WorkflowId ?? string.Empty)?.TaskSettings
+                ?? this;
+            var defaults = SettingsManager.DefaultTaskSettings;
+            if (settings.UseDefaultCaptureSettings && defaults != null)
+            {
+                settings = defaults;
+            }
+
+            return settings.CaptureSettings ??= new TaskSettingsCapture();
+        }
+    }
+
     public bool WatchFolderEnabled = false;
     public List<WatchFolderSettings> WatchFolderList = new List<WatchFolderSettings>();
 

@@ -54,6 +54,8 @@ public class KWinWindowManagerTests
               "managed": true, "minimized": true, "onCurrentDesktop": true, "onCurrentActivity": true },
             { "id": "{ffff}", "caption": "Panel", "resourceClass": "plasmashell", "pid": 10, "frame": [0, 1036, 1920, 44], "client": [0, 1036, 1920, 44],
               "managed": true, "dock": true, "onCurrentDesktop": true, "onCurrentActivity": true },
+            { "id": "{note}", "caption": "plasmashell", "resourceClass": "org.kde.plasmashell", "pid": 10, "frame": [1552, 885, 330, 110], "client": [1552, 885, 330, 110],
+              "managed": true, "notification": true, "onCurrentDesktop": true, "onCurrentActivity": true },
             { "id": "{bad}", "caption": "Bad", "frame": [0, 0, "x", 10], "client": [0, 0, 10, 10] }
           ]
         }
@@ -72,8 +74,9 @@ public class KWinWindowManagerTests
 
         Assert.That(snapshot.ActiveWindowId, Is.EqualTo("{bbbb}"));
         Assert.That(snapshot.CursorPosition, Is.EqualTo(new Point(2022, 660)));
-        Assert.That(snapshot.Windows.Select(w => w.Id), Is.EqualTo(new[] { "{desk}", "{aaaa}", "{bbbb}", "{cccc}", "{dddd}", "{eeee}", "{ffff}" }),
+        Assert.That(snapshot.Windows.Select(w => w.Id), Is.EqualTo(new[] { "{desk}", "{aaaa}", "{bbbb}", "{cccc}", "{dddd}", "{eeee}", "{ffff}", "{note}" }),
             "Malformed geometry is skipped.");
+        Assert.That(snapshot.Windows.Where(w => w.IsNotification).Select(w => w.FrameGeometry), Is.EqualTo(new[] { new Rectangle(1552, 885, 330, 110) }));
 
         KWinWindow dolphin = snapshot.Windows[1];
         Assert.That(dolphin.FrameGeometry, Is.EqualTo(new Rectangle(256, 65, 1488, 950)), "Fractional edges are rounded.");
