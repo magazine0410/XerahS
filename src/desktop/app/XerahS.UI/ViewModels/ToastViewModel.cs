@@ -733,7 +733,7 @@ public partial class ToastViewModel : ObservableObject, IDisposable
         var uploadWorkflow = SettingsManager.GetFirstWorkflow(WorkflowType.FileUpload);
         if (uploadWorkflow?.TaskSettings != null)
         {
-            var settings = WatchFolderManager.CloneTaskSettings(uploadWorkflow.TaskSettings);
+            var settings = TaskSettings.GetSafeTaskSettings(uploadWorkflow.TaskSettings);
             settings.WorkflowId = uploadWorkflow.Id;
             return settings;
         }

@@ -32,7 +32,7 @@ namespace XerahS.UI.ViewModels
 
         public bool ShowAfterUploadWindow
         {
-            get => _settings.AfterUploadJob.HasFlag(AfterUploadTasks.ShowAfterUploadWindow);
+            get => AfterUploadSource.AfterUploadJob.HasFlag(AfterUploadTasks.ShowAfterUploadWindow);
             set
             {
                 if (ShowAfterUploadWindow != value)
@@ -45,7 +45,7 @@ namespace XerahS.UI.ViewModels
 
         public bool CopyURLToClipboard
         {
-            get => _settings.AfterUploadJob.HasFlag(AfterUploadTasks.CopyURLToClipboard);
+            get => AfterUploadSource.AfterUploadJob.HasFlag(AfterUploadTasks.CopyURLToClipboard);
             set
             {
                 if (CopyURLToClipboard != value)
@@ -58,7 +58,7 @@ namespace XerahS.UI.ViewModels
 
         public bool UseURLShortener
         {
-            get => _settings.AfterUploadJob.HasFlag(AfterUploadTasks.UseURLShortener);
+            get => AfterUploadSource.AfterUploadJob.HasFlag(AfterUploadTasks.UseURLShortener);
             set
             {
                 if (UseURLShortener != value)
@@ -71,7 +71,7 @@ namespace XerahS.UI.ViewModels
 
         public bool ShareURL
         {
-            get => _settings.AfterUploadJob.HasFlag(AfterUploadTasks.ShareURL);
+            get => AfterUploadSource.AfterUploadJob.HasFlag(AfterUploadTasks.ShareURL);
             set
             {
                 if (ShareURL != value)
@@ -85,9 +85,9 @@ namespace XerahS.UI.ViewModels
         private void UpdateAfterUploadTask(AfterUploadTasks task, bool enabled)
         {
             if (enabled)
-                _settings.AfterUploadJob |= task;
+                AfterUploadSource.AfterUploadJob |= task;
             else
-                _settings.AfterUploadJob &= ~task;
+                AfterUploadSource.AfterUploadJob &= ~task;
         }
 
         #endregion

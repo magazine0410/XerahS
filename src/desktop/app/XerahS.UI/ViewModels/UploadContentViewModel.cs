@@ -552,7 +552,7 @@ public partial class UploadContentViewModel : ViewModelBase, IDisposable
         TaskSettings settings;
         if (workflow?.TaskSettings != null)
         {
-            settings = CloneTaskSettings(workflow.TaskSettings);
+            settings = TaskSettings.GetSafeTaskSettings(workflow.TaskSettings);
             settings.WorkflowId = workflow.Id;
         }
         else

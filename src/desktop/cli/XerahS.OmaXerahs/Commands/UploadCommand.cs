@@ -162,7 +162,7 @@ internal static class UploadCommand
             }
 
             var workflow = SettingsManager.GetFirstWorkflowOrDefault(WorkflowType.FileUpload);
-            var taskSettings = CloneTaskSettings(workflow.TaskSettings);
+            var taskSettings = TaskSettings.GetSafeTaskSettings(workflow.TaskSettings);
             taskSettings.Job = WorkflowType.FileUpload;
             taskSettings.AfterCaptureJob = AfterCaptureTasks.None;
             taskSettings.AfterUploadJob = AfterUploadTasks.None;

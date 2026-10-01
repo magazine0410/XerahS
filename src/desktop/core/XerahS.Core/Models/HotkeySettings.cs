@@ -151,6 +151,8 @@ public class WorkflowsConfig : SettingsBase<WorkflowsConfig>
         // WF04: Record screen using GDI (Ctrl + Shift + R)
         var wf04 = new WorkflowSettings(WorkflowType.ScreenRecorder, new HotkeyInfo(Key.R, KeyModifiers.Control | KeyModifiers.Shift));
         wf04.TaskSettings.Description = "Record screen using GDI";
+        // The recording backend is what this workflow is for, so it keeps its own capture settings.
+        wf04.TaskSettings.UseDefaultCaptureSettings = false;
         wf04.TaskSettings.CaptureSettings.UseModernCapture = false;
         wf04.TaskSettings.CaptureSettings.ScreenRecordingSettings.RecordingBackend = XerahS.RegionCapture.ScreenRecording.RecordingBackend.GDI;
         list.Add(wf04);
@@ -158,6 +160,8 @@ public class WorkflowsConfig : SettingsBase<WorkflowsConfig>
         // WF05: Record screen for game (Ctrl + Shift + G)
         var wf05 = new WorkflowSettings(WorkflowType.ScreenRecorderActiveWindow, new HotkeyInfo(Key.G, KeyModifiers.Control | KeyModifiers.Shift));
         wf05.TaskSettings.Description = "Record screen for game";
+        // The game recording intent is what this workflow is for, so it keeps its own capture settings.
+        wf05.TaskSettings.UseDefaultCaptureSettings = false;
         wf05.TaskSettings.CaptureSettings.UseModernCapture = true;
         wf05.TaskSettings.CaptureSettings.ScreenRecordingSettings.RecordingIntent = XerahS.RegionCapture.ScreenRecording.RecordingIntent.Game;
         list.Add(wf05);

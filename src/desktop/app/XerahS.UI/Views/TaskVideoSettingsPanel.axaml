@@ -15,10 +15,15 @@
 
     <ScrollViewer>
         <StackPanel Spacing="24" Margin="20">
+            <!-- The recording settings are part of ShareX's capture settings. -->
+            <CheckBox Content="Override capture settings"
+                      IsChecked="{Binding OverrideCaptureSettings}"
+                      IsVisible="{Binding ShowOverrideSettings}"
+                      ToolTip.Tip="When off, this workflow uses the capture and recording settings from Settings &gt; Task Settings."/>
             <!-- Screen Recorder Settings -->
             <StackPanel Spacing="8">
                 <TextBlock Text="Screen recorder" FontWeight="SemiBold"/>
-                <Border BorderBrush="{DynamicResource SystemControlForegroundBaseLowBrush}" BorderThickness="1" CornerRadius="4" Padding="16">
+                <Border BorderBrush="{DynamicResource SystemControlForegroundBaseLowBrush}" BorderThickness="1" CornerRadius="4" Padding="16" IsEnabled="{Binding CaptureSettingsEnabled}">
                     <StackPanel Spacing="16">
                         <Grid ColumnDefinitions="Auto, 16, *" RowDefinitions="Auto, Auto, Auto, Auto, Auto" RowSpacing="16">
                             <TextBlock Grid.Row="0" Grid.Column="0" Text="FPS:" VerticalAlignment="Center"/>
@@ -88,7 +93,8 @@
                                     IsEnabled="{Binding CanDownloadFFmpeg}"/>
 
                             <Button Grid.Column="2" Content="Configure FFmpeg / Override Path..."
-                                    Command="{Binding OpenFFmpegOptionsCommand}"/>
+                                    Command="{Binding OpenFFmpegOptionsCommand}"
+                                    IsEnabled="{Binding CaptureSettingsEnabled}"/>
                         </Grid>
                         
                         <TextBox Text="{Binding ExpectedFFmpegDownloadUrl}"

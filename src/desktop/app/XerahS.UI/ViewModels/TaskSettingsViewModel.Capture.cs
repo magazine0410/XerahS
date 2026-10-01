@@ -39,12 +39,12 @@ namespace XerahS.UI.ViewModels
 
         public bool UseModernCapture
         {
-            get => _settings.CaptureSettings.UseModernCapture;
+            get => CaptureSource.CaptureSettings.UseModernCapture;
             set
             {
-                if (_settings.CaptureSettings.UseModernCapture != value)
+                if (CaptureSource.CaptureSettings.UseModernCapture != value)
                 {
-                    _settings.CaptureSettings.UseModernCapture = value;
+                    CaptureSource.CaptureSettings.UseModernCapture = value;
                     OnPropertyChanged();
                 }
             }
@@ -52,12 +52,12 @@ namespace XerahS.UI.ViewModels
 
         public bool HDRScreenshotColorCorrection
         {
-            get => _settings.CaptureSettings.HDRScreenshotColorCorrection;
+            get => CaptureSource.CaptureSettings.HDRScreenshotColorCorrection;
             set
             {
-                if (_settings.CaptureSettings.HDRScreenshotColorCorrection != value)
+                if (CaptureSource.CaptureSettings.HDRScreenshotColorCorrection != value)
                 {
-                    _settings.CaptureSettings.HDRScreenshotColorCorrection = value;
+                    CaptureSource.CaptureSettings.HDRScreenshotColorCorrection = value;
                     OnPropertyChanged();
                 }
             }
@@ -66,12 +66,12 @@ namespace XerahS.UI.ViewModels
         public LinuxInteractiveRegionSelectorPreference LinuxRegionSelectorPreference
         {
             get => LinuxRegionSelectorPreferenceSupport.NormalizeForCurrentSession(
-                _settings.CaptureSettings.LinuxRegionSelectorPreference);
+                CaptureSource.CaptureSettings.LinuxRegionSelectorPreference);
             set
             {
-                if (_settings.CaptureSettings.LinuxRegionSelectorPreference != value)
+                if (CaptureSource.CaptureSettings.LinuxRegionSelectorPreference != value)
                 {
-                    _settings.CaptureSettings.LinuxRegionSelectorPreference = value;
+                    CaptureSource.CaptureSettings.LinuxRegionSelectorPreference = value;
                     OnPropertyChanged();
                 }
             }
@@ -85,12 +85,12 @@ namespace XerahS.UI.ViewModels
 
         public bool OmaSnapRegionOnly
         {
-            get => _settings.CaptureSettings.OmaSnapRegionOnly;
+            get => CaptureSource.CaptureSettings.OmaSnapRegionOnly;
             set
             {
-                if (_settings.CaptureSettings.OmaSnapRegionOnly != value)
+                if (CaptureSource.CaptureSettings.OmaSnapRegionOnly != value)
                 {
-                    _settings.CaptureSettings.OmaSnapRegionOnly = value;
+                    CaptureSource.CaptureSettings.OmaSnapRegionOnly = value;
                     OnPropertyChanged();
                 }
             }
@@ -98,12 +98,12 @@ namespace XerahS.UI.ViewModels
 
         public MacOSInteractiveRegionSelectorPreference MacOSRegionSelectorPreference
         {
-            get => _settings.CaptureSettings.MacOSRegionSelectorPreference;
+            get => CaptureSource.CaptureSettings.MacOSRegionSelectorPreference;
             set
             {
-                if (_settings.CaptureSettings.MacOSRegionSelectorPreference != value)
+                if (CaptureSource.CaptureSettings.MacOSRegionSelectorPreference != value)
                 {
-                    _settings.CaptureSettings.MacOSRegionSelectorPreference = value;
+                    CaptureSource.CaptureSettings.MacOSRegionSelectorPreference = value;
                     OnPropertyChanged();
                 }
             }
@@ -114,12 +114,12 @@ namespace XerahS.UI.ViewModels
 
         public bool MacOSPlayCaptureSound
         {
-            get => _settings.CaptureSettings.MacOSPlayCaptureSound;
+            get => CaptureSource.CaptureSettings.MacOSPlayCaptureSound;
             set
             {
-                if (_settings.CaptureSettings.MacOSPlayCaptureSound != value)
+                if (CaptureSource.CaptureSettings.MacOSPlayCaptureSound != value)
                 {
-                    _settings.CaptureSettings.MacOSPlayCaptureSound = value;
+                    CaptureSource.CaptureSettings.MacOSPlayCaptureSound = value;
                     OnPropertyChanged();
                 }
             }
@@ -127,13 +127,13 @@ namespace XerahS.UI.ViewModels
 
         public LinuxRecordingBackendPreference LinuxRecordingBackendPreference
         {
-            get => ResolveLinuxRecordingBackendPreference(_settings.CaptureSettings);
+            get => ResolveLinuxRecordingBackendPreference(CaptureSource.CaptureSettings);
             set
             {
-                if (ResolveLinuxRecordingBackendPreference(_settings.CaptureSettings) != value ||
-                    _settings.CaptureSettings.LinuxRecordingBackendPreference == null)
+                if (ResolveLinuxRecordingBackendPreference(CaptureSource.CaptureSettings) != value ||
+                    CaptureSource.CaptureSettings.LinuxRecordingBackendPreference == null)
                 {
-                    _settings.CaptureSettings.LinuxRecordingBackendPreference = value;
+                    CaptureSource.CaptureSettings.LinuxRecordingBackendPreference = value;
                     OnPropertyChanged();
                 }
             }
@@ -144,12 +144,12 @@ namespace XerahS.UI.ViewModels
 
         public bool ShowCursor
         {
-            get => _settings.CaptureSettings.ShowCursor;
+            get => CaptureSource.CaptureSettings.ShowCursor;
             set
             {
-                if (_settings.CaptureSettings.ShowCursor != value)
+                if (CaptureSource.CaptureSettings.ShowCursor != value)
                 {
-                    _settings.CaptureSettings.ShowCursor = value;
+                    CaptureSource.CaptureSettings.ShowCursor = value;
                     OnPropertyChanged();
                 }
             }
@@ -157,12 +157,12 @@ namespace XerahS.UI.ViewModels
 
         public bool RegionCaptureQuickCapture
         {
-            get => _settings.CaptureSettings.RegionCaptureOptions.QuickCrop;
+            get => CaptureSource.CaptureSettings.RegionCaptureOptions.QuickCrop;
             set
             {
-                if (_settings.CaptureSettings.RegionCaptureOptions.QuickCrop != value)
+                if (CaptureSource.CaptureSettings.RegionCaptureOptions.QuickCrop != value)
                 {
-                    _settings.CaptureSettings.RegionCaptureOptions.QuickCrop = value;
+                    CaptureSource.CaptureSettings.RegionCaptureOptions.QuickCrop = value;
                     OnPropertyChanged();
                 }
             }
@@ -170,12 +170,12 @@ namespace XerahS.UI.ViewModels
 
         public bool RegionCaptureActiveMonitorMode
         {
-            get => _settings.CaptureSettings.RegionCaptureOptions.ActiveMonitorMode;
+            get => CaptureSource.CaptureSettings.RegionCaptureOptions.ActiveMonitorMode;
             set
             {
-                if (_settings.CaptureSettings.RegionCaptureOptions.ActiveMonitorMode != value)
+                if (CaptureSource.CaptureSettings.RegionCaptureOptions.ActiveMonitorMode != value)
                 {
-                    _settings.CaptureSettings.RegionCaptureOptions.ActiveMonitorMode = value;
+                    CaptureSource.CaptureSettings.RegionCaptureOptions.ActiveMonitorMode = value;
                     OnPropertyChanged();
                 }
             }
@@ -183,12 +183,12 @@ namespace XerahS.UI.ViewModels
 
         public bool RegionCaptureDisableAnnotation
         {
-            get => _settings.AdvancedSettings.RegionCaptureDisableAnnotation;
+            get => AdvancedSource.AdvancedSettings.RegionCaptureDisableAnnotation;
             set
             {
-                if (_settings.AdvancedSettings.RegionCaptureDisableAnnotation != value)
+                if (AdvancedSource.AdvancedSettings.RegionCaptureDisableAnnotation != value)
                 {
-                    _settings.AdvancedSettings.RegionCaptureDisableAnnotation = value;
+                    AdvancedSource.AdvancedSettings.RegionCaptureDisableAnnotation = value;
                     OnPropertyChanged();
                 }
             }
@@ -196,12 +196,12 @@ namespace XerahS.UI.ViewModels
 
         public bool RegionCaptureUseDimming
         {
-            get => _settings.CaptureSettings.RegionCaptureOptions.UseDimming;
+            get => CaptureSource.CaptureSettings.RegionCaptureOptions.UseDimming;
             set
             {
-                if (_settings.CaptureSettings.RegionCaptureOptions.UseDimming != value)
+                if (CaptureSource.CaptureSettings.RegionCaptureOptions.UseDimming != value)
                 {
-                    _settings.CaptureSettings.RegionCaptureOptions.UseDimming = value;
+                    CaptureSource.CaptureSettings.RegionCaptureOptions.UseDimming = value;
                     OnPropertyChanged();
                 }
             }
@@ -209,13 +209,13 @@ namespace XerahS.UI.ViewModels
 
         public int RegionCaptureBackgroundDimStrength
         {
-            get => _settings.CaptureSettings.RegionCaptureOptions.BackgroundDimStrength;
+            get => CaptureSource.CaptureSettings.RegionCaptureOptions.BackgroundDimStrength;
             set
             {
                 int clamped = Math.Clamp(value, 0, 100);
-                if (_settings.CaptureSettings.RegionCaptureOptions.BackgroundDimStrength != clamped)
+                if (CaptureSource.CaptureSettings.RegionCaptureOptions.BackgroundDimStrength != clamped)
                 {
-                    _settings.CaptureSettings.RegionCaptureOptions.BackgroundDimStrength = clamped;
+                    CaptureSource.CaptureSettings.RegionCaptureOptions.BackgroundDimStrength = clamped;
                     OnPropertyChanged();
                 }
             }
@@ -223,12 +223,12 @@ namespace XerahS.UI.ViewModels
 
         public bool RegionCaptureShowCenterCrosshair
         {
-            get => _settings.CaptureSettings.RegionCaptureOptions.ShowCenterCrosshair;
+            get => CaptureSource.CaptureSettings.RegionCaptureOptions.ShowCenterCrosshair;
             set
             {
-                if (_settings.CaptureSettings.RegionCaptureOptions.ShowCenterCrosshair != value)
+                if (CaptureSource.CaptureSettings.RegionCaptureOptions.ShowCenterCrosshair != value)
                 {
-                    _settings.CaptureSettings.RegionCaptureOptions.ShowCenterCrosshair = value;
+                    CaptureSource.CaptureSettings.RegionCaptureOptions.ShowCenterCrosshair = value;
                     OnPropertyChanged();
                 }
             }
@@ -238,12 +238,12 @@ namespace XerahS.UI.ViewModels
 
         public RegionCaptureAction RegionCaptureRightClickAction
         {
-            get => _settings.CaptureSettings.RegionCaptureOptions.RegionCaptureActionRightClick;
+            get => CaptureSource.CaptureSettings.RegionCaptureOptions.RegionCaptureActionRightClick;
             set
             {
-                if (_settings.CaptureSettings.RegionCaptureOptions.RegionCaptureActionRightClick != value)
+                if (CaptureSource.CaptureSettings.RegionCaptureOptions.RegionCaptureActionRightClick != value)
                 {
-                    _settings.CaptureSettings.RegionCaptureOptions.RegionCaptureActionRightClick = value;
+                    CaptureSource.CaptureSettings.RegionCaptureOptions.RegionCaptureActionRightClick = value;
                     OnPropertyChanged();
                 }
             }
@@ -251,12 +251,12 @@ namespace XerahS.UI.ViewModels
 
         public RegionCaptureAction RegionCaptureMiddleClickAction
         {
-            get => _settings.CaptureSettings.RegionCaptureOptions.RegionCaptureActionMiddleClick;
+            get => CaptureSource.CaptureSettings.RegionCaptureOptions.RegionCaptureActionMiddleClick;
             set
             {
-                if (_settings.CaptureSettings.RegionCaptureOptions.RegionCaptureActionMiddleClick != value)
+                if (CaptureSource.CaptureSettings.RegionCaptureOptions.RegionCaptureActionMiddleClick != value)
                 {
-                    _settings.CaptureSettings.RegionCaptureOptions.RegionCaptureActionMiddleClick = value;
+                    CaptureSource.CaptureSettings.RegionCaptureOptions.RegionCaptureActionMiddleClick = value;
                     OnPropertyChanged();
                 }
             }
@@ -264,12 +264,12 @@ namespace XerahS.UI.ViewModels
 
         public RegionCaptureAction RegionCaptureX1ClickAction
         {
-            get => _settings.CaptureSettings.RegionCaptureOptions.RegionCaptureActionX1Click;
+            get => CaptureSource.CaptureSettings.RegionCaptureOptions.RegionCaptureActionX1Click;
             set
             {
-                if (_settings.CaptureSettings.RegionCaptureOptions.RegionCaptureActionX1Click != value)
+                if (CaptureSource.CaptureSettings.RegionCaptureOptions.RegionCaptureActionX1Click != value)
                 {
-                    _settings.CaptureSettings.RegionCaptureOptions.RegionCaptureActionX1Click = value;
+                    CaptureSource.CaptureSettings.RegionCaptureOptions.RegionCaptureActionX1Click = value;
                     OnPropertyChanged();
                 }
             }
@@ -277,12 +277,12 @@ namespace XerahS.UI.ViewModels
 
         public RegionCaptureAction RegionCaptureX2ClickAction
         {
-            get => _settings.CaptureSettings.RegionCaptureOptions.RegionCaptureActionX2Click;
+            get => CaptureSource.CaptureSettings.RegionCaptureOptions.RegionCaptureActionX2Click;
             set
             {
-                if (_settings.CaptureSettings.RegionCaptureOptions.RegionCaptureActionX2Click != value)
+                if (CaptureSource.CaptureSettings.RegionCaptureOptions.RegionCaptureActionX2Click != value)
                 {
-                    _settings.CaptureSettings.RegionCaptureOptions.RegionCaptureActionX2Click = value;
+                    CaptureSource.CaptureSettings.RegionCaptureOptions.RegionCaptureActionX2Click = value;
                     OnPropertyChanged();
                 }
             }
@@ -290,12 +290,12 @@ namespace XerahS.UI.ViewModels
 
         public bool RegionCaptureShowMagnifier
         {
-            get => _settings.CaptureSettings.RegionCaptureOptions.ShowMagnifier;
+            get => CaptureSource.CaptureSettings.RegionCaptureOptions.ShowMagnifier;
             set
             {
-                if (_settings.CaptureSettings.RegionCaptureOptions.ShowMagnifier != value)
+                if (CaptureSource.CaptureSettings.RegionCaptureOptions.ShowMagnifier != value)
                 {
-                    _settings.CaptureSettings.RegionCaptureOptions.ShowMagnifier = value;
+                    CaptureSource.CaptureSettings.RegionCaptureOptions.ShowMagnifier = value;
                     OnPropertyChanged();
                 }
             }
@@ -303,12 +303,12 @@ namespace XerahS.UI.ViewModels
 
         public bool RegionCaptureUseSquareMagnifier
         {
-            get => _settings.CaptureSettings.RegionCaptureOptions.UseSquareMagnifier;
+            get => CaptureSource.CaptureSettings.RegionCaptureOptions.UseSquareMagnifier;
             set
             {
-                if (_settings.CaptureSettings.RegionCaptureOptions.UseSquareMagnifier != value)
+                if (CaptureSource.CaptureSettings.RegionCaptureOptions.UseSquareMagnifier != value)
                 {
-                    _settings.CaptureSettings.RegionCaptureOptions.UseSquareMagnifier = value;
+                    CaptureSource.CaptureSettings.RegionCaptureOptions.UseSquareMagnifier = value;
                     OnPropertyChanged();
                 }
             }
@@ -316,12 +316,12 @@ namespace XerahS.UI.ViewModels
 
         public bool RegionCaptureShowInfo
         {
-            get => _settings.CaptureSettings.RegionCaptureOptions.ShowInfo;
+            get => CaptureSource.CaptureSettings.RegionCaptureOptions.ShowInfo;
             set
             {
-                if (_settings.CaptureSettings.RegionCaptureOptions.ShowInfo != value)
+                if (CaptureSource.CaptureSettings.RegionCaptureOptions.ShowInfo != value)
                 {
-                    _settings.CaptureSettings.RegionCaptureOptions.ShowInfo = value;
+                    CaptureSource.CaptureSettings.RegionCaptureOptions.ShowInfo = value;
                     OnPropertyChanged();
                 }
             }
@@ -329,12 +329,12 @@ namespace XerahS.UI.ViewModels
 
         public bool RegionCaptureUseCustomInfoText
         {
-            get => _settings.CaptureSettings.RegionCaptureOptions.UseCustomInfoText;
+            get => CaptureSource.CaptureSettings.RegionCaptureOptions.UseCustomInfoText;
             set
             {
-                if (_settings.CaptureSettings.RegionCaptureOptions.UseCustomInfoText != value)
+                if (CaptureSource.CaptureSettings.RegionCaptureOptions.UseCustomInfoText != value)
                 {
-                    _settings.CaptureSettings.RegionCaptureOptions.UseCustomInfoText = value;
+                    CaptureSource.CaptureSettings.RegionCaptureOptions.UseCustomInfoText = value;
                     OnPropertyChanged();
                 }
             }
@@ -342,12 +342,12 @@ namespace XerahS.UI.ViewModels
 
         public bool RegionCaptureShowScreenCrosshair
         {
-            get => _settings.CaptureSettings.RegionCaptureOptions.ShowScreenCrosshair;
+            get => CaptureSource.CaptureSettings.RegionCaptureOptions.ShowScreenCrosshair;
             set
             {
-                if (_settings.CaptureSettings.RegionCaptureOptions.ShowScreenCrosshair != value)
+                if (CaptureSource.CaptureSettings.RegionCaptureOptions.ShowScreenCrosshair != value)
                 {
-                    _settings.CaptureSettings.RegionCaptureOptions.ShowScreenCrosshair = value;
+                    CaptureSource.CaptureSettings.RegionCaptureOptions.ShowScreenCrosshair = value;
                     OnPropertyChanged();
                 }
             }
@@ -356,13 +356,13 @@ namespace XerahS.UI.ViewModels
         /// <summary>Custom HUD text; line breaks are stored as the $n token, as in ShareX.</summary>
         public string RegionCaptureCustomInfoText
         {
-            get => (_settings.CaptureSettings.RegionCaptureOptions.CustomInfoText ?? string.Empty).Replace("$n", Environment.NewLine);
+            get => (CaptureSource.CaptureSettings.RegionCaptureOptions.CustomInfoText ?? string.Empty).Replace("$n", Environment.NewLine);
             set
             {
                 string stored = (value ?? string.Empty).Replace("\r\n", "$n").Replace("\n", "$n");
-                if (_settings.CaptureSettings.RegionCaptureOptions.CustomInfoText != stored)
+                if (CaptureSource.CaptureSettings.RegionCaptureOptions.CustomInfoText != stored)
                 {
-                    _settings.CaptureSettings.RegionCaptureOptions.CustomInfoText = stored;
+                    CaptureSource.CaptureSettings.RegionCaptureOptions.CustomInfoText = stored;
                     OnPropertyChanged();
                 }
             }
@@ -370,13 +370,13 @@ namespace XerahS.UI.ViewModels
 
         public int RegionCaptureMagnifierPixelCount
         {
-            get => _settings.CaptureSettings.RegionCaptureOptions.MagnifierPixelCount;
+            get => CaptureSource.CaptureSettings.RegionCaptureOptions.MagnifierPixelCount;
             set
             {
                 int clamped = Math.Clamp(value, RegionCaptureOptions.MagnifierPixelCountMinimum, RegionCaptureOptions.MagnifierPixelCountMaximum) | 1;
-                if (_settings.CaptureSettings.RegionCaptureOptions.MagnifierPixelCount != clamped)
+                if (CaptureSource.CaptureSettings.RegionCaptureOptions.MagnifierPixelCount != clamped)
                 {
-                    _settings.CaptureSettings.RegionCaptureOptions.MagnifierPixelCount = clamped;
+                    CaptureSource.CaptureSettings.RegionCaptureOptions.MagnifierPixelCount = clamped;
                     OnPropertyChanged();
                 }
             }
@@ -384,12 +384,12 @@ namespace XerahS.UI.ViewModels
 
         public decimal ScreenshotDelay
         {
-            get => _settings.CaptureSettings.ScreenshotDelay;
+            get => CaptureSource.CaptureSettings.ScreenshotDelay;
             set
             {
-                if (_settings.CaptureSettings.ScreenshotDelay != value)
+                if (CaptureSource.CaptureSettings.ScreenshotDelay != value)
                 {
-                    _settings.CaptureSettings.ScreenshotDelay = value;
+                    CaptureSource.CaptureSettings.ScreenshotDelay = value;
                     OnPropertyChanged();
                 }
             }
@@ -397,12 +397,12 @@ namespace XerahS.UI.ViewModels
 
         public bool CaptureTransparent
         {
-            get => _settings.CaptureSettings.CaptureTransparent;
+            get => CaptureSource.CaptureSettings.CaptureTransparent;
             set
             {
-                if (_settings.CaptureSettings.CaptureTransparent != value)
+                if (CaptureSource.CaptureSettings.CaptureTransparent != value)
                 {
-                    _settings.CaptureSettings.CaptureTransparent = value;
+                    CaptureSource.CaptureSettings.CaptureTransparent = value;
                     // Shadow depends on transparent often, but UI handles enabling.
                     OnPropertyChanged();
                 }
@@ -411,12 +411,12 @@ namespace XerahS.UI.ViewModels
 
         public bool CaptureShadow
         {
-            get => _settings.CaptureSettings.CaptureShadow;
+            get => CaptureSource.CaptureSettings.CaptureShadow;
             set
             {
-                if (_settings.CaptureSettings.CaptureShadow != value)
+                if (CaptureSource.CaptureSettings.CaptureShadow != value)
                 {
-                    _settings.CaptureSettings.CaptureShadow = value;
+                    CaptureSource.CaptureSettings.CaptureShadow = value;
                     OnPropertyChanged();
                 }
             }
@@ -424,12 +424,12 @@ namespace XerahS.UI.ViewModels
 
         public bool CaptureClientArea
         {
-            get => _settings.CaptureSettings.CaptureClientArea;
+            get => CaptureSource.CaptureSettings.CaptureClientArea;
             set
             {
-                if (_settings.CaptureSettings.CaptureClientArea != value)
+                if (CaptureSource.CaptureSettings.CaptureClientArea != value)
                 {
-                    _settings.CaptureSettings.CaptureClientArea = value;
+                    CaptureSource.CaptureSettings.CaptureClientArea = value;
                     OnPropertyChanged();
                 }
             }
@@ -437,12 +437,12 @@ namespace XerahS.UI.ViewModels
 
         public int ScreenRecordFPS
         {
-            get => _settings.CaptureSettings.ScreenRecordFPS;
+            get => CaptureSource.CaptureSettings.ScreenRecordFPS;
             set
             {
-                if (_settings.CaptureSettings.ScreenRecordFPS != value)
+                if (CaptureSource.CaptureSettings.ScreenRecordFPS != value)
                 {
-                    _settings.CaptureSettings.ScreenRecordFPS = value;
+                    CaptureSource.CaptureSettings.ScreenRecordFPS = value;
                     OnPropertyChanged();
                 }
             }
@@ -450,12 +450,12 @@ namespace XerahS.UI.ViewModels
 
         public float ScreenRecordDuration
         {
-            get => _settings.CaptureSettings.ScreenRecordDuration;
+            get => CaptureSource.CaptureSettings.ScreenRecordDuration;
             set
             {
-                if (Math.Abs(_settings.CaptureSettings.ScreenRecordDuration - value) > 0.001f)
+                if (Math.Abs(CaptureSource.CaptureSettings.ScreenRecordDuration - value) > 0.001f)
                 {
-                    _settings.CaptureSettings.ScreenRecordDuration = value;
+                    CaptureSource.CaptureSettings.ScreenRecordDuration = value;
                     OnPropertyChanged();
                 }
             }
@@ -463,12 +463,12 @@ namespace XerahS.UI.ViewModels
 
         public float ScreenRecordStartDelay
         {
-            get => _settings.CaptureSettings.ScreenRecordStartDelay;
+            get => CaptureSource.CaptureSettings.ScreenRecordStartDelay;
             set
             {
-                if (Math.Abs(_settings.CaptureSettings.ScreenRecordStartDelay - value) > 0.001f)
+                if (Math.Abs(CaptureSource.CaptureSettings.ScreenRecordStartDelay - value) > 0.001f)
                 {
-                    _settings.CaptureSettings.ScreenRecordStartDelay = value;
+                    CaptureSource.CaptureSettings.ScreenRecordStartDelay = value;
                     OnPropertyChanged();
                 }
             }
@@ -479,13 +479,13 @@ namespace XerahS.UI.ViewModels
 
         public FFmpegVideoCodec ScreenRecordVideoCodec
         {
-            get => _settings.CaptureSettings.FFmpegOptions?.VideoCodec ?? FFmpegVideoCodec.libx264;
+            get => CaptureSource.CaptureSettings.FFmpegOptions?.VideoCodec ?? FFmpegVideoCodec.libx264;
             set
             {
-                _settings.CaptureSettings.FFmpegOptions ??= new XerahS.Core.FFmpegOptions();
-                if (_settings.CaptureSettings.FFmpegOptions.VideoCodec != value)
+                CaptureSource.CaptureSettings.FFmpegOptions ??= new XerahS.Core.FFmpegOptions();
+                if (CaptureSource.CaptureSettings.FFmpegOptions.VideoCodec != value)
                 {
-                    _settings.CaptureSettings.FFmpegOptions.VideoCodec = value;
+                    CaptureSource.CaptureSettings.FFmpegOptions.VideoCodec = value;
                     OnPropertyChanged();
                 }
             }
@@ -493,12 +493,12 @@ namespace XerahS.UI.ViewModels
 
         public RecordingIntent RecordingIntent
         {
-            get => _settings.CaptureSettings.ScreenRecordingSettings.RecordingIntent;
+            get => CaptureSource.CaptureSettings.ScreenRecordingSettings.RecordingIntent;
             set
             {
-                if (_settings.CaptureSettings.ScreenRecordingSettings.RecordingIntent != value)
+                if (CaptureSource.CaptureSettings.ScreenRecordingSettings.RecordingIntent != value)
                 {
-                    _settings.CaptureSettings.ScreenRecordingSettings.RecordingIntent = value;
+                    CaptureSource.CaptureSettings.ScreenRecordingSettings.RecordingIntent = value;
                     OnPropertyChanged();
                 }
             }
@@ -506,12 +506,12 @@ namespace XerahS.UI.ViewModels
 
         public bool CaptureAutoHideTaskbar
         {
-            get => _settings.CaptureSettings.CaptureAutoHideTaskbar;
+            get => CaptureSource.CaptureSettings.CaptureAutoHideTaskbar;
             set
             {
-                if (_settings.CaptureSettings.CaptureAutoHideTaskbar != value)
+                if (CaptureSource.CaptureSettings.CaptureAutoHideTaskbar != value)
                 {
-                    _settings.CaptureSettings.CaptureAutoHideTaskbar = value;
+                    CaptureSource.CaptureSettings.CaptureAutoHideTaskbar = value;
                     OnPropertyChanged();
                 }
             }
@@ -519,13 +519,13 @@ namespace XerahS.UI.ViewModels
 
         public string CaptureCustomWindow
         {
-            get => _settings.CaptureSettings.CaptureCustomWindow;
+            get => CaptureSource.CaptureSettings.CaptureCustomWindow;
             set
             {
-                if (_settings.CaptureSettings.CaptureCustomWindow != value)
+                if (CaptureSource.CaptureSettings.CaptureCustomWindow != value)
                 {
                     XerahS.Common.DebugHelper.WriteLine($"[DEBUG] Setting CaptureCustomWindow to: '{value}'");
-                    _settings.CaptureSettings.CaptureCustomWindow = value;
+                    CaptureSource.CaptureSettings.CaptureCustomWindow = value;
                     OnPropertyChanged();
                 }
             }

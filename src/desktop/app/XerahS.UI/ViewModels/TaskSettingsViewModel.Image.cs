@@ -33,12 +33,12 @@ namespace XerahS.UI.ViewModels
 
         public EImageFormat ImageFormat
         {
-            get => _settings.ImageSettings.ImageFormat;
+            get => ImageSource.ImageSettings.ImageFormat;
             set
             {
-                if (_settings.ImageSettings.ImageFormat != value)
+                if (ImageSource.ImageSettings.ImageFormat != value)
                 {
-                    _settings.ImageSettings.ImageFormat = value;
+                    ImageSource.ImageSettings.ImageFormat = value;
                     OnPropertyChanged();
                 }
             }
@@ -46,12 +46,12 @@ namespace XerahS.UI.ViewModels
 
         public int ImageJPEGQuality
         {
-            get => _settings.ImageSettings.ImageJPEGQuality;
+            get => ImageSource.ImageSettings.ImageJPEGQuality;
             set
             {
-                if (_settings.ImageSettings.ImageJPEGQuality != value)
+                if (ImageSource.ImageSettings.ImageJPEGQuality != value)
                 {
-                    _settings.ImageSettings.ImageJPEGQuality = value;
+                    ImageSource.ImageSettings.ImageJPEGQuality = value;
                     OnPropertyChanged();
                 }
             }
@@ -59,12 +59,12 @@ namespace XerahS.UI.ViewModels
 
         public int ThumbnailWidth
         {
-            get => _settings.ImageSettings.ThumbnailWidth;
+            get => ImageSource.ImageSettings.ThumbnailWidth;
             set
             {
-                if (_settings.ImageSettings.ThumbnailWidth != value)
+                if (ImageSource.ImageSettings.ThumbnailWidth != value)
                 {
-                    _settings.ImageSettings.ThumbnailWidth = value;
+                    ImageSource.ImageSettings.ThumbnailWidth = value;
                     OnPropertyChanged();
                 }
             }
@@ -72,12 +72,12 @@ namespace XerahS.UI.ViewModels
 
         public int ThumbnailHeight
         {
-            get => _settings.ImageSettings.ThumbnailHeight;
+            get => ImageSource.ImageSettings.ThumbnailHeight;
             set
             {
-                if (_settings.ImageSettings.ThumbnailHeight != value)
+                if (ImageSource.ImageSettings.ThumbnailHeight != value)
                 {
-                    _settings.ImageSettings.ThumbnailHeight = value;
+                    ImageSource.ImageSettings.ThumbnailHeight = value;
                     OnPropertyChanged();
                 }
             }
@@ -85,12 +85,12 @@ namespace XerahS.UI.ViewModels
 
         public string ThumbnailName
         {
-            get => _settings.ImageSettings.ThumbnailName;
+            get => ImageSource.ImageSettings.ThumbnailName;
             set
             {
-                if (_settings.ImageSettings.ThumbnailName != value)
+                if (ImageSource.ImageSettings.ThumbnailName != value)
                 {
-                    _settings.ImageSettings.ThumbnailName = value;
+                    ImageSource.ImageSettings.ThumbnailName = value;
                     OnPropertyChanged();
                 }
             }
@@ -98,12 +98,12 @@ namespace XerahS.UI.ViewModels
 
         public bool ThumbnailCheckSize
         {
-            get => _settings.ImageSettings.ThumbnailCheckSize;
+            get => ImageSource.ImageSettings.ThumbnailCheckSize;
             set
             {
-                if (_settings.ImageSettings.ThumbnailCheckSize != value)
+                if (ImageSource.ImageSettings.ThumbnailCheckSize != value)
                 {
-                    _settings.ImageSettings.ThumbnailCheckSize = value;
+                    ImageSource.ImageSettings.ThumbnailCheckSize = value;
                     OnPropertyChanged();
                 }
             }

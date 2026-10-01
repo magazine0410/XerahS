@@ -178,7 +178,7 @@ namespace XerahS.Core.Managers
                     return;
                 }
 
-                var clonedSettings = CloneTaskSettings(workflow.TaskSettings);
+                var clonedSettings = TaskSettings.GetSafeTaskSettings(workflow.TaskSettings);
                 clonedSettings.Job = WorkflowType.FileUpload;
 
                 string fileToProcess = fullPath;

@@ -11,10 +11,16 @@
              x:DataType="vm:TaskSettingsViewModel">
 
     <Border Background="{DynamicResource SolidBackgroundFillColorSecondaryBrush}" Padding="16">
+      <DockPanel>
+        <CheckBox DockPanel.Dock="Top" Margin="8,0,8,8"
+                  Content="Override image settings"
+                  IsChecked="{Binding OverrideImageSettings}"
+                  IsVisible="{Binding ShowOverrideSettings}"
+                  ToolTip.Tip="When off, this workflow uses the image settings and effects from Settings &gt; Task Settings."/>
         <TabControl HorizontalAlignment="Stretch" VerticalAlignment="Stretch" VerticalContentAlignment="Stretch">
             <!-- Image Settings Tab -->
             <TabItem Header="Settings">
-                <ScrollViewer>
+                <ScrollViewer IsEnabled="{Binding ImageSettingsEnabled}">
                     <Grid ColumnDefinitions="*, 24, *" RowDefinitions="Auto" Margin="8">
                         <!-- Quality -->
                         <StackPanel Grid.Column="0" Spacing="8">
@@ -60,8 +66,9 @@
 
             <!-- Effects Tab -->
             <TabItem Header="Effects">
-                <views:ImageEffectsEditorPanel DataContext="{Binding ImageEffects}"/>
+                <views:ImageEffectsEditorPanel DataContext="{Binding ImageEffects}" IsEnabled="{Binding $parent[views:TaskImageSettingsPanel].((vm:TaskSettingsViewModel)DataContext).ImageSettingsEnabled}"/>
             </TabItem>
         </TabControl>
+      </DockPanel>
     </Border>
 </UserControl>

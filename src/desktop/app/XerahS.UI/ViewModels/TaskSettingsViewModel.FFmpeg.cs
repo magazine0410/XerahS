@@ -252,7 +252,7 @@ namespace XerahS.UI.ViewModels
                 return $"Downloading FFmpeg... {FFmpegDownloadProgressText}";
             }
 
-            FFmpegOptions? options = _settings.CaptureSettings.FFmpegOptions;
+            FFmpegOptions? options = CaptureSource.CaptureSettings.FFmpegOptions;
 
             if (options?.OverrideCLIPath == true && !string.IsNullOrWhiteSpace(options.CLIPath))
             {

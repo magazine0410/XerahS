@@ -14,7 +14,7 @@
                    Margin="20,16,20,4"
                    TextWrapping="Wrap"
                    Foreground="{DynamicResource TextFillColorSecondaryBrush}"
-                   Text="Default task settings. Workflows use the tools settings on this page unless they turn on &quot;Override tools settings&quot;. Tools opened from the menu also use these settings."/>
+                   Text="Default task settings. Workflows use each section of these settings unless they turn on that section's &quot;Override ...&quot; option in the workflow editor. Tools opened from the menu also use these settings."/>
         <views:TaskSettingsPanel HorizontalAlignment="Stretch" VerticalAlignment="Stretch"/>
     </DockPanel>
 </views:PageView>

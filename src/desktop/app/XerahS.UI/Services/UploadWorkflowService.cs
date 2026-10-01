@@ -169,8 +169,7 @@ internal static class UploadWorkflowService
 
     internal static TaskSettings CreateExecutionSettings(TaskSettings source, WorkflowType job)
     {
-        var settings = WatchFolderManager.CloneTaskSettings(source);
-        settings.WorkflowId = source.WorkflowId;
+        var settings = TaskSettings.GetSafeTaskSettings(source);
         settings.Job = job;
         return settings;
     }
