@@ -221,7 +221,10 @@ public class MissingHotkeyWindowTests
         window.UpdateLayout();
         using var frame = window.CaptureRenderedFrame();
         Assert.That(frame, Is.Not.Null);
-        string directory = Path.Combine(Path.GetTempPath(), "xerahs-missing-hotkey-previews");
+        // Saved only on request, like MediaBrowserViewTests, so test runs do not leave files behind.
+        string? root = Environment.GetEnvironmentVariable("XERAHS_UI_CAPTURE_DIR");
+        if (string.IsNullOrEmpty(root)) return;
+        string directory = Path.Combine(root, "missing-hotkey-previews");
         Directory.CreateDirectory(directory);
         using var stream = File.Create(Path.Combine(directory, name + ".png"));
         frame.Save(stream, PngBitmapEncoderOptions.Default);
