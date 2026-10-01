@@ -1,0 +1,36 @@
+<views:SurfaceWindow xmlns="https://github.com/avaloniaui"
+                     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                     xmlns:views="using:XerahS.UI.Views"
+                     x:Class="XerahS.UI.Views.Dialogs.FileConflictWindow"
+                     Title="How should the file be saved?" Width="580" SizeToContent="Height"
+                     CanResize="False" Topmost="True" WindowStartupLocation="CenterScreen">
+    <Border Padding="24" Background="{DynamicResource SolidBackgroundFillColorSecondaryBrush}">
+        <StackPanel Spacing="12">
+            <TextBlock Text="A file with this name already exists" FontSize="20" FontWeight="SemiBold" TextWrapping="Wrap"/>
+            <TextBlock Text="Choose a new file name or select how XerahS should continue." TextWrapping="Wrap"/>
+            <TextBlock x:Name="ExistingPath" TextWrapping="Wrap"/>
+            <TextBlock Text="New file name"/>
+            <TextBox x:Name="NewName" AutomationProperties.Name="New file name" TextChanged="OnNewNameChanged"/>
+            <TextBlock x:Name="Error" TextWrapping="Wrap"/>
+            <Button x:Name="NewNameButton" Click="OnNewName" HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch">
+                <StackPanel>
+                    <TextBlock Text="Use new name" FontWeight="SemiBold"/>
+                    <TextBlock x:Name="NewNamePreview" TextTrimming="CharacterEllipsis"/>
+                </StackPanel>
+            </Button>
+            <Button Click="OnOverwrite" HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch">
+                <StackPanel>
+                    <TextBlock Text="Overwrite" FontWeight="SemiBold"/>
+                    <TextBlock x:Name="OverwritePreview" TextTrimming="CharacterEllipsis"/>
+                </StackPanel>
+            </Button>
+            <Button Click="OnUniqueName" HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch">
+                <StackPanel>
+                    <TextBlock Text="Use unique name" FontWeight="SemiBold"/>
+                    <TextBlock x:Name="UniqueNamePreview" TextTrimming="CharacterEllipsis"/>
+                </StackPanel>
+            </Button>
+            <Button Content="Cancel" Click="OnCancel" IsCancel="True" HorizontalAlignment="Stretch"/>
+        </StackPanel>
+    </Border>
+</views:SurfaceWindow>

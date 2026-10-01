@@ -41,6 +41,19 @@ public class WorkflowEditorViewModelTests
     private static readonly FakeUiViewModelFactory ViewModelFactory = new();
 
     [AvaloniaTest]
+    public void TopmostJob_IsHiddenWhenUnsupported_ButPreservesAnImportedWorkflow()
+    {
+        XerahS.Platform.Abstractions.PlatformServices.Reset();
+        var fresh = new WorkflowEditorViewModel(new WorkflowSettings(WorkflowType.RectangleRegion, new HotkeyInfo()), ViewModelFactory, loadUploaderCategories: false);
+        Assert.That(fresh.JobCategories.SelectMany(x => x.Jobs).Select(x => x.Model.Job), Does.Not.Contain(WorkflowType.ActiveWindowTopMost));
+        var workflow = new WorkflowSettings(WorkflowType.ActiveWindowTopMost, new HotkeyInfo());
+        var imported = new WorkflowEditorViewModel(workflow, ViewModelFactory, loadUploaderCategories: false);
+        Assert.That(imported.SelectedJob, Is.EqualTo(WorkflowType.ActiveWindowTopMost));
+        imported.Save();
+        Assert.That(workflow.Job, Is.EqualTo(WorkflowType.ActiveWindowTopMost));
+    }
+
+    [AvaloniaTest]
     public void Save_DoesNotMutateSourceWorkflowUntilCommitted()
     {
         var workflow = new WorkflowSettings(WorkflowType.RectangleRegion, new HotkeyInfo(Key.X, KeyModifiers.Control | KeyModifiers.Shift))

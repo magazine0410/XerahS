@@ -24,6 +24,8 @@
 #endregion License Information (GPL v3)
 
 using System.Reflection;
+using System.Net;
+using System.Net.Sockets;
 using System.Text;
 using NUnit.Framework;
 using XerahS.Common;
@@ -235,6 +237,80 @@ public class UploadWorkflowTests
         Assert.That(settings.GetDestinationInstanceId(WorkflowType.UploadText), Is.EqualTo(upload));
     }
 
+    [TestCase("text", true)]
+    [TestCase("failed-file", false)]
+    public async Task DownloadJob_FollowsRedirectAndUploadsServerNamedFileToSelectedDestination(string outcome, bool success)
+    {
+        var instance = AddInstance(UploaderCategory.Text, outcome);
+        using var listener = new TcpListener(IPAddress.Loopback, 0);
+        listener.Start();
+        int port = ((IPEndPoint)listener.LocalEndpoint).Port;
+        var settings = new TaskSettings
+        {
+            Job = WorkflowType.UploadURL, DestinationInstanceId = instance.InstanceId,
+            OverrideScreenshotsFolder = true, ScreenshotsFolder = _directory, AfterUploadJob = AfterUploadTasks.None
+        };
+        WorkerTask? observed = null;
+        void Started(object? sender, WorkerTask task) { if (ReferenceEquals(settings, task.Info.TaskSettings)) observed = task; }
+        TaskManager.Instance.TaskStarted += Started;
+        try
+        {
+            var upload = TaskManager.Instance.StartTextTask(settings, $"http://127.0.0.1:{port}/redirect");
+            await ReplyAsync(listener, $"HTTP/1.1 302 Found\r\nLocation: http://127.0.0.1:{port}/download\r\nContent-Length: 0\r\nConnection: close\r\n\r\n");
+            await ReplyAsync(listener, "HTTP/1.1 200 OK\r\nContent-Disposition: attachment; filename=server.txt\r\nContent-Length: 12\r\nConnection: close\r\n\r\nremote bytes");
+            await upload.WaitAsync(TimeSpan.FromSeconds(10));
+            Assert.Multiple(() =>
+            {
+                Assert.That(observed!.Info.Job, Is.EqualTo(TaskJob.DownloadUpload));
+                Assert.That(observed.Info.DataType, Is.EqualTo(EDataType.Text));
+                Assert.That(observed.Info.FileName, Is.EqualTo("server.txt"));
+                Assert.That(File.ReadAllText(observed.Info.FilePath), Is.EqualTo("remote bytes"));
+                Assert.That(_uploadedText, Is.EqualTo("remote bytes"));
+                Assert.That(observed.IsSuccessful, Is.EqualTo(success));
+                if (success) Assert.That(observed.Info.UploaderHost, Is.EqualTo(instance.DisplayName));
+                else Assert.That(observed.Error!.Message, Does.Contain("All uploaders failed"));
+            });
+        }
+        finally { TaskManager.Instance.TaskStarted -= Started; }
+    }
+
+    [TestCase(false)]
+    [TestCase(true)]
+    public async Task StopJob_CancelsDownloadBeforeHeadersOrDuringBody_AndPreservesExistingFile(bool responseStarted)
+    {
+        var instance = AddInstance(UploaderCategory.Text, "text");
+        string existing = Path.Combine(_directory, "existing.txt");
+        File.WriteAllText(existing, "original");
+        using var listener = new TcpListener(IPAddress.Loopback, 0);
+        listener.Start();
+        var settings = new TaskSettings
+        {
+            Job = WorkflowType.UploadURL, DestinationInstanceId = instance.InstanceId,
+            OverrideScreenshotsFolder = true, ScreenshotsFolder = _directory, AfterUploadJob = AfterUploadTasks.None
+        };
+        settings.ImageSettings.FileExistAction = FileExistAction.Overwrite;
+        var upload = TaskManager.Instance.StartTextTask(settings, $"http://127.0.0.1:{((IPEndPoint)listener.LocalEndpoint).Port}/existing.txt");
+        using var client = await listener.AcceptTcpClientAsync().WaitAsync(TimeSpan.FromSeconds(5));
+        if (responseStarted)
+        {
+            await client.GetStream().WriteAsync(Encoding.ASCII.GetBytes("HTTP/1.1 200 OK\r\nContent-Length: 1000000\r\n\r\na"));
+            Assert.That(() => Directory.GetFiles(_directory, "*.partial").Length, Is.EqualTo(1).After(5000, 10));
+        }
+        await TaskManager.Instance.StartTask(new TaskSettings { Job = WorkflowType.StopUploads });
+        await upload.WaitAsync(TimeSpan.FromSeconds(5));
+        Assert.That(_uploadedText, Is.Null);
+        Assert.That(File.ReadAllText(existing), Is.EqualTo("original"));
+        Assert.That(Directory.GetFiles(_directory, "*.partial"), Is.Empty);
+    }
+
+    private static async Task ReplyAsync(TcpListener listener, string response)
+    {
+        using var client = await listener.AcceptTcpClientAsync().WaitAsync(TimeSpan.FromSeconds(5));
+        using var reader = new StreamReader(client.GetStream(), leaveOpen: true);
+        while (await reader.ReadLineAsync().WaitAsync(TimeSpan.FromSeconds(5)) is { Length: > 0 }) { }
+        await client.GetStream().WriteAsync(Encoding.UTF8.GetBytes(response));
+    }
+
     private UploaderInstance AddInstance(UploaderCategory category, string outcome)
     {
         var instance = new UploaderInstance { ProviderId = ProviderId, Category = category, DisplayName = "Test " + outcome, SettingsJson = outcome, IsAvailable = true };
@@ -266,6 +342,7 @@ public class UploadWorkflowTests
         public override Uploader CreateInstance(string settingsJson) => settingsJson switch
         {
             "text" => new TextSink(),
+            "failed-file" => new TextSink(true),
             "blocking" => Blocking!,
             _ => new Shortener(settingsJson == "fail")
         };
@@ -280,13 +357,14 @@ public class UploadWorkflowTests
         }
     }
 
-    private sealed class TextSink : FileUploader
+    private sealed class TextSink(bool fail = false) : FileUploader
     {
         public override UploadResult Upload(Stream stream, string fileName)
         {
             using var reader = new StreamReader(stream, Encoding.UTF8, leaveOpen: true);
             _uploadedText = reader.ReadToEnd();
-            return new UploadResult { URL = "https://paste.test/a", IsSuccess = true };
+            return fail ? new UploadResult { IsSuccess = false, Response = "upload rejected" }
+                : new UploadResult { URL = "https://paste.test/a", IsSuccess = true };
         }
     }
 

@@ -62,6 +62,8 @@ internal static class NavigationSearchKeywords
         ["Tools_NetworkMonitor"] = "network monitor internet disconnect connect ping latency uptime",
         ["Upload_FileUpload"] = "upload file",
         ["Upload_FolderUpload"] = "upload folder directory recursive files",
+        ["Upload_UploadURL"] = "download remote file upload url",
+        ["Tools_ImageViewer"] = "image viewer fullscreen preview photos",
         ["Upload_UploadText"] = "upload text paste",
         ["Upload_DragDropUpload"] = "upload drag drop floating target",
         ["Upload_ShortenURL"] = "shorten url link",

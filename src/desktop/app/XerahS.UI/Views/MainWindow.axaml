@@ -49,6 +49,7 @@
                         <MenuItem Header="Upload F_older..." Command="{Binding NavigateMenuCommand}" CommandParameter="Upload_FolderUpload"/>
                         <MenuItem Header="Upload _Content..." Command="{Binding NavigateMenuCommand}" CommandParameter="Upload_ClipboardUploadWithContentViewer"/>
                         <MenuItem Header="Upload _Text..." Command="{Binding NavigateMenuCommand}" CommandParameter="Upload_UploadText"/>
+                        <MenuItem Header="Upload _URL..." Command="{Binding NavigateMenuCommand}" CommandParameter="Upload_UploadURL"/>
                         <MenuItem Header="_Drag and Drop Upload" Command="{Binding NavigateMenuCommand}" CommandParameter="Upload_DragDropUpload"/>
                         <MenuItem Header="_Shorten URL..." Command="{Binding NavigateMenuCommand}" CommandParameter="Upload_ShortenURL"/>
                         <Separator/>
@@ -120,6 +121,7 @@
                     <MenuItem Header="Image _Thumbnailer..." Command="{Binding NavigateMenuCommand}" CommandParameter="Tools_ImageThumbnailer"/>
                     <MenuItem Header="Image Resizer..." Command="{Binding NavigateMenuCommand}" CommandParameter="Tools_ImageResizer"/>
                     <MenuItem Header="Image Converter..." Command="{Binding NavigateMenuCommand}" CommandParameter="Tools_ImageConverter"/>
+                    <MenuItem Header="Image _Viewer..." Command="{Binding NavigateMenuCommand}" CommandParameter="Tools_ImageViewer"/>
                     <MenuItem Header="Image Watermark..." Command="{Binding NavigateMenuCommand}" CommandParameter="Tools_ImageWatermark"/>
                     <MenuItem Header="Animated GIF Maker..." Command="{Binding NavigateMenuCommand}" CommandParameter="Tools_AnimatedGifMaker"/>
                     <MenuItem Header="_Analyze Image..." Command="{Binding NavigateMenuCommand}" CommandParameter="Tools_AnalyzeImage"/>

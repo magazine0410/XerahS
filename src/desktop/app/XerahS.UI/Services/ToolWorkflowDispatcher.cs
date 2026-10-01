@@ -73,6 +73,11 @@ internal static class ToolWorkflowDispatcher
                 dispatchTask = ImageEditingToolService.HandleWorkflowAsync(workflowType, owner, taskSettings, taskManager);
                 return true;
 
+            case WorkflowType.ImageViewer:
+                new Views.ImageViewerWindow().Show();
+                dispatchTask = Task.CompletedTask;
+                return true;
+
             case WorkflowType.VideoEditor:
                 dispatchTask = OpenVideoEditorAsync(owner);
                 return true;
@@ -116,10 +121,16 @@ internal static class ToolWorkflowDispatcher
                 dispatchTask = UploadContentToolService.HandleWorkflowAsync(workflowType, owner);
                 return true;
 
+            case WorkflowType.ToggleTrayMenu:
+                TrayMenuToolService.Toggle();
+                dispatchTask = Task.CompletedTask;
+                return true;
+
             case WorkflowType.FolderUpload:
             case WorkflowType.UploadText:
             case WorkflowType.DragDropUpload:
             case WorkflowType.ShortenURL:
+            case WorkflowType.UploadURL:
                 dispatchTask = UploadWorkflowService.HandleWorkflowAsync(workflowType, owner, taskSettings, taskManager);
                 return true;
 

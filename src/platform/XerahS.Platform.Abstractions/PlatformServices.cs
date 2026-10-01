@@ -116,6 +116,8 @@ namespace XerahS.Platform.Abstractions
             set => _notificationService = value;
         }
 
+        public static bool IsUIServiceInitialized => _uiService != null;
+
         private static IUIService? _uiService;
         public static IUIService UI
         {

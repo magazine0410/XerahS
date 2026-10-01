@@ -85,14 +85,16 @@ internal static class UploadWorkflowService
                 return;
             }
 
-            bool shorten = job == WorkflowType.ShortenURL;
-            // As in ShareX: Shorten URL starts with a URL from the clipboard, Upload text with any clipboard text.
+            bool isUrl = job is WorkflowType.ShortenURL or WorkflowType.UploadURL;
+            // As in ShareX: URL jobs start with a valid clipboard URL; Upload text accepts any clipboard text.
             string? initialText = await GetClipboardTextAsync();
-            if (shorten)
+            if (isUrl)
             {
                 initialText = UploadInputWindow.IsValidUrl(initialText) ? initialText!.Trim() : null;
             }
-            var prompt = new UploadInputWindow(shorten, initialText);
+            var kind = job == WorkflowType.UploadURL ? UploadInputKind.UploadUrl
+                : isUrl ? UploadInputKind.ShortenUrl : UploadInputKind.Text;
+            var prompt = new UploadInputWindow(kind, initialText);
             var input = await prompt.ShowAsync(owner);
             if (input != null)
             {

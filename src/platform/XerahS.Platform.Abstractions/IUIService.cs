@@ -36,6 +36,9 @@ namespace XerahS.Platform.Abstractions
     /// </summary>
     public interface IUIService
     {
+        Task<FileConflictResolution?> ResolveFileConflictAsync(string filePath, CancellationToken cancellationToken = default)
+            => Task.FromResult<FileConflictResolution?>(null);
+
         /// <summary>
         /// Hides or minimizes the main window before capture to avoid capturing the app itself.
         /// </summary>

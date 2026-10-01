@@ -32,6 +32,12 @@ namespace XerahS.Platform.Abstractions
     /// </summary>
     public interface IWindowService
     {
+        /// <summary>Whether the window system can toggle another application's topmost state.</summary>
+        bool SupportsTopmost => false;
+
+        /// <summary>Toggles the active window's topmost state without changing its geometry.</summary>
+        bool ToggleActiveWindowTopmost() => false;
+
         /// <summary>
         /// Gets the handle of the foreground window
         /// </summary>

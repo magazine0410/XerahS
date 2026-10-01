@@ -76,6 +76,16 @@ namespace XerahS.Core.Tasks.Pipeline
             var taskSettings = context.Info.TaskSettings;
             var metadata = context.Info.Metadata;
 
+            if (taskSettings.Job == WorkflowType.ActiveWindowTopMost)
+            {
+                if (!PlatformServices.IsWindowServiceInitialized || !PlatformServices.Window.SupportsTopmost)
+                    throw new PlatformNotSupportedException("The window system does not support changing the active window's topmost state.");
+                if (!PlatformServices.Window.ToggleActiveWindowTopmost())
+                    throw new InvalidOperationException("Could not change the active window's topmost state.");
+                context.Info.SuppressCompletionNotification = true;
+                return PipelineStageResult.Stop;
+            }
+
             if (taskSettings.Job == WorkflowType.StopUploads)
             {
                 // As in ShareX, stop every task, including ones that have not reached their upload yet,
@@ -85,6 +95,16 @@ namespace XerahS.Core.Tasks.Pipeline
                 XerahS.Core.Managers.TaskManager.Instance.StopAllTasks(except: _workerTask);
                 XerahS.Uploaders.UploadCancellationScope.CancelAll();
                 return PipelineStageResult.Stop;
+            }
+
+            if (context.Info.Job == TaskJob.DownloadUpload)
+            {
+                if (!await new Processors.DownloadJobProcessor().ProcessAsync(context.Info, token))
+                {
+                    context.Status = TaskStatus.Canceled;
+                    return PipelineStageResult.Stop;
+                }
+                return PipelineStageResult.Continue;
             }
 
             // A supplied upload payload must not reopen its interactive workflow (or read the clipboard).

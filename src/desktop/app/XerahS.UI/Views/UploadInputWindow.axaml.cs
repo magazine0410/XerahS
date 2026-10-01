@@ -29,35 +29,47 @@ using Avalonia.Interactivity;
 
 namespace XerahS.UI.Views;
 
+public enum UploadInputKind { Text, ShortenUrl, UploadUrl }
+
 public partial class UploadInputWindow : SurfaceWindow
 {
-    private readonly bool _shortenUrl;
+    private readonly bool _isUrl;
     private readonly TaskCompletionSource<string?> _completion = new(TaskCreationOptions.RunContinuationsAsynchronously);
 
     public UploadInputWindow() : this(false) { }
 
     public UploadInputWindow(bool shortenUrl, string? initialText = null)
+        : this(shortenUrl ? UploadInputKind.ShortenUrl : UploadInputKind.Text, initialText) { }
+
+    public UploadInputWindow(UploadInputKind kind, string? initialText = null)
     {
         InitializeComponent();
-        _shortenUrl = shortenUrl;
-        Title = shortenUrl ? "Shorten URL" : "Upload text";
-        InputLabel.Text = shortenUrl ? "URL to shorten" : "Text to upload";
+        bool isUrl = kind != UploadInputKind.Text;
+        _isUrl = isUrl;
+        Title = isUrl ? "Shorten URL" : "Upload text";
+        InputLabel.Text = isUrl ? "URL to shorten" : "Text to upload";
         Input.Text = initialText ?? string.Empty;
-        Input.AcceptsReturn = !shortenUrl;
-        Input.AcceptsTab = !shortenUrl;
-        Input.TextWrapping = shortenUrl ? Avalonia.Media.TextWrapping.NoWrap : Avalonia.Media.TextWrapping.Wrap;
-        Input.MinHeight = shortenUrl ? 36 : 240;
-        SubmitButton.Content = shortenUrl ? "Shorten" : "Upload";
-        SubmitButton.IsDefault = shortenUrl;
-        Height = shortenUrl ? 240 : 450;
+        Input.AcceptsReturn = !isUrl;
+        Input.AcceptsTab = !isUrl;
+        Input.TextWrapping = isUrl ? Avalonia.Media.TextWrapping.NoWrap : Avalonia.Media.TextWrapping.Wrap;
+        Input.MinHeight = isUrl ? 36 : 240;
+        SubmitButton.Content = isUrl ? "Shorten" : "Upload";
+        SubmitButton.IsDefault = isUrl;
+        if (kind == UploadInputKind.UploadUrl)
+        {
+            Title = "URL upload";
+            InputLabel.Text = "URL to download and upload";
+            SubmitButton.Content = "Upload";
+        }
+        Height = isUrl ? 240 : 450;
         // As in ShareX's text upload window: count the characters and select pre-filled text.
-        CharacterCount.IsVisible = !shortenUrl;
+        CharacterCount.IsVisible = !isUrl;
         UpdateCharacterCount();
         Input.TextChanged += (_, _) => UpdateCharacterCount();
         Opened += (_, _) =>
         {
             Input.Focus();
-            if (!shortenUrl && !string.IsNullOrEmpty(Input.Text)) Input.SelectAll();
+            if (!isUrl && !string.IsNullOrEmpty(Input.Text)) Input.SelectAll();
         };
         Closed += (_, _) => _completion.TrySetResult(null);
     }
@@ -85,14 +97,14 @@ public partial class UploadInputWindow : SurfaceWindow
     private void Submit()
     {
         string text = Input.Text ?? string.Empty;
-        if (string.IsNullOrWhiteSpace(text) || (_shortenUrl && !IsValidUrl(text)))
+        if (string.IsNullOrWhiteSpace(text) || (_isUrl && !IsValidUrl(text)))
         {
-            Validation.Text = _shortenUrl ? "Enter a valid HTTP or HTTPS URL." : "Enter some text to upload.";
+            Validation.Text = _isUrl ? "Enter a valid HTTP or HTTPS URL." : "Enter some text to upload.";
             Validation.IsVisible = true;
             Input.Focus();
             return;
         }
-        _completion.TrySetResult(_shortenUrl ? text.Trim() : text);
+        _completion.TrySetResult(_isUrl ? text.Trim() : text);
         Close();
     }
 

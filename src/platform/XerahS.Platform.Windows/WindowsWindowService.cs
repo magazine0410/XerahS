@@ -53,6 +53,18 @@ namespace XerahS.Platform.Windows
             return NativeMethods.GetForegroundWindow();
         }
 
+        public bool SupportsTopmost => true;
+
+        public bool ToggleActiveWindowTopmost()
+        {
+            IntPtr handle = GetForegroundWindow();
+            if (handle == IntPtr.Zero) return false;
+            bool topmost = new WindowInfo(handle).TopMost;
+            return NativeMethods.SetWindowPos(handle,
+                (IntPtr)(topmost ? NativeConstants.HWND_NOTOPMOST : NativeConstants.HWND_TOPMOST),
+                0, 0, 0, 0, SetWindowPosFlags.SWP_NOMOVE | SetWindowPosFlags.SWP_NOSIZE | SetWindowPosFlags.SWP_NOACTIVATE);
+        }
+
         public bool SetForegroundWindow(IntPtr handle)
         {
             return NativeMethods.SetForegroundWindow(handle);

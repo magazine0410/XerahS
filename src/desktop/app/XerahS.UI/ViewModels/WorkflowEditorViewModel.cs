@@ -308,6 +308,7 @@ public partial class WorkflowEditorViewModel : ViewModelBase
                 }
 
                 if (job == WorkflowType.ClipboardUpload ||
+                    job == WorkflowType.UploadURL ||
                     job == WorkflowType.DragDropUpload ||
                     job == WorkflowType.ClipboardUploadWithContentViewer)
                 {
@@ -322,6 +323,7 @@ public partial class WorkflowEditorViewModel : ViewModelBase
                 yield break;
 
             case EnumExtensions.WorkflowType_Category_Tools:
+                if (job is WorkflowType.ImageViewer or WorkflowType.ActiveWindowTopMost) yield break;
                 if (job == WorkflowType.OCR)
                 {
                     yield return UploaderCategory.Text;
@@ -512,7 +514,10 @@ public partial class WorkflowEditorViewModel : ViewModelBase
     {
         // Group WorkflowTypes by their Category attribute
         var allTypes = Enum.GetValues(typeof(WorkflowType)).Cast<WorkflowType>()
-            .Where(t => t != WorkflowType.None);
+            .Where(t => t != WorkflowType.None)
+            // Keep an imported workflow editable without silently changing its job on unsupported platforms.
+            .Where(t => t != WorkflowType.ActiveWindowTopMost || _sourceModel.Job == WorkflowType.ActiveWindowTopMost ||
+                (PlatformServices.IsWindowServiceInitialized && PlatformServices.Window.SupportsTopmost));
 
         var grouped = allTypes.GroupBy(t => t.GetHotkeyCategory())
             .Where(g => !string.IsNullOrEmpty(g.Key))

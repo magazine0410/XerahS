@@ -87,6 +87,7 @@ public static partial class TaskHelpers
         return job switch
         {
             WorkflowType.FileUpload or
+            WorkflowType.UploadURL or
             WorkflowType.FolderUpload or
             WorkflowType.DragDropUpload or
             WorkflowType.ClipboardUpload or
@@ -105,9 +106,11 @@ public static partial class TaskHelpers
         return job switch
         {
             // Image-specific tools
+            WorkflowType.ActiveWindowTopMost => JobMediaType.System,
             WorkflowType.ImageEditor or
             WorkflowType.ImageBeautifier or
             WorkflowType.ImageEffects or
+            WorkflowType.ImageViewer or
             WorkflowType.BackgroundRemover or
             WorkflowType.ImageComparer or
             WorkflowType.IconConverter or

@@ -189,8 +189,9 @@ namespace XerahS.Core.Managers
             var task = WorkerTask.Create(safeTaskSettings);
             task.Info.TextContent = text;
             bool shortenUrl = safeTaskSettings.Job == WorkflowType.ShortenURL;
-            task.Info.DataType = shortenUrl ? EDataType.URL : EDataType.Text;
-            task.Info.Job = shortenUrl ? TaskJob.ShortenURL : TaskJob.TextUpload;
+            bool downloadUrl = safeTaskSettings.Job == WorkflowType.UploadURL;
+            task.Info.DataType = downloadUrl ? EDataType.File : shortenUrl ? EDataType.URL : EDataType.Text;
+            task.Info.Job = downloadUrl ? TaskJob.DownloadUpload : shortenUrl ? TaskJob.ShortenURL : TaskJob.TextUpload;
 
             string extension = safeTaskSettings.AdvancedSettings?.TextFileExtension ?? "txt";
             task.Info.SetFileName(TaskHelpers.GetFileName(safeTaskSettings, extension, task.Info.Metadata));

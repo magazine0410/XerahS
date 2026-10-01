@@ -87,6 +87,47 @@ namespace XerahS.Platform.Linux
             return _waylandWindowPointQueryHelper.Capability;
         }
 
+        public bool SupportsTopmost
+        {
+            get
+            {
+                // An XWayland connection cannot change native Wayland windows.
+                if (LinuxScreenCaptureService.IsWayland || !TryGetProperty(_rootWindow, "_NET_SUPPORTED", out var property))
+                    return false;
+                using (property)
+                {
+                    return property.Format == 32 && ReadIntPtrArray(property.Data, property.ItemCount)
+                        .Contains(GetAtom("_NET_WM_STATE_ABOVE"));
+                }
+            }
+        }
+
+        public bool ToggleActiveWindowTopmost()
+        {
+            if (!SupportsTopmost || !TryGetProperty(_rootWindow, "_NET_ACTIVE_WINDOW", out var property)) return false;
+            IntPtr window;
+            using (property)
+            {
+                if (property.Format != 32) return false;
+                window = Marshal.ReadIntPtr(property.Data);
+            }
+            if (window == IntPtr.Zero || window == _rootWindow) return false;
+
+            // EWMH: ask the window manager to toggle ABOVE on the active client window.
+            var message = new XEvent
+            {
+                clientMessage = new XClientMessageEvent
+                {
+                    type = 33, display = _display, window = window,
+                    message_type = GetAtom("_NET_WM_STATE"), format = 32,
+                    data0 = new IntPtr(2), data1 = GetAtom("_NET_WM_STATE_ABOVE"), data3 = new IntPtr(2)
+                }
+            };
+            int result = NativeMethods.XSendEvent(_display, _rootWindow, false, (1L << 20) | (1L << 19), ref message);
+            NativeMethods.XFlush(_display);
+            return result != 0;
+        }
+
         public WindowInfo? GetWindowAtLogicalPoint(System.Drawing.Point logicalPoint)
         {
             return _waylandWindowPointQueryHelper.GetWindowAtPoint(logicalPoint);

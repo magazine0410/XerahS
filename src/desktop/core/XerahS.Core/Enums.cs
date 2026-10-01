@@ -381,7 +381,19 @@ public enum WorkflowType // Localized
     StopUploads,
     [Category(EnumExtensions.WorkflowType_Category_Tools)]
     [Description("Image effects")]
-    ImageEffects
+    ImageEffects,
+    [Category(EnumExtensions.WorkflowType_Category_Upload)]
+    [Description("Upload from URL")]
+    UploadURL,
+    [Category(EnumExtensions.WorkflowType_Category_Tools)]
+    [Description("Image viewer")]
+    ImageViewer,
+    [Category(EnumExtensions.WorkflowType_Category_Tools)]
+    [Description("Make active window topmost")]
+    ActiveWindowTopMost,
+    [Category(EnumExtensions.WorkflowType_Category_Other)]
+    [Description("Toggle tray menu")]
+    ToggleTrayMenu
 }
 
 public enum ThumbnailViewClickAction // Localized

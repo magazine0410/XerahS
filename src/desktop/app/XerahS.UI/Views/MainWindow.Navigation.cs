@@ -254,6 +254,10 @@ namespace XerahS.UI.Views
                     _ = ExecuteWorkflowFromNavigationAsync(WorkflowType.DragDropUpload);
                     openedExternalWindow = true;
                     return true;
+                case "Upload_UploadURL":
+                    _ = ExecuteWorkflowFromNavigationAsync(WorkflowType.UploadURL);
+                    openedExternalWindow = true;
+                    return true;
                 case "Upload_ShortenURL":
                     _ = ExecuteWorkflowFromNavigationAsync(WorkflowType.ShortenURL);
                     openedExternalWindow = true;
@@ -538,6 +542,7 @@ namespace XerahS.UI.Views
             uploadNode.AddChild(CreateNode("Upload Folder...", "Upload_FolderUpload", null, NavigationNodeKind.Action));
             uploadNode.AddChild(CreateNode("Upload Content...", "Upload_ClipboardUploadWithContentViewer", null, NavigationNodeKind.Action));
             uploadNode.AddChild(CreateNode("Upload Text...", "Upload_UploadText", null, NavigationNodeKind.Action));
+            uploadNode.AddChild(CreateNode("Upload URL...", "Upload_UploadURL", null, NavigationNodeKind.Action));
             uploadNode.AddChild(CreateNode("Drag and Drop Upload", "Upload_DragDropUpload", null, NavigationNodeKind.Action));
             uploadNode.AddChild(CreateNode("Shorten URL...", "Upload_ShortenURL", null, NavigationNodeKind.Action));
             uploadNode.AddChild(CreateNode("Stop All Uploads", "Upload_StopUploads", null, NavigationNodeKind.Action));
@@ -568,6 +573,7 @@ namespace XerahS.UI.Views
             toolsNode.AddChild(CreateNode("Image Thumbnailer...", "Tools_ImageThumbnailer", null, NavigationNodeKind.Action));
             toolsNode.AddChild(CreateNode("Image Resizer...", "Tools_ImageResizer", null, NavigationNodeKind.Action));
             toolsNode.AddChild(CreateNode("Image Converter...", "Tools_ImageConverter", null, NavigationNodeKind.Action));
+            toolsNode.AddChild(CreateNode("Image Viewer...", "Tools_ImageViewer", null, NavigationNodeKind.Action));
             toolsNode.AddChild(CreateNode("Image Watermark...", "Tools_ImageWatermark", null, NavigationNodeKind.Action));
             toolsNode.AddChild(CreateNode("Animated GIF Maker...", "Tools_AnimatedGifMaker", null, NavigationNodeKind.Action));
 #if DEBUG

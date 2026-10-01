@@ -396,9 +396,14 @@ namespace XerahS.Core.Tasks.Processors
         /// When one instance fails, it tries the next available instance.
         /// Falls back to File category uploaders if the primary category fails.
         /// </summary>
-        private static async Task<UploadResult?> TryUploadWithFallbackAsync(InstanceManager instanceManager, UploaderCategory category, TaskInfo info, string? excludeInstanceId, CancellationToken token, HashSet<string>? attemptedInstanceIds = null)
+        private static async Task<UploadResult?> TryUploadWithFallbackAsync(InstanceManager instanceManager, UploaderCategory category, TaskInfo info, string? excludeInstanceId, CancellationToken token, HashSet<string>? attemptedInstanceIds = null, HashSet<UploaderCategory>? attemptedCategories = null)
         {
             attemptedInstanceIds ??= new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            attemptedCategories ??= [];
+            // File can fall back to Image/Text, which can fall back to File again. Track categories
+            // even when they contain no instances, otherwise an exhausted search recurses forever.
+            if (!attemptedCategories.Add(category))
+                return new UploadResult { IsSuccess = false, Response = $"All uploaders failed for category {category} and fallback." };
             
             DebugHelper.WriteLine($"Auto destination selected; trying uploaders with fallback for category {category}.");
 
@@ -475,7 +480,7 @@ namespace XerahS.Core.Tasks.Processors
             if (allowCrossCategoryFallback && category != UploaderCategory.File)
             {
                 DebugHelper.WriteLine($"Trying File category uploaders as fallback...");
-                var fileFallbackResult = await TryUploadWithFallbackAsync(instanceManager, UploaderCategory.File, info, excludeInstanceId, token, attemptedInstanceIds).ConfigureAwait(false);
+                var fileFallbackResult = await TryUploadWithFallbackAsync(instanceManager, UploaderCategory.File, info, excludeInstanceId, token, attemptedInstanceIds, attemptedCategories).ConfigureAwait(false);
                 if (fileFallbackResult != null && !fileFallbackResult.IsError && !string.IsNullOrEmpty(fileFallbackResult.URL))
                 {
                     return fileFallbackResult;
@@ -486,7 +491,7 @@ namespace XerahS.Core.Tasks.Processors
             if (allowCrossCategoryFallback && category == UploaderCategory.File && !string.IsNullOrEmpty(info.FileName) && FileHelpers.IsImageFile(info.FileName))
             {
                 DebugHelper.WriteLine("File is an image; trying Image category uploaders as fallback...");
-                var imageFallbackResult = await TryUploadWithFallbackAsync(instanceManager, UploaderCategory.Image, info, excludeInstanceId, token, attemptedInstanceIds).ConfigureAwait(false);
+                var imageFallbackResult = await TryUploadWithFallbackAsync(instanceManager, UploaderCategory.Image, info, excludeInstanceId, token, attemptedInstanceIds, attemptedCategories).ConfigureAwait(false);
                 if (imageFallbackResult != null && !imageFallbackResult.IsError && !string.IsNullOrEmpty(imageFallbackResult.URL))
                 {
                     return imageFallbackResult;
@@ -497,7 +502,7 @@ namespace XerahS.Core.Tasks.Processors
             if (allowCrossCategoryFallback && category == UploaderCategory.File && !string.IsNullOrEmpty(info.FileName) && FileHelpers.IsTextFile(info.FileName))
             {
                 DebugHelper.WriteLine("File is text-based; trying Text category uploaders as fallback...");
-                var textFallbackResult = await TryUploadWithFallbackAsync(instanceManager, UploaderCategory.Text, info, excludeInstanceId, token, attemptedInstanceIds).ConfigureAwait(false);
+                var textFallbackResult = await TryUploadWithFallbackAsync(instanceManager, UploaderCategory.Text, info, excludeInstanceId, token, attemptedInstanceIds, attemptedCategories).ConfigureAwait(false);
                 if (textFallbackResult != null && !textFallbackResult.IsError && !string.IsNullOrEmpty(textFallbackResult.URL))
                 {
                     return textFallbackResult;

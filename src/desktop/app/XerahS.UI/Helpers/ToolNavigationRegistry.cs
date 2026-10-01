@@ -47,6 +47,7 @@ internal static class ToolNavigationRegistry
         ["Tools_QrScanScreen"] = new(WorkflowType.QRCodeDecodeFromScreen, ToolNavigationDispatchMode.DirectToolService),
         ["Tools_QrScanRegion"] = new(WorkflowType.QRCodeScanRegion, ToolNavigationDispatchMode.DirectToolService),
         ["Tools_ImageBeautifier"] = new(WorkflowType.ImageBeautifier, ToolNavigationDispatchMode.DirectToolService),
+        ["Tools_ImageViewer"] = new(WorkflowType.ImageViewer, ToolNavigationDispatchMode.DirectToolService),
         ["Tools_ImageEffects"] = new(WorkflowType.ImageEffects, ToolNavigationDispatchMode.DirectToolService),
         ["Tools_BackgroundRemover"] = new(WorkflowType.BackgroundRemover, ToolNavigationDispatchMode.DirectToolService),
         ["Tools_ImageComparer"] = new(WorkflowType.ImageComparer, ToolNavigationDispatchMode.DirectToolService),
