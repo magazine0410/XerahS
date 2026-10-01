@@ -93,7 +93,9 @@ public partial class OverlayWindow : Window
     private bool _ctrlPressed;
 
     // Delayed focus retries to work around Linux/Wayland compositor not granting focus immediately (reduces "first pointer moved" delay)
-    private static readonly int[] FocusRetryDelayMs = [50, 200, 500];
+    // Tests that set keyboard focus themselves turn the retries off, because a retry that arrives
+    // later moves focus back to its overlay.
+    internal static int[] FocusRetryDelayMs { get; set; } = [50, 200, 500];
     private bool _windowClosed;
 
     #region Constructors
@@ -337,20 +339,24 @@ public partial class OverlayWindow : Window
             await Task.Delay(delayMs);
             if (_windowClosed)
                 return;
-            Dispatcher.UIThread.Post(() =>
-            {
-                if (_windowClosed)
-                    return;
-                try
-                {
-                    this.Focus();
-                    _captureControl.Focus();
-                }
-                catch
-                {
-                    // Window may be closing
-                }
-            }, DispatcherPriority.Input);
+            Dispatcher.UIThread.Post(RetryFocus, DispatcherPriority.Input);
+        }
+    }
+
+    /// <summary>One delayed focus retry.</summary>
+    internal void RetryFocus()
+    {
+        // An inactive monitor's overlay must not take keyboard focus from the active one.
+        if (_windowClosed || _monitorState == OverlayMonitorState.Inactive)
+            return;
+        try
+        {
+            this.Focus();
+            _captureControl.Focus();
+        }
+        catch
+        {
+            // Window may be closing
         }
     }
 
