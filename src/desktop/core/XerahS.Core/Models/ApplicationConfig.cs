@@ -243,9 +243,7 @@ public class ApplicationConfig : SettingsBase<ApplicationConfig>
 
     public bool DontShowPrintSettingsDialog = false;
 
-#pragma warning disable CA1416 // Validate platform compatibility
     public PrintSettings PrintSettings = new PrintSettings();
-#pragma warning restore CA1416 // Validate platform compatibility
 
     #endregion Settings - Print
 

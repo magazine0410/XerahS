@@ -188,6 +188,7 @@
                                     <CheckBox IsChecked="{Binding AnnotateMedia}" Content="Annotate media"/>
                                     <CheckBox IsChecked="{Binding CopyImageToClipboard}" Content="Copy image to clipboard"/>
                                     <CheckBox IsChecked="{Binding PinToScreen}" Content="Pin to screen"/>
+                                    <CheckBox IsChecked="{Binding SendImageToPrinter}" Content="Print image"/>
                                     <CheckBox IsChecked="{Binding SaveImageToFile}" Content="Save image to file"/>
                                     <CheckBox IsChecked="{Binding SaveImageToFileWithDialog}" Content="Save image to file (with dialog)"/>
                                     <CheckBox IsChecked="{Binding SaveThumbnailImageToFile}" Content="Save thumbnail image to file"

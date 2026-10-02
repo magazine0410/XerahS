@@ -36,6 +36,7 @@ Total items: `184`
 - [ ] VP-UI-OpenImageChoiceDialog OpenImageChoiceDialog
 - [ ] VP-UI-PinnedImageWindow PinnedImageWindow
 - [ ] VP-UI-PinToScreenStartupDialog PinToScreenStartupDialog
+- [ ] VP-UI-PrintWindow PrintWindow
 - [ ] VP-UI-PluginInstallerDialog PluginInstallerDialog
 - [ ] VP-UI-ProviderCatalogDialog ProviderCatalogDialog
 - [ ] VP-UI-ProviderCatalogView ProviderCatalogView

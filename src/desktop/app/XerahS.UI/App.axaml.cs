@@ -238,6 +238,7 @@ public partial class App : Application
             Services.MainViewModelHelper.WireSaveRequested(mainViewModel, getEmbeddedSnapshot, () => desktop.MainWindow);
             Services.MainViewModelHelper.WireSaveAsRequested(mainViewModel, getEmbeddedSnapshot, () => desktop.MainWindow);
             Services.MainViewModelHelper.WirePinRequested(mainViewModel, getEmbeddedSnapshot);
+            Services.MainViewModelHelper.WirePrintRequested(mainViewModel, getEmbeddedSnapshot, () => desktop.MainWindow);
 
             // Prepare for Silent Run ("Start minimized to tray"). Honor the setting in
             // Debug and Release — Debug used to force the main window visible, which made

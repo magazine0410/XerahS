@@ -202,6 +202,12 @@ namespace XerahS.UI.ViewModels
             set { UpdateAfterCaptureTask(AfterCaptureTasks.ShowInExplorer, value); OnPropertyChanged(); }
         }
 
+        public bool SendImageToPrinter
+        {
+            get => AfterCaptureSource.AfterCaptureJob.HasFlag(AfterCaptureTasks.SendImageToPrinter);
+            set { UpdateAfterCaptureTask(AfterCaptureTasks.SendImageToPrinter, value); OnPropertyChanged(); }
+        }
+
         public bool PinToScreen
         {
             get => AfterCaptureSource.AfterCaptureJob.HasFlag(AfterCaptureTasks.PinToScreen);

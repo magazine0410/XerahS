@@ -92,6 +92,16 @@ public static class MainViewModelHelper
         };
     }
 
+    /// <summary>Wires the editor's Print button to ShareX's print flow, with the edited image.</summary>
+    public static void WirePrintRequested(MainViewModel viewModel, Func<SKBitmap?> getEditedSnapshot, Func<Window?>? getWindow = null)
+    {
+        viewModel.PrintRequested += async () =>
+        {
+            using SKBitmap? snapshot = getEditedSnapshot();
+            if (snapshot != null) await ImagePrintService.PrintImageAsync(snapshot, getWindow?.Invoke());
+        };
+    }
+
     private static async Task<string?> HandleSaveRequestedAsync(MainViewModel viewModel, Func<SKBitmap?>? getEditedSnapshot, Func<Window?>? getWindow)
     {
         DebugHelper.WriteLine("MainViewModelHelper: SaveRequested received");

@@ -48,6 +48,12 @@ namespace XerahS.Core.Tasks.Processors
         /// </summary>
         public static Func<string, TaskSettings, Task>? ShowAnalyzeImageCallback { get; set; }
 
+        /// <summary>
+        /// Prints an image with the print settings, as ShareX's TaskHelpers.PrintImage. Completes when printing is
+        /// done or the print options window is closed. Set by the UI layer.
+        /// </summary>
+        public static Func<SKBitmap, Task>? PrintImageCallback { get; set; }
+
         public static Func<TaskSettings, CancellationToken, Task<QuickTaskMenuResult>>? ShowQuickTaskMenuCallback { get; set; }
         public static Func<TaskInfo, CancellationToken, Task<string?>>? SaveImageWithDialogCallback { get; set; }
 
@@ -295,6 +301,13 @@ namespace XerahS.Core.Tasks.Processors
                             DebugHelper.WriteException(ex, "PinToScreen");
                         }
                     }
+                }
+
+                // As in ShareX, print after pinning; cancelling the print dialog does not stop the other tasks.
+                if (settings.AfterCaptureJob.HasFlag(AfterCaptureTasks.SendImageToPrinter) && info.Metadata?.Image != null)
+                {
+                    if (PrintImageCallback == null) DebugHelper.WriteLine("SendImageToPrinter skipped: no UI to print with.");
+                    else await PrintImageCallback(info.Metadata.Image);
                 }
 
                 await AfterCaptureFileTasks.ProcessAsync(info, token);

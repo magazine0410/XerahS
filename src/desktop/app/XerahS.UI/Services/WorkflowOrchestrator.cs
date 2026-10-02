@@ -115,6 +115,7 @@ public sealed class WorkflowOrchestrator : IWorkflowOrchestrator
                 throw;
             }
         };
+        Core.Tasks.Processors.CaptureJobProcessor.PrintImageCallback = image => ImagePrintService.PrintImageAsync(image);
         Core.Tasks.Processors.CaptureJobProcessor.ShowAnalyzeImageCallback = (filePath, taskSettings) =>
             Dispatcher.UIThread.InvokeAsync(() => AnalyzeImageToolService.Show(null, taskSettings, filePath, null)).GetTask();
 

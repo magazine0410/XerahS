@@ -193,6 +193,7 @@ namespace XerahS.UI.Services
                 MainViewModelHelper.WireSaveRequested(editorViewModel, getSnapshot, () => editorWindow);
                 MainViewModelHelper.WireSaveAsRequested(editorViewModel, getSnapshot, () => editorWindow);
                 MainViewModelHelper.WirePinRequested(editorViewModel, getSnapshot);
+                MainViewModelHelper.WirePrintRequested(editorViewModel, getSnapshot, () => editorWindow);
 
                 // Set DataContext BEFORE initializing preview so bindings update correctly
                 editorWindow.DataContext = editorViewModel;

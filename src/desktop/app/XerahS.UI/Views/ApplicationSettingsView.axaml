@@ -855,6 +855,37 @@
                 </ScrollViewer>
             </TabItem>
 
+            <!-- Print Tab (ShareX's Print page) -->
+            <TabItem Header="Print">
+                <ScrollViewer controls:SettingsSearch.PageId="print">
+                    <StackPanel Spacing="24" Margin="24">
+                        <StackPanel Spacing="8" controls:SettingsSearch.IsPanel="True">
+                            <TextBlock Text="Print" FontWeight="SemiBold"/>
+                            <Border BorderThickness="1"
+                                    BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}"
+                                    Background="{DynamicResource CardBackgroundFillColorDefaultBrush}"
+                                    CornerRadius="4" Padding="16">
+                                <StackPanel Spacing="16">
+                                    <CheckBox IsChecked="{Binding DontShowPrintSettingsDialog}" Content="Don't show image print settings dialog"
+                                              AutomationProperties.Name="Don't show image print settings dialog"/>
+                                    <Button Content="Image print settings..." Command="{Binding ShowImagePrintSettingsCommand}" HorizontalAlignment="Left"/>
+                                    <CheckBox IsChecked="{Binding DontShowPrintDialog}" Content="Don't show print dialog"
+                                              AutomationProperties.Name="Don't show print dialog"/>
+                                    <Grid ColumnDefinitions="190,*" ColumnSpacing="8" IsVisible="{Binding DontShowPrintDialog}">
+                                        <TextBlock Text="Default printer override:" VerticalAlignment="Center"/>
+                                        <TextBox Grid.Column="1" Text="{Binding DefaultPrinterOverride}" PlaceholderText="Default printer"
+                                                 AutomationProperties.Name="Default printer override"/>
+                                    </Grid>
+                                    <TextBlock Text="Without the print dialog, images are printed with CUPS to the default printer, or to the printer named above, on that printer's default paper."
+                                               FontSize="11" TextWrapping="Wrap" IsVisible="{Binding DontShowPrintDialog}"
+                                               Foreground="{DynamicResource SystemControlForegroundBaseMediumBrush}"/>
+                                </StackPanel>
+                            </Border>
+                        </StackPanel>
+                    </StackPanel>
+                </ScrollViewer>
+            </TabItem>
+
              <!-- Proxy Tab -->
             <TabItem Header="Proxy">
                 <ScrollViewer controls:SettingsSearch.PageId="proxy">
