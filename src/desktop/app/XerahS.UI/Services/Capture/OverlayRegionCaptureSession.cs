@@ -172,7 +172,11 @@ internal static class OverlayRegionCaptureSession
         DateTime? sessionStartUtc)
     {
         var taskSettings = ResolveTaskSettings(options?.WorkflowId);
-        var regionOptions = taskSettings?.CaptureSettings?.RegionCaptureOptions;
+        // The settings the workflow runs with: the defaults for each section it does not override.
+        var regionOptions = taskSettings?.CaptureSettingsReference.RegionCaptureOptions;
+        var advancedSettings = taskSettings is { UseDefaultAdvancedSettings: true } && SettingsManager.DefaultTaskSettings != null
+            ? SettingsManager.DefaultTaskSettings.AdvancedSettings
+            : taskSettings?.AdvancedSettings;
         IReadOnlyList<CaptureSnapSize> snapSizes = CaptureSnapSize.DefaultPresets;
         if (regionOptions?.SnapSizes is { Count: > 0 } configuredSizes)
         {
@@ -182,7 +186,7 @@ internal static class OverlayRegionCaptureSession
         return new XerahS.RegionCapture.RegionCaptureOptions
         {
             ActiveMonitorMode = regionOptions?.ActiveMonitorMode ?? false,
-            EnableAnnotations = taskSettings?.AdvancedSettings?.RegionCaptureDisableAnnotation != true,
+            EnableAnnotations = advancedSettings?.RegionCaptureDisableAnnotation != true,
             DimOpacity = regionOptions?.UseDimming == false ? 0 : Math.Clamp(regionOptions?.BackgroundDimStrength ?? 20, 0, 100) / 100d,
             ShowCenterCrosshair = regionOptions?.ShowCenterCrosshair ?? true,
             RightClickAction = MapCaptureAction(regionOptions?.RegionCaptureActionRightClick ?? Core.RegionCaptureAction.RemoveShapeCancelCapture),

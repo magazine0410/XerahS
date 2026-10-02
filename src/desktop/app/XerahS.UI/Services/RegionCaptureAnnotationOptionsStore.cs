@@ -35,11 +35,11 @@ internal static class RegionCaptureAnnotationOptionsStore
 {
     public static ImageEditorOptions GetEditorOptions(string? workflowId = null, WorkflowType? workflowType = null)
     {
-        var taskSettings = ResolveTaskSettings(workflowId, workflowType);
-        taskSettings.CaptureSettings ??= new TaskSettingsCapture();
-        taskSettings.CaptureSettings.RegionCaptureOptions ??= new XerahS.Core.RegionCaptureOptions();
-        taskSettings.CaptureSettings.RegionCaptureOptions.AnnotationOptions ??= new ImageEditorOptions();
-        return taskSettings.CaptureSettings.RegionCaptureOptions.AnnotationOptions;
+        // The capture settings the workflow saves: the defaults' unless it overrides capture settings.
+        var captureSettings = ResolveTaskSettings(workflowId, workflowType).CaptureSettingsReference;
+        captureSettings.RegionCaptureOptions ??= new XerahS.Core.RegionCaptureOptions();
+        captureSettings.RegionCaptureOptions.AnnotationOptions ??= new ImageEditorOptions();
+        return captureSettings.RegionCaptureOptions.AnnotationOptions;
     }
 
     public static async Task<bool> PersistAsync()

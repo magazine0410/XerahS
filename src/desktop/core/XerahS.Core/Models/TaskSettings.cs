@@ -153,6 +153,29 @@ public class TaskSettings
     public TaskSettingsAdvanced AdvancedSettings = new TaskSettingsAdvanced();
 
     /// <summary>
+    /// ShareX's ImageSettingsReference: the image settings this task's workflow saves, which are the
+    /// default task settings' unless the workflow overrides image settings. The Image effects tool edits
+    /// the effect preset in this object, so changes are kept where the workflow reads them.
+    /// </summary>
+    [JsonIgnore]
+    public TaskSettingsImage ImageSettingsReference
+    {
+        get
+        {
+            var settings = TaskSettingsReference
+                ?? SettingsManager.GetWorkflowById(WorkflowId ?? string.Empty)?.TaskSettings
+                ?? this;
+            var defaults = SettingsManager.DefaultTaskSettings;
+            if (settings.UseDefaultImageSettings && defaults != null)
+            {
+                settings = defaults;
+            }
+
+            return settings.ImageSettings ??= new TaskSettingsImage();
+        }
+    }
+
+    /// <summary>
     /// ShareX's CaptureSettingsReference: the capture settings this task's workflow saves, which are the
     /// default task settings' unless the workflow overrides capture settings. Tools that keep their
     /// options in the capture settings (scrolling capture) edit this object, so changes are kept.
