@@ -413,15 +413,16 @@ public class BorderlessWindowSettings
     public bool ExcludeTaskbarArea { get; set; }
 }
 
+/// <summary>
+/// ShareX's Analyze image options. Unlike ShareX, the API keys are not stored here: they are kept in the
+/// system keyring (see <see cref="Services.AIApiKeys"/>), one per provider.
+/// </summary>
 public class AIOptions
 {
     public AIProvider Provider { get; set; } = AIProvider.OpenAI;
-    public string OpenAIAPIKey { get; set; } = string.Empty;
-    public string OpenAIModel { get; set; } = "gpt-4o-mini";
+    public string OpenAIModel { get; set; } = "gpt-5-mini";
     public string OpenAICustomURL { get; set; } = string.Empty;
-    public string GeminiAPIKey { get; set; } = string.Empty;
     public string GeminiModel { get; set; } = "gemini-1.5-flash-latest";
-    public string OpenRouterAPIKey { get; set; } = string.Empty;
     public string OpenRouterModel { get; set; } = "google/gemini-flash-1.5";
     public string ReasoningEffort { get; set; } = "minimal";
     public string Verbosity { get; set; } = "medium";
@@ -429,6 +430,23 @@ public class AIOptions
     public bool AutoStartRegion { get; set; } = true;
     public bool AutoStartAnalyze { get; set; } = true;
     public bool AutoCopyResult { get; set; } = false;
+
+    public AIOptions Clone() => (AIOptions)MemberwiseClone();
+
+    public void CopyFrom(AIOptions source)
+    {
+        Provider = source.Provider;
+        OpenAIModel = source.OpenAIModel;
+        OpenAICustomURL = source.OpenAICustomURL;
+        GeminiModel = source.GeminiModel;
+        OpenRouterModel = source.OpenRouterModel;
+        ReasoningEffort = source.ReasoningEffort;
+        Verbosity = source.Verbosity;
+        Input = source.Input;
+        AutoStartRegion = source.AutoStartRegion;
+        AutoStartAnalyze = source.AutoStartAnalyze;
+        AutoCopyResult = source.AutoCopyResult;
+    }
 }
 
 public class FFmpegOptions

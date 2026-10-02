@@ -21,7 +21,8 @@ Total items: `184`
 - [ ] VP-UI-HistoryView HistoryView
 - [ ] VP-UI-HotkeySelectionControl HotkeySelectionControl
 - [ ] VP-UI-HotkeySettingsView HotkeySettingsView
-- [ ] VP-UI-ImageAnalyzerWindow ImageAnalyzerWindow
+- [ ] VP-UI-AnalyzeImageWindow AnalyzeImageWindow
+- [ ] VP-UI-AnalyzeImageOptionsWindow AnalyzeImageOptionsWindow
 - [ ] VP-UI-ImageCombinerWindow ImageCombinerWindow
 - [ ] VP-UI-ImageEffectsBrowserDialog ImageEffectsBrowserDialog
 - [ ] VP-UI-ImageSplitterWindow ImageSplitterWindow

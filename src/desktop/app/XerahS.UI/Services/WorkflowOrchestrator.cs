@@ -115,18 +115,8 @@ public sealed class WorkflowOrchestrator : IWorkflowOrchestrator
                 throw;
             }
         };
-        Core.Tasks.Processors.CaptureJobProcessor.ShowAnalyzerCallback = async bitmap =>
-        {
-            await Dispatcher.UIThread.InvokeAsync(() =>
-            {
-                var vm = new ImageAnalyzerViewModel();
-                vm.SetInputImage(bitmap);
-
-                var w = new ImageAnalyzerWindow();
-                w.Initialize(vm);
-                w.Show();
-            });
-        };
+        Core.Tasks.Processors.CaptureJobProcessor.ShowAnalyzeImageCallback = (filePath, taskSettings) =>
+            Dispatcher.UIThread.InvokeAsync(() => AnalyzeImageToolService.Show(null, taskSettings, filePath, null)).GetTask();
 
         Core.Tasks.WorkerTask.OpenMainWindowCallback = () =>
         {

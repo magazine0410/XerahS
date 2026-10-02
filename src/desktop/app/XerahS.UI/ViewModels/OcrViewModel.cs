@@ -79,6 +79,7 @@ public partial class OcrViewModel : ViewModelBase
         var ocrService = PlatformServices.Ocr;
         if (ocrService == null || !ocrService.IsSupported)
         {
+            StatusText = ocrService?.UnavailableMessage ?? "OCR service not available.";
             return;
         }
 
@@ -149,7 +150,7 @@ public partial class OcrViewModel : ViewModelBase
         var ocrService = PlatformServices.Ocr;
         if (ocrService == null || !ocrService.IsSupported)
         {
-            StatusText = "OCR service not available.";
+            StatusText = ocrService?.UnavailableMessage ?? "OCR service not available.";
             return;
         }
 

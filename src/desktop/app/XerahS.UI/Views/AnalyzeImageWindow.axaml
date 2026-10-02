@@ -1,0 +1,120 @@
+<ui:SurfaceWindow xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:ui="using:XerahS.UI.Views"
+        xmlns:vm="using:XerahS.UI.ViewModels"
+        xmlns:theming="clr-namespace:ShareX.ImageEditor.Presentation.Theming;assembly=ShareX.ImageEditor"
+        x:Class="XerahS.UI.Views.AnalyzeImageWindow"
+        x:DataType="vm:AnalyzeImageViewModel"
+        Title="XerahS - Analyze image"
+        Width="1000" Height="650" MinWidth="820" MinHeight="560"
+        WindowStartupLocation="CenterScreen"
+        DragDrop.AllowDrop="True">
+
+  <!-- Layout and wording follow ShareX's Analyze image window. -->
+  <Grid Margin="16" ColumnDefinitions="360,*" ColumnSpacing="12">
+    <Grid Grid.Column="0" RowDefinitions="*,Auto" RowSpacing="12">
+      <Border Classes="analyze-panel" Padding="0" ClipToBounds="True">
+        <Grid RowDefinitions="Auto,Auto,*">
+          <Grid ColumnDefinitions="Auto,*" ColumnSpacing="8" Margin="12,12,12,8">
+            <TextBlock Text="Image" FontWeight="SemiBold"/>
+            <TextBlock Grid.Column="1" Text="{Binding ImageDescription}" IsVisible="{Binding HasImage}"
+                       TextTrimming="CharacterEllipsis" VerticalAlignment="Center"
+                       Foreground="{DynamicResource TextFillColorSecondaryBrush}"/>
+          </Grid>
+          <StackPanel Grid.Row="1" Orientation="Horizontal" Spacing="8" Margin="12,0,12,12">
+            <Button Command="{Binding SelectRegionCommand}" IsEnabled="{Binding IsIdle}">
+              <StackPanel Orientation="Horizontal" Spacing="8">
+                <TextBlock Classes="icon" Text="{x:Static theming:LucideIcons.crop}"/>
+                <TextBlock Text="Select region..."/>
+              </StackPanel>
+            </Button>
+            <Button Command="{Binding SelectImageCommand}" IsEnabled="{Binding IsIdle}">
+              <StackPanel Orientation="Horizontal" Spacing="8">
+                <TextBlock Classes="icon" Text="{x:Static theming:LucideIcons.image}"/>
+                <TextBlock Text="Select image..."/>
+              </StackPanel>
+            </Button>
+          </StackPanel>
+          <Border Grid.Row="2" Margin="12,0,12,12" CornerRadius="4" ClipToBounds="True" BorderThickness="1"
+                  Background="{DynamicResource CardBackgroundFillColorDefaultBrush}"
+                  BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}"
+                  PointerPressed="OnPreviewPointerPressed" Cursor="Hand">
+            <Grid>
+              <Image Source="{Binding PreviewImage}" Stretch="Uniform" Margin="8" AutomationProperties.Name="Image to analyze"/>
+              <StackPanel IsVisible="{Binding !HasImage}" HorizontalAlignment="Center" VerticalAlignment="Center"
+                          Spacing="10" IsHitTestVisible="False">
+                <TextBlock Classes="icon" Text="{x:Static theming:LucideIcons.image_up}" FontSize="42" HorizontalAlignment="Center"
+                           Foreground="{DynamicResource TextFillColorSecondaryBrush}"/>
+                <TextBlock Text="Select or drop an image" Foreground="{DynamicResource TextFillColorSecondaryBrush}"/>
+              </StackPanel>
+            </Grid>
+          </Border>
+        </Grid>
+      </Border>
+
+      <Border Grid.Row="1" Classes="analyze-panel">
+        <Grid RowDefinitions="Auto,Auto,110" RowSpacing="9">
+          <TextBlock Text="Prompt" FontWeight="SemiBold"/>
+          <ComboBox Grid.Row="1" HorizontalAlignment="Stretch" ItemsSource="{Binding PresetPrompts}"
+                    SelectedItem="{Binding SelectedPreset}" PlaceholderText="Choose a preset prompt"
+                    AutomationProperties.Name="Preset prompt"/>
+          <TextBox Grid.Row="2" Text="{Binding Prompt}" AcceptsReturn="True" TextWrapping="Wrap"
+                   VerticalContentAlignment="Top" AutomationProperties.Name="Prompt"/>
+        </Grid>
+      </Border>
+    </Grid>
+
+    <Border Grid.Column="1" Classes="analyze-panel" Padding="0" ClipToBounds="True">
+      <Grid RowDefinitions="Auto,Auto,*,Auto">
+        <Grid ColumnDefinitions="*,Auto,Auto" ColumnSpacing="8" Margin="12">
+          <TextBlock Text="Result" FontWeight="SemiBold" VerticalAlignment="Center"/>
+          <Button Grid.Column="1" Command="{Binding EditOptionsCommand}" IsEnabled="{Binding IsIdle}">
+            <StackPanel Orientation="Horizontal" Spacing="8">
+              <TextBlock Classes="icon" Text="{x:Static theming:LucideIcons.settings}"/>
+              <TextBlock Text="Options..."/>
+            </StackPanel>
+          </Button>
+          <Button Grid.Column="2" Command="{Binding CopyResultCommand}" IsEnabled="{Binding HasResult}">
+            <StackPanel Orientation="Horizontal" Spacing="8">
+              <TextBlock Classes="icon" Text="{x:Static theming:LucideIcons.copy}"/>
+              <TextBlock Text="Copy all"/>
+            </StackPanel>
+          </Button>
+        </Grid>
+        <ProgressBar Grid.Row="1" Height="4" IsIndeterminate="True" IsVisible="{Binding IsBusy}"/>
+        <Grid Grid.Row="2" Margin="12,0,12,12">
+          <TextBox Text="{Binding ResultText}" IsReadOnly="True" AcceptsReturn="True" TextWrapping="Wrap"
+                   VerticalContentAlignment="Top" FontSize="15"
+                   ScrollViewer.HorizontalScrollBarVisibility="Disabled" ScrollViewer.VerticalScrollBarVisibility="Auto"
+                   AutomationProperties.Name="Analysis result"/>
+          <StackPanel IsVisible="{Binding HasError}" HorizontalAlignment="Center" VerticalAlignment="Center"
+                      MaxWidth="430" Spacing="10" IsHitTestVisible="False">
+            <TextBlock Classes="icon" Text="{x:Static theming:LucideIcons.triangle_alert}" FontSize="38" HorizontalAlignment="Center"
+                       Foreground="{DynamicResource SystemFillColorCriticalBrush}"/>
+            <TextBlock Text="{Binding ErrorMessage}" TextWrapping="Wrap" TextAlignment="Center"/>
+          </StackPanel>
+        </Grid>
+        <Grid Grid.Row="3" ColumnDefinitions="*,Auto" Margin="12,0,12,12">
+          <TextBlock Text="{Binding ElapsedText}" VerticalAlignment="Center" Foreground="{DynamicResource TextFillColorSecondaryBrush}"/>
+          <Button Grid.Column="1" Classes="accent" Command="{Binding AnalyzeCommand}" IsEnabled="{Binding CanAnalyze}">
+            <StackPanel Orientation="Horizontal" Spacing="8">
+              <TextBlock Classes="icon" Text="{x:Static theming:LucideIcons.sparkles}"/>
+              <TextBlock Text="Analyze image"/>
+            </StackPanel>
+          </Button>
+        </Grid>
+      </Grid>
+    </Border>
+  </Grid>
+
+  <ui:SurfaceWindow.Styles>
+    <StyleInclude Source="avares://XerahS.UI/Themes/ToolWindowStyles.axaml"/>
+    <Style Selector="Border.analyze-panel">
+      <Setter Property="Padding" Value="12"/>
+      <Setter Property="CornerRadius" Value="6"/>
+      <Setter Property="BorderThickness" Value="1"/>
+      <Setter Property="Background" Value="{DynamicResource CardBackgroundFillColorDefaultBrush}"/>
+      <Setter Property="BorderBrush" Value="{DynamicResource CardStrokeColorDefaultBrush}"/>
+    </Style>
+  </ui:SurfaceWindow.Styles>
+</ui:SurfaceWindow>

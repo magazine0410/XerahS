@@ -20,8 +20,8 @@ optdepends=(
     'xdotool: X11 window management'
     'grim: Wayland screenshot utility'
     'slurp: Wayland region selection for screenshots'
-    'tesseract: OCR in the OmaSnap editor'
-    'tesseract-data-eng: English OCR data for the OmaSnap editor'
+    'tesseract: OCR'
+    'tesseract-data-eng: English OCR data'
 )
 makedepends=('git' 'dotnet-sdk' 'cmake' 'ninja' 'pkgconf' 'qt6-base' 'layer-shell-qt' 'wayland-protocols' 'libdeflate')
 options=('!strip' '!debug')

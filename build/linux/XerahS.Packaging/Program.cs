@@ -349,7 +349,8 @@ File.CreateSymbolicLink(symlinkPath, "../lib/xerahs/XerahS");
             // installed on stock Ubuntu GNOME, and LinuxClipboardService degrades silently
             // without them. apt installs Recommends by default, so this fixes out-of-box
             // clipboard for background workflows while staying removable for minimal installs.
-            sb.AppendLine("Recommends: wl-clipboard, xclip");
+            // libtesseract5 and its English data back OCR (LinuxOcrService loads the system library).
+            sb.AppendLine("Recommends: wl-clipboard, xclip, libtesseract5, tesseract-ocr-eng");
             sb.AppendLine("Description: XerahS - Cross-platform screen capture tool");
             sb.AppendLine(" A modern, cross-platform successor to ShareX.");
             sb.AppendLine(" .");
@@ -611,6 +612,8 @@ File.CreateSymbolicLink(symlinkPath, "../lib/xerahs/XerahS");
         sb.AppendLine("Suggests: gnome-shell-extension-appindicator");
         // wl-clipboard / xclip back CLI clipboard for daemon and pre-window workflows.
         sb.AppendLine("Recommends: wl-clipboard, xclip");
+        // tesseract-libs and its English data back OCR (LinuxOcrService loads the system library).
+        sb.AppendLine("Recommends: tesseract-libs, tesseract-langpack-eng");
         sb.AppendLine();
         sb.AppendLine("%description");
         sb.AppendLine("XerahS is a modern, cross-platform screen capture and sharing tool.");

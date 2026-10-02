@@ -44,9 +44,9 @@ namespace XerahS.Core.Tasks.Processors
         public static Func<SKBitmap, object?, PinToScreenOptions, Task>? PinToScreenCallback { get; set; }
 
         /// <summary>
-        /// Callback to show the analyzer window. Set by the UI layer to dispatch to AvaloniaUIService.
+        /// Opens the Analyze image window for an image file with the task's AI options. Set by the UI layer.
         /// </summary>
-        public static Func<SKBitmap, Task>? ShowAnalyzerCallback { get; set; }
+        public static Func<string, TaskSettings, Task>? ShowAnalyzeImageCallback { get; set; }
 
         public static Func<TaskSettings, CancellationToken, Task<QuickTaskMenuResult>>? ShowQuickTaskMenuCallback { get; set; }
         public static Func<TaskInfo, CancellationToken, Task<string?>>? SaveImageWithDialogCallback { get; set; }
@@ -183,7 +183,9 @@ namespace XerahS.Core.Tasks.Processors
                 }
 
                 token.ThrowIfCancellationRequested();
-                if (settings.AfterCaptureJob.HasFlag(AfterCaptureTasks.SaveImageToFile))
+                // As in ShareX, "Analyze image" saves the image too, because the analysis window opens the file.
+                if (settings.AfterCaptureJob.HasFlag(AfterCaptureTasks.SaveImageToFile) ||
+                    settings.AfterCaptureJob.HasFlag(AfterCaptureTasks.AnalyzeImage))
                 {
                     await SaveImageToFileAsync(info);
                 }
@@ -296,31 +298,6 @@ namespace XerahS.Core.Tasks.Processors
                 }
 
                 await AfterCaptureFileTasks.ProcessAsync(info, token);
-
-                // AnalyzeImage
-                if (settings.AfterCaptureJob.HasFlag(AfterCaptureTasks.AnalyzeImage))
-                {
-                    if (info.Metadata?.Image == null)
-                    {
-                        DebugHelper.WriteLine("AnalyzeImage skipped: no image in metadata.");
-                    }
-                    else if (ShowAnalyzerCallback == null)
-                    {
-                        DebugHelper.WriteLine("AnalyzeImage skipped: callback not set.");
-                    }
-                    else
-                    {
-                        try
-                        {
-                            await ShowAnalyzerCallback(info.Metadata.Image);
-                            DebugHelper.WriteLine("AnalyzeImage: analyzer window shown.");
-                        }
-                        catch (Exception ex)
-                        {
-                            DebugHelper.WriteException(ex, "AnalyzeImage");
-                        }
-                    }
-                }
 
                 if (settings.AfterCaptureJob.HasFlag(AfterCaptureTasks.UploadImageToHost))
                 {
@@ -537,7 +514,11 @@ namespace XerahS.Core.Tasks.Processors
             var ocrService = PlatformServices.Ocr;
             if (ocrService == null || !ocrService.IsSupported)
             {
-                DebugHelper.WriteLine("OCR skipped: OCR is not supported on this platform.");
+                // ShareX reports this as an error instead of skipping the task without a word.
+                string message = ocrService?.UnavailableMessage ?? "OCR is not supported on this platform.";
+                DebugHelper.WriteLine("OCR skipped: " + message);
+                if (PlatformServices.IsToastServiceInitialized)
+                    PlatformServices.Toast.ShowToast(new ToastConfig { Title = "OCR unavailable", Text = message, Duration = 6f, AutoHide = true });
                 return;
             }
 
@@ -563,9 +544,15 @@ namespace XerahS.Core.Tasks.Processors
                     DebugHelper.WriteLine($"OCR completed but no text recognized: {result.ErrorMessage}");
                 }
 
-                // Show OCR window so user can review/adjust the result
-                if (PlatformServices.IsInitialized)
+                if (taskOcrOptions.Silent)
                 {
+                    // As in ShareX: silent OCR copies the text without opening the window, and clears the clipboard when nothing was found.
+                    if (!string.IsNullOrWhiteSpace(info.Metadata.OcrText)) PlatformServices.Clipboard.SetText(info.Metadata.OcrText);
+                    else PlatformServices.Clipboard.Clear();
+                }
+                else if (PlatformServices.IsInitialized)
+                {
+                    // Show OCR window so user can review/adjust the result
                     await PlatformServices.UI.ShowOcrWindowAsync(info.Metadata.Image);
                 }
             }

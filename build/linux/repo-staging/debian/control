@@ -10,7 +10,7 @@ Rules-Requires-Root: no
 Package: xerahs
 Architecture: amd64 arm64
 Depends: ${misc:Depends}
-Recommends: wl-clipboard, xclip
+Recommends: wl-clipboard, xclip, libtesseract5, tesseract-ocr-eng
 Suggests: gnome-shell-extension-appindicator
 Description: XerahS - Cross-platform screen capture tool
  A modern, cross-platform successor to ShareX.

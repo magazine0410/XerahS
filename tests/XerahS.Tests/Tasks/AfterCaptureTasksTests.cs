@@ -151,6 +151,29 @@ public class AfterCaptureTasksTests
         });
     }
 
+    [TestCase("found text", "found text")]
+    [TestCase("", null)]
+    public async Task SilentOcr_CopiesTheTextWithoutTheWindow_OrClearsTheClipboard(string recognized, string? expected)
+    {
+        var settings = Settings(AfterCaptureTasks.DoOCR);
+        settings.CaptureSettings.OCROptions.Silent = true;
+        PlatformServices.Ocr = new FixedOcr(recognized);
+        var clipboard = new TestClipboard();
+        clipboard.SetText("previous");
+        PlatformServices.Clipboard = clipboard;
+        using var image = new SKBitmap(20, 10);
+        Assert.That(await new CaptureJobProcessor().ProcessAsync(new TaskInfo(settings) { Metadata = new(image) }, default), Is.True);
+        Assert.That(clipboard.Text, Is.EqualTo(expected));
+    }
+
+    private sealed class FixedOcr(string text) : IOcrService
+    {
+        public bool IsSupported => true;
+        public OcrLanguage[] GetAvailableLanguages() => [new("English", "en")];
+        public Task<OcrResult> RecognizeAsync(SKBitmap image, OcrOptions options) =>
+            Task.FromResult(new OcrResult { Text = text, Success = true });
+    }
+
     [Test]
     public async Task SaveDialog_UsesChosenPathForThumbnailAndFolderClipboard()
     {

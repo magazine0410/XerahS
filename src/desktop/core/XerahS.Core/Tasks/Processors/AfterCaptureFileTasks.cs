@@ -76,6 +76,19 @@ public static class AfterCaptureFileTasks
             try { PlatformServices.System.ShowFileInExplorer(info.FilePath); }
             catch (Exception ex) { DebugHelper.WriteException(ex, "Show in file manager"); }
         }
+
+        if (settings.AfterCaptureJob.HasFlag(AfterCaptureTasks.AnalyzeImage) && FileHelpers.IsImageFile(info.FilePath))
+        {
+            if (CaptureJobProcessor.ShowAnalyzeImageCallback is not { } analyze)
+            {
+                DebugHelper.WriteLine("AnalyzeImage skipped: no UI to show the Analyze image window.");
+            }
+            else
+            {
+                try { await analyze(info.FilePath, settings); }
+                catch (Exception ex) { DebugHelper.WriteException(ex, "Analyze image"); }
+            }
+        }
     }
 
     public static async Task<string?> SaveThumbnailAsync(TaskInfo info, CancellationToken token = default)

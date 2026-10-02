@@ -35,6 +35,9 @@ public interface IOcrService
 {
     bool IsSupported { get; }
 
+    /// <summary>Why OCR is unavailable, for example which packages to install. Null when supported.</summary>
+    string? UnavailableMessage => null;
+
     Task<OcrResult> RecognizeAsync(SKBitmap image, OcrOptions options);
 
     OcrLanguage[] GetAvailableLanguages();
