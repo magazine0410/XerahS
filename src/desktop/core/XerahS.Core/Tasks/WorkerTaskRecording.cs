@@ -487,6 +487,11 @@ namespace XerahS.Core.Tasks
                 }
             }
 
+            if (!string.IsNullOrWhiteSpace(historyItem.URL))
+            {
+                UploadJobProcessor.ApplyUploadResult(historyItem, info);
+            }
+
             return historyItem;
         }
 

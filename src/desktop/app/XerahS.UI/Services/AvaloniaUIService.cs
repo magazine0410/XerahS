@@ -535,6 +535,24 @@ namespace XerahS.UI.Services
             });
         }
 
+        public async Task ShowQrCodeAsync(string text, CancellationToken cancellationToken = default)
+        {
+            await Dispatcher.UIThread.InvokeAsync(() =>
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                var viewModel = UiViewModelFactoryAccessor.GetRequired().CreateQrCodeGeneratorViewModel();
+                try
+                {
+                    new Views.QrCodeGeneratorWindow(viewModel, text).Show();
+                }
+                catch
+                {
+                    viewModel.Dispose();
+                    throw;
+                }
+            });
+        }
+
         public async Task<SendToPromptResult> ShowSendToPromptAsync(SendToSelection selection)
         {
             return await Dispatcher.UIThread.InvokeAsync(async () =>

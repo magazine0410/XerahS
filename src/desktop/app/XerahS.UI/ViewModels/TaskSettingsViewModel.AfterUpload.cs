@@ -23,6 +23,7 @@
 
 #endregion License Information (GPL v3)
 using XerahS.Core;
+using XerahS.Uploaders.PluginSystem;
 
 namespace XerahS.UI.ViewModels
 {
@@ -81,6 +82,67 @@ namespace XerahS.UI.ViewModels
                 }
             }
         }
+
+        public bool OpenURL
+        {
+            get => AfterUploadSource.AfterUploadJob.HasFlag(AfterUploadTasks.OpenURL);
+            set
+            {
+                if (OpenURL != value)
+                {
+                    UpdateAfterUploadTask(AfterUploadTasks.OpenURL, value);
+                    OnPropertyChanged();
+                }
+            }
+        }
+
+        public bool ShowQRCode
+        {
+            get => AfterUploadSource.AfterUploadJob.HasFlag(AfterUploadTasks.ShowQRCode);
+            set
+            {
+                if (ShowQRCode != value)
+                {
+                    UpdateAfterUploadTask(AfterUploadTasks.ShowQRCode, value);
+                    OnPropertyChanged();
+                }
+            }
+        }
+
+        private List<UploaderInstance>? _urlShortenerDestinations;
+
+        public IReadOnlyList<UploaderInstance> UrlShortenerDestinations
+        {
+            get
+            {
+                _urlShortenerDestinations ??= [new UploaderInstance
+                    { InstanceId = string.Empty, DisplayName = "Default URL shortener", Category = UploaderCategory.UrlShortener },
+                    .. InstanceManager.Instance.GetInstancesByCategory(UploaderCategory.UrlShortener)];
+                string? selectedId = SourceFor(_settings.UseDefaultDestinations).UrlShortenerDestinationInstanceId;
+                if (!string.IsNullOrEmpty(selectedId) && _urlShortenerDestinations.All(item => item.InstanceId != selectedId))
+                {
+                    _urlShortenerDestinations.Add(new UploaderInstance
+                    {
+                        InstanceId = selectedId, DisplayName = "Unavailable URL shortener", Category = UploaderCategory.UrlShortener
+                    });
+                }
+                return _urlShortenerDestinations;
+            }
+        }
+
+        public UploaderInstance? SelectedUrlShortenerDestination
+        {
+            get => UrlShortenerDestinations.FirstOrDefault(item => item.InstanceId ==
+                (SourceFor(_settings.UseDefaultDestinations).UrlShortenerDestinationInstanceId ?? string.Empty));
+            set
+            {
+                if (value == null) return;
+                SourceFor(_settings.UseDefaultDestinations).UrlShortenerDestinationInstanceId = value.InstanceId;
+                OnPropertyChanged();
+            }
+        }
+
+        public bool ShowAfterUploadShortenerDestination => Job != WorkflowType.ShortenURL;
 
         private void UpdateAfterUploadTask(AfterUploadTasks task, bool enabled)
         {

@@ -34,6 +34,7 @@ using SkiaSharp;
 using XerahS.Common;
 using XerahS.Platform.Abstractions;
 using XerahS.Core;
+using XerahS.Uploaders;
 using DebugHelper = XerahS.Common.DebugHelper;
 
 namespace XerahS.UI.ViewModels;
@@ -41,6 +42,8 @@ namespace XerahS.UI.ViewModels;
 public sealed partial class AfterUploadViewModel : ViewModelBase, IDisposable
 {
     private readonly DispatcherTimer? _autoCloseTimer;
+    private readonly AfterUploadWindowInfo _info;
+    private readonly UploadResult _result;
     private int _autoCloseRemainingSeconds;
     private bool _disposed;
 
@@ -121,11 +124,17 @@ public sealed partial class AfterUploadViewModel : ViewModelBase, IDisposable
     {
         if (info == null) throw new ArgumentNullException(nameof(info));
 
+        _info = info;
+        _result = new UploadResult
+        {
+            URL = info.Url, ShortenedURL = info.ShortenedUrl,
+            ThumbnailURL = info.ThumbnailUrl, DeletionURL = info.DeletionUrl
+        };
         RawUrl = info.Url;
         ShortenedUrl = info.ShortenedUrl;
         ThumbnailUrl = info.ThumbnailUrl;
         DeletionUrl = info.DeletionUrl;
-        PrimaryUrl = ShortenedUrl ?? RawUrl ?? string.Empty;
+        PrimaryUrl = _result.ToString();
         FilePath = string.IsNullOrWhiteSpace(info.FilePath) ? null : info.FilePath;
         FileName = string.IsNullOrWhiteSpace(info.FileName) ? "Upload" : info.FileName;
         FileSizeText = HasLocalFile ? FileHelpers.GetFileSizeReadable(FilePath!) : null;
@@ -292,23 +301,8 @@ public sealed partial class AfterUploadViewModel : ViewModelBase, IDisposable
         }
     }
 
-    private string ResolveFormat(string? format)
-    {
-        if (string.IsNullOrWhiteSpace(format))
-        {
-            return string.Empty;
-        }
-
-        return format
-            .Replace("$result", PrimaryUrl, StringComparison.OrdinalIgnoreCase)
-            .Replace("$url", RawUrl ?? PrimaryUrl, StringComparison.OrdinalIgnoreCase)
-            .Replace("$shorturl", ShortenedUrl ?? string.Empty, StringComparison.OrdinalIgnoreCase)
-            .Replace("$shortened", ShortenedUrl ?? string.Empty, StringComparison.OrdinalIgnoreCase)
-            .Replace("$thumbnail", ThumbnailUrl ?? string.Empty, StringComparison.OrdinalIgnoreCase)
-            .Replace("$deletion", DeletionUrl ?? string.Empty, StringComparison.OrdinalIgnoreCase)
-            .Replace("$filepath", FilePath ?? string.Empty, StringComparison.OrdinalIgnoreCase)
-            .Replace("$filename", FileName, StringComparison.OrdinalIgnoreCase);
-    }
+    private string ResolveFormat(string? format) => UploadInfoParser.Parse(format, _result,
+        _info.FileName, _info.FilePath, _info.ThumbnailFilePath, _info.UploadTime);
 
     private void EnsureSelectableFormat()
     {

@@ -66,7 +66,14 @@ namespace XerahS.Core.Tasks.Processors
             if (info.Result != null && !info.Result.IsError && !string.IsNullOrEmpty(info.Result.URL))
             {
                 DebugHelper.WriteLine("Upload already completed during capture; running after-upload tasks.");
-                await HandleAfterUploadTasksAsync(info, info.Result, token);
+                try
+                {
+                    await HandleAfterUploadTasksAsync(info, info.Result, token);
+                }
+                finally
+                {
+                    TryUpdateHistoryItem(info);
+                }
                 return true;
             }
 
@@ -86,7 +93,15 @@ namespace XerahS.Core.Tasks.Processors
                 {
                     info.Metadata.UploadURL = result.URL;
                     DebugHelper.WriteLine($"[UploadTrace {info.CorrelationId}] Upload successful: {result.URL}");
-                    await HandleAfterUploadTasksAsync(info, result, token);
+                    try
+                    {
+                        await HandleAfterUploadTasksAsync(info, result, token);
+                    }
+                    finally
+                    {
+                        // The upload is already durable even if a later task is cancelled.
+                        TryAppendHistoryItem(info);
+                    }
                 }
                 else
                 {
@@ -113,9 +128,8 @@ namespace XerahS.Core.Tasks.Processors
                             });
                         }
                     }
+                    TryAppendHistoryItem(info);
                 }
-
-                TryAppendHistoryItem(info);
             }
             else
             {
@@ -162,31 +176,33 @@ namespace XerahS.Core.Tasks.Processors
             return await StartUploadAsync(info, token).ConfigureAwait(false);
         }
 
-        private Task<UploadResult?> StartUploadAsync(TaskInfo info, CancellationToken token)
+        private async Task<UploadResult?> StartUploadAsync(TaskInfo info, CancellationToken token)
         {
             try
             {
                 return info.DataType switch
                 {
-                    EDataType.Image => UploadWithPluginSystemAsync(info, UploaderCategory.Image, token),
-                    EDataType.Text => UploadWithPluginSystemAsync(info, UploaderCategory.Text, token),
-                    EDataType.File => UploadWithPluginSystemAsync(info, UploaderCategory.File, token),
-                    EDataType.URL => ShortenUrlAsync(info, token),
-                    _ => Task.FromResult<UploadResult?>(null)
+                    EDataType.Image => await UploadWithPluginSystemAsync(info, UploaderCategory.Image, token).ConfigureAwait(false),
+                    EDataType.Text => await UploadWithPluginSystemAsync(info, UploaderCategory.Text, token).ConfigureAwait(false),
+                    EDataType.File => await UploadWithPluginSystemAsync(info, UploaderCategory.File, token).ConfigureAwait(false),
+                    EDataType.URL => await ShortenUrlAsync(info, info.TextContent?.Trim() ?? string.Empty, token, standaloneJob: true).ConfigureAwait(false),
+                    _ => null
                 };
             }
+            catch (OperationCanceledException) { throw; }
             catch (Exception ex)
             {
                 DebugHelper.WriteException(ex, "UploadJobProcessor");
-                return Task.FromResult<UploadResult?>(new UploadResult { IsSuccess = false, Response = ex.Message });
+                return new UploadResult { IsSuccess = false, Response = ex.Message };
             }
         }
 
-        private static async Task<UploadResult?> ShortenUrlAsync(TaskInfo info, CancellationToken token)
+        private static async Task<UploadResult> ShortenUrlAsync(TaskInfo info, string url, CancellationToken token, bool standaloneJob)
         {
-            string url = info.TextContent?.Trim() ?? string.Empty;
-            if (!Uri.TryCreate(url, UriKind.Absolute, out var uri) ||
-                (uri.Scheme != Uri.UriSchemeHttp && uri.Scheme != Uri.UriSchemeHttps) || string.IsNullOrEmpty(uri.Host))
+            // Keep the standalone prompt's input validation. After-upload tasks pass the
+            // uploader's URL through to the shortener, as ShareX does (including FTP URLs).
+            if (standaloneJob && (!Uri.TryCreate(url, UriKind.Absolute, out var uri) ||
+                (uri.Scheme != Uri.UriSchemeHttp && uri.Scheme != Uri.UriSchemeHttps) || string.IsNullOrEmpty(uri.Host)))
             {
                 return new UploadResult { IsSuccess = false, Response = "Enter a valid HTTP or HTTPS URL." };
             }
@@ -220,7 +236,8 @@ namespace XerahS.Core.Tasks.Processors
 
                 result.URL = result.ShortenedURL;
                 result.IsSuccess = true;
-                ApplyResolvedUploaderHost(info, instance, result);
+                // After-upload shortening must preserve the host/instance used for remote deletion.
+                if (standaloneJob) ApplyResolvedUploaderHost(info, instance, result);
                 return result;
             }
             catch (OperationCanceledException) { throw; }
@@ -789,6 +806,27 @@ namespace XerahS.Core.Tasks.Processors
             }
         }
 
+        private static void TryUpdateHistoryItem(TaskInfo info)
+        {
+            if (info.HistoryItemId is not > 0) return;
+
+            try
+            {
+                using var historyManager = new HistoryManagerSQLite(SettingsManager.GetHistoryFilePath());
+                var item = historyManager.GetHistoryItem(info.HistoryItemId.Value);
+                if (item == null) return;
+
+                // Capture writes its history before after-upload tasks run. Keep the same row,
+                // including its annotations, OCR index and capture time.
+                ApplyUploadResult(item, info);
+                historyManager.Edit(item);
+            }
+            catch (Exception ex)
+            {
+                DebugHelper.WriteException(ex, "Failed to update after-upload history");
+            }
+        }
+
         internal static HistoryItem CreateHistoryItem(TaskInfo info, string url)
         {
             var historyItem = new HistoryItem
@@ -862,69 +900,121 @@ namespace XerahS.Core.Tasks.Processors
             };
         }
 
-        private async Task HandleAfterUploadTasksAsync(TaskInfo info, UploadResult result, CancellationToken token)
+        private static async Task HandleAfterUploadTasksAsync(TaskInfo info, UploadResult result, CancellationToken token)
         {
-            if (token.IsCancellationRequested) return;
+            token.ThrowIfCancellationRequested();
+            if (result.IsError || string.IsNullOrEmpty(result.URL)) return;
 
-            // Handle URL Shortening if requested
-            if (info.TaskSettings.AfterUploadJob.HasFlag(AfterUploadTasks.UseURLShortener))
+            var tasks = info.TaskSettings.AfterUploadJob;
+            var advanced = info.TaskSettings.AdvancedSettings;
+            try
             {
-                DebugHelper.WriteLine("AfterUpload: URL shortener requested (not implemented).");
-                // TODO: Implement URL Shortening logic using UploaderFactory
+                // Standalone URL jobs already perform their operation in StartUploadAsync.
+                if (info.Job is not (TaskJob.ShortenURL or TaskJob.ShareURL) &&
+                    (tasks.HasFlag(AfterUploadTasks.UseURLShortener) ||
+                     (advanced.AutoShortenURLLength > 0 && result.URL.Length > advanced.AutoShortenURLLength)))
+                {
+                    var shortened = await ShortenUrlAsync(info, result.URL, token, standaloneJob: false);
+                    if (shortened.IsSuccess)
+                    {
+                        result.ShortenedURL = shortened.ShortenedURL;
+                    }
+                    else
+                    {
+                        // ShareX retains the uploaded URL and continues the remaining tasks.
+                        string error = shortened.Errors.Count > 0 ? shortened.Errors.ToString() :
+                            shortened.Response ?? "The URL shortener returned no shortened URL.";
+                        result.Errors.Add(error);
+                        DebugHelper.WriteLine($"AfterUpload: URL shortening failed: {error}");
+                    }
+                }
+
+                token.ThrowIfCancellationRequested();
+                if (tasks.HasFlag(AfterUploadTasks.ShareURL))
+                {
+                    DebugHelper.WriteLine("AfterUpload: Share URL skipped; URL sharing services are not implemented.");
+                }
+
+                if (tasks.HasFlag(AfterUploadTasks.CopyURLToClipboard))
+                {
+                    string text = string.IsNullOrEmpty(advanced.ClipboardContentFormat)
+                        ? result.ToString()
+                        : UploadInfoParser.Parse(info, advanced.ClipboardContentFormat);
+                    if (!string.IsNullOrEmpty(text)) await PlatformServices.Clipboard.SetTextAsync(text);
+                }
+
+                token.ThrowIfCancellationRequested();
+                if (tasks.HasFlag(AfterUploadTasks.OpenURL))
+                {
+                    string url = string.IsNullOrEmpty(advanced.OpenURLFormat)
+                        ? result.ToString()
+                        : UploadInfoParser.Parse(info, advanced.OpenURLFormat);
+                    if (!string.IsNullOrEmpty(url))
+                    {
+                        try
+                        {
+                            if (!URLHelpers.IsValidURL(url)) throw new InvalidOperationException("Invalid URL.");
+                            if (!PlatformServices.System.OpenUrl(url))
+                                throw new InvalidOperationException("The uploaded URL could not be opened.");
+                        }
+                        catch (Exception ex)
+                        {
+                            // ShareX's browser helper handles launch failures without stopping QR display.
+                            result.Errors.Add(ex.Message);
+                            DebugHelper.WriteException(ex, "AfterUpload: Failed to open URL");
+                        }
+                    }
+                }
+
+                token.ThrowIfCancellationRequested();
+                if (tasks.HasFlag(AfterUploadTasks.ShowQRCode))
+                {
+                    var ui = PlatformServices.UI ?? throw new InvalidOperationException("The QR code window is unavailable in this host.");
+                    await ui.ShowQrCodeAsync(result.ToString(), token);
+                }
+            }
+            catch (OperationCanceledException) when (token.IsCancellationRequested) { throw; }
+            catch (Exception ex)
+            {
+                // A post-upload action must not erase a successful upload or trigger another upload.
+                result.Errors.Add(ex.Message);
+                DebugHelper.WriteException(ex, "After-upload task failed");
             }
 
-            // Show After Upload window (non-blocking)
-            if (info.TaskSettings.AfterUploadJob.HasFlag(AfterUploadTasks.ShowAfterUploadWindow))
+            token.ThrowIfCancellationRequested();
+            if (tasks.HasFlag(AfterUploadTasks.ShowAfterUploadWindow))
             {
-                if (!PlatformServices.IsInitialized || PlatformServices.UI == null)
+                var ui = PlatformServices.UI;
+                if (ui == null)
                 {
                     DebugHelper.WriteLine("AfterUpload: ShowAfterUploadWindow requested but UI service is not initialized.");
+                    return;
                 }
-                else if (!string.IsNullOrEmpty(result.URL) && !result.IsError)
+
+                try
                 {
-                    var advancedSettings = info.TaskSettings.AdvancedSettings;
-                    var windowInfo = new Platform.Abstractions.AfterUploadWindowInfo
+                    await ui.ShowAfterUploadWindowAsync(new Platform.Abstractions.AfterUploadWindowInfo
                     {
-                        Url = result.URL ?? string.Empty,
+                        Url = result.URL,
                         ShortenedUrl = result.ShortenedURL,
                         ThumbnailUrl = result.ThumbnailURL,
                         DeletionUrl = result.DeletionURL,
                         FilePath = info.FilePath,
                         FileName = info.FileName,
+                        ThumbnailFilePath = info.ThumbnailFilePath,
+                        UploadTime = info.UploadDuration?.ElapsedMilliseconds,
                         DataType = info.DataType.ToString(),
                         UploaderHost = info.UploaderHost,
-                        ClipboardContentFormat = advancedSettings?.ClipboardContentFormat,
-                        OpenUrlFormat = advancedSettings?.OpenURLFormat,
-                        AutoCloseAfterUploadForm = advancedSettings?.AutoCloseAfterUploadForm ?? false,
+                        ClipboardContentFormat = advanced.ClipboardContentFormat,
+                        OpenUrlFormat = advanced.OpenURLFormat,
+                        AutoCloseAfterUploadForm = advanced.AutoCloseAfterUploadForm,
                         PreviewImage = info.Metadata?.Image,
-                        ErrorDetails = result.Errors?.Count > 0 ? result.Errors.ToString() : null
-                    };
-
-                    _ = PlatformServices.UI.ShowAfterUploadWindowAsync(windowInfo).ContinueWith(task =>
-                    {
-                        if (task.Exception != null)
-                        {
-                            DebugHelper.WriteException(task.Exception, "AfterUpload: Failed to show window");
-                        }
-                    }, TaskContinuationOptions.OnlyOnFaulted);
+                        ErrorDetails = result.Errors.Count > 0 ? result.Errors.ToString() : null
+                    });
                 }
-                else
+                catch (Exception ex)
                 {
-                    DebugHelper.WriteLine("AfterUpload: ShowAfterUploadWindow skipped (URL empty or result error).");
-                }
-            }
-
-            // Handle Clipboard Copy
-            if (info.TaskSettings.AfterUploadJob.HasFlag(AfterUploadTasks.CopyURLToClipboard))
-            {
-                if (PlatformServices.IsInitialized && !string.IsNullOrEmpty(result.URL))
-                {
-                    await PlatformServices.Clipboard.SetTextAsync(result.URL);
-                    DebugHelper.WriteLine($"Copied URL to clipboard: {result.URL}");
-                }
-                else
-                {
-                    DebugHelper.WriteLine("CopyURLToClipboard skipped: clipboard not available or URL empty.");
+                    DebugHelper.WriteException(ex, "AfterUpload: Failed to show window");
                 }
             }
         }

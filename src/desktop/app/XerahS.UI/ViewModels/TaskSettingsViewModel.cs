@@ -87,6 +87,7 @@ namespace XerahS.UI.ViewModels
                     _settings.Job = value;
                     OnPropertyChanged();
                     OnPropertyChanged(nameof(IsIndexFolderJob));
+                    OnPropertyChanged(nameof(ShowAfterUploadShortenerDestination));
                     OnPropertyChanged(nameof(ShowIndexFolderTab));
                     OnPropertyChanged(nameof(IsScreenCaptureJob));
                     OnPropertyChanged(nameof(IsScreenRecordJob));

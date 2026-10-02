@@ -531,7 +531,7 @@ public sealed class WorkflowOrchestrator : IWorkflowOrchestrator
             {
                 var generalSettings = taskSettings.GeneralSettings;
                 var filePath = task.Info?.FilePath;
-                var url = task.Info?.Result?.URL ?? task.Info?.Result?.ShortenedURL;
+                var url = task.Info?.Result?.ToString();
                 var errorDetails = task.Error?.ToString();
 
                 string? title;

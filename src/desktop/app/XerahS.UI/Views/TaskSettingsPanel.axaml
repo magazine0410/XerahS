@@ -4,6 +4,7 @@
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              xmlns:vm="using:XerahS.UI.ViewModels"
              xmlns:core="using:XerahS.Core"
+             xmlns:uploaders="using:XerahS.Uploaders.PluginSystem"
              xmlns:views="using:XerahS.UI.Views"
              xmlns:controls="using:XerahS.UI.Controls"
              xmlns:converters="using:XerahS.UI.Converters"
@@ -366,6 +367,20 @@
                                             </DataTemplate>
                                         </ComboBox.ItemTemplate>
                                     </ComboBox>
+                                    <StackPanel Spacing="8" IsVisible="{Binding ShowAfterUploadShortenerDestination}">
+                                        <TextBlock Text="URL shortener:"/>
+                                        <ComboBox ItemsSource="{Binding UrlShortenerDestinations}"
+                                                  SelectedItem="{Binding SelectedUrlShortenerDestination}"
+                                                  HorizontalAlignment="Stretch"
+                                                  AutomationProperties.Name="Select URL Shortener"
+                                                  ToolTip.Tip="Used by Shorten URL after upload. Configure URL shorteners in Destination Settings.">
+                                            <ComboBox.ItemTemplate>
+                                                <DataTemplate x:DataType="uploaders:UploaderInstance">
+                                                    <TextBlock Text="{Binding DisplayName}"/>
+                                                </DataTemplate>
+                                            </ComboBox.ItemTemplate>
+                                        </ComboBox>
+                                    </StackPanel>
                                 </StackPanel>
                             </Border>
                         </StackPanel>
@@ -401,12 +416,17 @@
                                     <CheckBox IsChecked="{Binding ShowAfterUploadWindow}" 
                                               Content="Show after upload window"
                                               AutomationProperties.Name="Show After Upload Window"/>
-                                    <CheckBox IsChecked="{Binding CopyURLToClipboard}" 
-                                              Content="Copy URL to clipboard"/>
                                     <CheckBox IsChecked="{Binding UseURLShortener}" 
-                                              Content="Use URL shortener"/>
-                                    <CheckBox IsChecked="{Binding ShareURL}" 
-                                              Content="Share URL"/>
+                                              Content="Shorten URL"/>
+                                    <CheckBox IsChecked="{Binding ShareURL}"
+                                              Content="Share URL" IsEnabled="False"
+                                              ToolTip.Tip="URL sharing services are not available yet."/>
+                                    <CheckBox IsChecked="{Binding CopyURLToClipboard}"
+                                              Content="Copy URL to clipboard"/>
+                                    <CheckBox IsChecked="{Binding OpenURL}"
+                                              Content="Open URL" AutomationProperties.Name="Open URL"/>
+                                    <CheckBox IsChecked="{Binding ShowQRCode}"
+                                              Content="Show QR code" AutomationProperties.Name="Show QR Code"/>
                                 </StackPanel>
                             </Border>
                         </StackPanel>

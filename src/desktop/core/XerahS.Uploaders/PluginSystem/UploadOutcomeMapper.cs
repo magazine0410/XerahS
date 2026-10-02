@@ -35,6 +35,7 @@ public static class UploadOutcomeMapper
             ThumbnailURL = outcome.ThumbnailUrl,
             DeletionURL = outcome.DeletionUrl,
             ShortenedURL = outcome.ShortenedUrl,
+            Metadata = new Dictionary<string, string?>(outcome.Metadata, StringComparer.OrdinalIgnoreCase),
             Response = outcome.Response ?? outcome.Error,
             IsURLExpected = outcome.UrlExpected,
             IsSuccess = outcome.Succeeded
@@ -74,6 +75,7 @@ public static class UploadOutcomeMapper
             ThumbnailUrl = result.ThumbnailURL,
             DeletionUrl = result.DeletionURL,
             ShortenedUrl = result.ShortenedURL,
+            Metadata = new Dictionary<string, string?>(result.Metadata, StringComparer.OrdinalIgnoreCase),
             Response = result.Response,
             UrlExpected = result.IsURLExpected
         };
