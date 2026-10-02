@@ -512,7 +512,8 @@ public class ImageEditingIntegrationTests
         using var image = new SKBitmap(10, 10);
         var info = new TaskInfo(executionCopy) { Metadata = new TaskMetadata(image) };
 
-        Assert.That(await new CaptureJobProcessor().ProcessAsync(info, CancellationToken.None), Is.True);
+        // The recording UI stub cancels task-mode sessions; cancellation now stops the workflow.
+        Assert.That(await new CaptureJobProcessor().ProcessAsync(info, CancellationToken.None), Is.False);
         var expected = overrideTools
             ? settings.ToolsSettings.ImageEditorOptions
             : SettingsManager.DefaultTaskSettings.ToolsSettings.ImageEditorOptions;

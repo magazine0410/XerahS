@@ -615,6 +615,56 @@ public static partial class TaskHelpers
     /// <summary>
     /// Save image to file
     /// </summary>
+    public static async Task SaveImageToPathAsync(SkiaSharp.SKBitmap bmp, string filePath, TaskSettings taskSettings)
+    {
+        if (taskSettings.ImageSettings.ImageFormat != EImageFormat.AVIF)
+        {
+            SaveImageToPath(bmp, filePath, taskSettings);
+            return;
+        }
+
+        // AVIF already has an FFmpeg encoder. Keep its output extension on the temporary file.
+        string folder = Path.GetDirectoryName(Path.GetFullPath(filePath))!;
+        Directory.CreateDirectory(folder);
+        string temporaryPath = Path.Combine(folder, $".xerahs-{Guid.NewGuid():N}.avif");
+        try
+        {
+            await XerahS.Platform.Abstractions.PlatformServices.ImageEncoder.EncodeAsync(bmp, temporaryPath,
+                EImageFormat.AVIF, taskSettings.ImageSettings.ImageJPEGQuality).ConfigureAwait(false);
+            File.Move(temporaryPath, filePath, overwrite: true);
+        }
+        finally
+        {
+            if (File.Exists(temporaryPath)) File.Delete(temporaryPath);
+        }
+    }
+
+    public static void SaveImageToPath(SkiaSharp.SKBitmap bmp, string filePath, TaskSettings taskSettings)
+    {
+        if (taskSettings.ImageSettings.ImageFormat is EImageFormat.TIFF or EImageFormat.AVIF)
+            throw new NotSupportedException($"The stream encoder cannot save {taskSettings.ImageSettings.ImageFormat} images. Choose PNG, JPEG, or WebP; AVIF requires the AVIF encoder.");
+        using var encoded = SaveImageAsStream(bmp, taskSettings.ImageSettings.ImageFormat, taskSettings)
+            ?? throw new NotSupportedException($"The configured {taskSettings.ImageSettings.ImageFormat} image format could not be encoded. Choose PNG, JPEG, or WebP.");
+        WriteImageStreamToFile(encoded, filePath, overwrite: true);
+    }
+
+    internal static void WriteImageStreamToFile(Stream encoded, string filePath, bool overwrite)
+    {
+        string folder = Path.GetDirectoryName(Path.GetFullPath(filePath))!;
+        Directory.CreateDirectory(folder);
+        string temporaryPath = Path.Combine(folder, $".xerahs-{Guid.NewGuid():N}.tmp");
+        try
+        {
+            using (var output = new FileStream(temporaryPath, FileMode.CreateNew, FileAccess.Write, FileShare.None))
+                encoded.CopyTo(output);
+            File.Move(temporaryPath, filePath, overwrite);
+        }
+        finally
+        {
+            if (File.Exists(temporaryPath)) File.Delete(temporaryPath);
+        }
+    }
+
     public static string? SaveImageAsFile(SkiaSharp.SKBitmap bmp, TaskSettings taskSettings, bool overwriteFile = false)
     {
         string screenshotsFolder = GetScreenshotsFolder(taskSettings);

@@ -40,6 +40,9 @@ public class TaskInfo
     public string Status { get; set; } = "";
     public TaskJob Job { get; set; }
     public bool SuppressCompletionNotification { get; set; }
+    internal bool BeforeUploadConfirmed { get; set; }
+    /// <summary>The before-upload window was cancelled. The task completes without an upload, as in ShareX.</summary>
+    internal bool UploadCancelled { get; set; }
 
     public bool IsUploadJob
     {

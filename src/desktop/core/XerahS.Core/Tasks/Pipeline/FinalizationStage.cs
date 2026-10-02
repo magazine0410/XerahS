@@ -54,7 +54,8 @@ namespace XerahS.Core.Tasks.Pipeline
             await uploadProcessor.ProcessAsync(context.Info, token);
 
             // Check upload result
-            if (ShouldRequireSuccessfulUpload(context.Info) && !IsUploadResultSuccessful(context.Info.Result))
+            // Cancelling the before-upload window is not an upload failure.
+            if (!context.Info.UploadCancelled && ShouldRequireSuccessfulUpload(context.Info) && !IsUploadResultSuccessful(context.Info.Result))
             {
                 string message = string.IsNullOrWhiteSpace(context.Info.Result?.Response)
                     ? "Upload failed."

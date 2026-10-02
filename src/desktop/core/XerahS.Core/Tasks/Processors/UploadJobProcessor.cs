@@ -37,12 +37,31 @@ namespace XerahS.Core.Tasks.Processors
 {
     public class UploadJobProcessor : IJobProcessor
     {
+        public static Func<TaskInfo, CancellationToken, Task<bool>>? ShowBeforeUploadCallback { get; set; }
+
         public async Task<bool> ProcessAsync(TaskInfo info, CancellationToken token)
         {
             if (!info.IsUploadJob) return true;
+            bool fileTasks = info.Job == TaskJob.FileUpload && info.TaskSettings.AdvancedSettings.UseAfterCaptureTasksDuringFileUpload;
+            try
+            {
+                if (fileTasks) await AfterCaptureFileTasks.ProcessAsync(info, token);
+                return await ProcessUploadAsync(info, token);
+            }
+            finally
+            {
+                if (fileTasks) AfterCaptureFileTasks.DeleteFile(info);
+            }
+        }
+
+        private async Task<bool> ProcessUploadAsync(TaskInfo info, CancellationToken token)
+        {
             using var scope = new UploadCancellationScope(token);
             token = scope.Token;
             token.ThrowIfCancellationRequested();
+
+            // The capture job already showed the before-upload window and it was cancelled.
+            if (info.UploadCancelled) return true;
 
             if (info.Result != null && !info.Result.IsError && !string.IsNullOrEmpty(info.Result.URL))
             {
@@ -57,6 +76,7 @@ namespace XerahS.Core.Tasks.Processors
 
             DebugHelper.WriteLine($"[UploadTrace {info.CorrelationId}] Starting upload; dataType={info.DataType}, filePath=\"{info.FilePath}\", fileName=\"{info.FileName}\"");
             result = await UploadAsync(info, token).ConfigureAwait(false);
+            if (info.UploadCancelled) return true;
 
             if (result != null)
             {
@@ -126,6 +146,19 @@ namespace XerahS.Core.Tasks.Processors
                 }
             }
 
+            if (!info.BeforeUploadConfirmed && info.TaskSettings.AfterCaptureJob.HasFlag(AfterCaptureTasks.ShowBeforeUploadWindow))
+            {
+                var confirm = ShowBeforeUploadCallback ?? throw new InvalidOperationException("The before-upload window is unavailable in this host.");
+                EnsurePluginsLoaded();
+                if (!await confirm(info, token))
+                {
+                    DebugHelper.WriteLine("Upload cancelled in the before-upload window.");
+                    info.UploadCancelled = true;
+                    return null;
+                }
+                info.BeforeUploadConfirmed = true;
+            }
+            token.ThrowIfCancellationRequested();
             return await StartUploadAsync(info, token).ConfigureAwait(false);
         }
 

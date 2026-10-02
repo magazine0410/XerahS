@@ -181,14 +181,30 @@
                                                Foreground="{DynamicResource SystemControlForegroundBaseMediumBrush}" 
                                                Margin="0,0,0,4"/>
                                     
-                                    <CheckBox IsChecked="{Binding SaveImageToFile}" Content="Save image to file"/>
-                                    <CheckBox IsChecked="{Binding CopyImageToClipboard}" Content="Copy image to clipboard"/>
-                                    <CheckBox IsChecked="{Binding UploadImageToHost}" Content="Upload image to host" FontWeight="SemiBold"/>
-                                    <CheckBox IsChecked="{Binding ApplyImageEffects}" Content="Apply image effects"/>
-                                    <CheckBox IsChecked="{Binding AnnotateMedia}" Content="Annotate media"/>
+                                    <CheckBox IsChecked="{Binding ShowQuickTaskMenu}" Content="Show quick task menu"/>
                                     <CheckBox IsChecked="{Binding ShowAfterCaptureWindow}" Content="Show after capture window"/>
+                                    <CheckBox IsChecked="{Binding BeautifyImage}" Content="Beautify image"/>
+                                    <CheckBox IsChecked="{Binding ApplyImageEffects}" Content="Add image effects"/>
+                                    <CheckBox IsChecked="{Binding AnnotateMedia}" Content="Annotate media"/>
+                                    <CheckBox IsChecked="{Binding CopyImageToClipboard}" Content="Copy image to clipboard"/>
+                                    <CheckBox IsChecked="{Binding PinToScreen}" Content="Pin to screen"/>
+                                    <CheckBox IsChecked="{Binding SaveImageToFile}" Content="Save image to file"/>
+                                    <CheckBox IsChecked="{Binding SaveImageToFileWithDialog}" Content="Save image to file (with dialog)"/>
+                                    <CheckBox IsChecked="{Binding SaveThumbnailImageToFile}" Content="Save thumbnail image to file"
+                                              ToolTip.Tip="Used together with saving or uploading an image. Configure its size and suffix in Image settings."/>
+                                    <CheckBox IsChecked="{Binding PerformActions}" Content="Perform actions"/>
+                                    <CheckBox IsChecked="{Binding CopyFileToClipboard}" Content="Copy file to clipboard"/>
+                                    <CheckBox IsChecked="{Binding CopyFilePathToClipboard}" Content="Copy file path to clipboard"/>
+                                    <CheckBox IsChecked="{Binding CopyFolderPathToClipboard}" Content="Copy folder path to clipboard"/>
+                                    <CheckBox IsChecked="{Binding ShowInExplorer}" Content="Show in file manager"/>
+                                    <CheckBox IsChecked="{Binding ScanQRCode}" Content="Scan QR code"/>
                                     <CheckBox IsChecked="{Binding DoOCR}" Content="OCR text recognition"/>
                                     <CheckBox IsChecked="{Binding CopyOcrTextToClipboard}" Content="Copy OCR text to clipboard"/>
+                                    <CheckBox IsChecked="{Binding ShowBeforeUploadWindow}" Content="Show before-upload window"/>
+                                    <CheckBox IsChecked="{Binding UploadImageToHost}" Content="Upload image to host"/>
+                                    <CheckBox IsChecked="{Binding DeleteFile}" Content="Delete file"
+                                              ToolTip.Tip="Delete the task file at the end, including if an upload fails or is cancelled."/>
+                                    <Button Content="Edit quick task menu..." Command="{Binding EditQuickTaskMenuCommand}"/>
                                 </StackPanel>
                             </Border>
                         </StackPanel>
@@ -202,6 +218,10 @@
             </TabItem>
             <TabItem Header="Video" IsVisible="{Binding ShowMediaSettingsTabs}">
                 <views:TaskVideoSettingsPanel/>
+            </TabItem>
+
+            <TabItem Header="Actions">
+                <views:TaskActionsSettingsPanel/>
             </TabItem>
 
             <!-- Index Folder Tab (Conditional) -->

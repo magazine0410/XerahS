@@ -55,7 +55,18 @@ namespace XerahS.Core.Tasks
                 case EDataType.Image:
                     metadata.Image = content.Image;
                     Info.DataType = EDataType.Image;
-                    Info.Job = TaskJob.DataUpload;
+                    // As in ShareX's ProcessImageUpload: unless "Use after capture tasks for clipboard image
+                    // uploads" is on, the image is only uploaded. Otherwise it runs as an image task, and its
+                    // after capture tasks decide whether it is uploaded.
+                    if (taskSettings.AdvancedSettings.ProcessImagesDuringClipboardUpload)
+                    {
+                        Info.Job = TaskJob.Job;
+                    }
+                    else
+                    {
+                        taskSettings.AfterCaptureJob = AfterCaptureTasks.None;
+                        Info.Job = TaskJob.DataUpload; // Uploads the image from memory without saving a file.
+                    }
                     string imageExtension = EnumExtensions.GetDescription(taskSettings.ImageSettings.ImageFormat);
                     Info.SetFileName(TaskHelpers.GetFileName(taskSettings, imageExtension, metadata));
                     return true;

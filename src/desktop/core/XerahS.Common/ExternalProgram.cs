@@ -57,7 +57,18 @@ namespace XerahS.Common
         }
 
         public string? Run(string inputPath)
+            => RunAsync(inputPath).GetAwaiter().GetResult();
+
+        public ExternalProgram Clone()
         {
+            var clone = (ExternalProgram)MemberwiseClone();
+            clone.pendingInputFilePath = null;
+            return clone;
+        }
+
+        public async Task<string?> RunAsync(string inputPath, CancellationToken cancellationToken = default)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
             pendingInputFilePath = null;
             string? path = GetFullPath();
 
@@ -109,14 +120,24 @@ namespace XerahS.Common
 
                             process.StartInfo = psi;
                             process.Start();
-                            process.WaitForExit();
+                            try
+                            {
+                                await process.WaitForExitAsync(cancellationToken).ConfigureAwait(false);
+                            }
+                            catch (OperationCanceledException)
+                            {
+                                if (!process.HasExited) process.Kill(entireProcessTree: true);
+                                await process.WaitForExitAsync(CancellationToken.None).ConfigureAwait(false);
+                                throw;
+                            }
                         }
 
                         if (!string.IsNullOrEmpty(outputPath) && File.Exists(outputPath))
                         {
                             DebugHelper.WriteLine($"Action output: \"{outputPath}\" [{FileHelpers.GetFileSizeReadable(outputPath)}]");
 
-                            if (DeleteInputFile && !inputPath.Equals(outputPath, StringComparison.OrdinalIgnoreCase))
+                            if (DeleteInputFile && !inputPath.Equals(outputPath,
+                                OperatingSystem.IsWindows() ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal))
                             {
                                 pendingInputFilePath = inputPath;
                             }
@@ -126,6 +147,10 @@ namespace XerahS.Common
 
                         return inputPath;
                     }
+                    catch (OperationCanceledException)
+                    {
+                        throw;
+                    }
                     catch (Exception e)
                     {
                         DebugHelper.WriteException(e);
@@ -134,11 +159,6 @@ namespace XerahS.Common
             }
 
             return null;
-        }
-
-        public Task<string?> RunAsync(string inputPath)
-        {
-            return Task.Run(() => Run(inputPath));
         }
 
         public bool CheckExtension(string path)
