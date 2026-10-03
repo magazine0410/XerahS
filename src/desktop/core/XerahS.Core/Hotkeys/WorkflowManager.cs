@@ -34,7 +34,10 @@ namespace XerahS.Core.Hotkeys;
 public class WorkflowManager : IDisposable
 {
     private readonly IHotkeyService _hotkeyService;
-    private readonly Dictionary<ushort, WorkflowSettings> _hotkeyMap = new();
+    // Keeps the HotkeyInfo object that was registered: the workflow editor replaces a workflow's
+    // HotkeyInfo with a copy whose Id is 0 (Id is not serialized), so the workflow's current
+    // HotkeyInfo cannot be used to release the registration.
+    private readonly Dictionary<ushort, (WorkflowSettings Settings, HotkeyInfo HotkeyInfo)> _hotkeyMap = new();
     private bool _disposed;
 
     /// <summary>
@@ -78,10 +81,10 @@ public class WorkflowManager : IDisposable
 
     private void OnHotkeyServiceTriggered(object? sender, HotkeyTriggeredEventArgs e)
     {
-        if (_hotkeyMap.TryGetValue(e.HotkeyInfo.Id, out var settings))
+        if (_hotkeyMap.TryGetValue(e.HotkeyInfo.Id, out var registration))
         {
-            Debug.WriteLine($"HotkeyManager: Triggering {settings}");
-            HotkeyTriggered?.Invoke(this, settings);
+            Debug.WriteLine($"HotkeyManager: Triggering {registration.Settings}");
+            HotkeyTriggered?.Invoke(this, registration.Settings);
         }
     }
 
@@ -119,9 +122,10 @@ public class WorkflowManager : IDisposable
     {
         // If this workflow had a previously registered hotkey, release it first.
         // This is required when editing a hotkey and clearing it to None.
-        if (settings.HotkeyInfo.Id != 0)
+        bool hasMappedRegistration = FindRegisteredHotkey(settings) != null;
+        if (hasMappedRegistration || settings.HotkeyInfo.Id != 0)
         {
-            bool hasKnownRuntimeRegistration = _hotkeyMap.ContainsKey(settings.HotkeyInfo.Id) || _hotkeyService.IsRegistered(settings.HotkeyInfo);
+            bool hasKnownRuntimeRegistration = hasMappedRegistration || _hotkeyService.IsRegistered(settings.HotkeyInfo);
 
             if (hasKnownRuntimeRegistration)
             {
@@ -186,7 +190,7 @@ public class WorkflowManager : IDisposable
         }
         else if (result)
         {
-            _hotkeyMap[settings.HotkeyInfo.Id] = settings;
+            _hotkeyMap[settings.HotkeyInfo.Id] = (settings, settings.HotkeyInfo);
             // Debug.WriteLine($"HotkeyManager: Registered {settings}");
             XerahS.Common.DebugHelper.WriteLine($"Hotkey registered: {settings}");
 
@@ -214,6 +218,20 @@ public class WorkflowManager : IDisposable
             ? XerahS.Common.EnumExtensions.GetDescription(settings.Job)
             : settings.Name;
 
+    /// <summary>The HotkeyInfo registered for this workflow, which may no longer be its current one.</summary>
+    private HotkeyInfo? FindRegisteredHotkey(WorkflowSettings settings)
+    {
+        foreach (var registration in _hotkeyMap.Values)
+        {
+            if (ReferenceEquals(registration.Settings, settings))
+            {
+                return registration.HotkeyInfo;
+            }
+        }
+
+        return null;
+    }
+
     /// <summary>
     /// Returns the enabled workflow whose registered hotkey uses the same keys, if any.
     /// </summary>
@@ -237,19 +255,23 @@ public class WorkflowManager : IDisposable
 
     private bool UnregisterHotkeyInternal(WorkflowSettings settings, bool removeFromList)
     {
-        ushort hotkeyId = settings.HotkeyInfo.Id;
+        HotkeyInfo registered = FindRegisteredHotkey(settings) ?? settings.HotkeyInfo;
+        ushort hotkeyId = registered.Id;
         if (hotkeyId == 0)
         {
             return false;
         }
 
-        bool result = _hotkeyService.UnregisterHotkey(settings.HotkeyInfo);
+        bool result = _hotkeyService.UnregisterHotkey(registered);
 
         if (result)
         {
             _hotkeyMap.Remove(hotkeyId);
-            settings.HotkeyInfo.Id = 0;
-            settings.HotkeyInfo.NativeTriggerDescription = null;
+            foreach (var hotkeyInfo in new[] { registered, settings.HotkeyInfo })
+            {
+                hotkeyInfo.Id = 0;
+                hotkeyInfo.NativeTriggerDescription = null;
+            }
 
             if (removeFromList && Workflows.Contains(settings))
             {
@@ -284,9 +306,10 @@ public class WorkflowManager : IDisposable
         // Only the workflow hotkeys: the assistant and the capture command palette register their own
         // shortcuts on the same service. Clearing those as well changes the portal shortcut set, which
         // makes the next bind open a new portal session and KDE ask to assign them again.
-        foreach (var settings in _hotkeyMap.Values.ToList())
+        foreach (var registration in _hotkeyMap.Values.ToList())
         {
-            _hotkeyService.UnregisterHotkey(settings.HotkeyInfo);
+            _hotkeyService.UnregisterHotkey(registration.HotkeyInfo);
+            registration.HotkeyInfo.Id = 0;
         }
         _hotkeyMap.Clear();
 

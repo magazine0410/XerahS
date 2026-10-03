@@ -316,12 +316,81 @@ public class WorkflowManagerTests
         });
     }
 
+    // The workflow editor's save copies its edited workflow back with a new HotkeyInfo, and the
+    // copy's Id is 0 because Id is not serialized.
+    private static void ReplaceWithEditorCopy(WorkflowSettings settings) =>
+        settings.HotkeyInfo = new HotkeyInfo(settings.HotkeyInfo.Key, settings.HotkeyInfo.Modifiers);
+
+    [Test]
+    public void UpdateHotkeys_AfterTheEditorReplacesTheHotkey_ReleasesTheOldRegistrationAndStillTriggers()
+    {
+        var service = new FakeHotkeyService();
+        using var manager = new WorkflowManager(service);
+        var region = new WorkflowSettings(WorkflowType.RectangleRegion, new HotkeyInfo(Key.Print, KeyModifiers.Control));
+        manager.UpdateHotkeys([region]);
+        WorkflowSettings? triggered = null;
+        manager.HotkeyTriggered += (_, workflow) => triggered = workflow;
+
+        for (int save = 0; save < 2; save++)
+        {
+            ReplaceWithEditorCopy(region);
+            manager.UpdateHotkeys(manager.Workflows);
+        }
+        service.RaiseHotkeyTriggered(region.HotkeyInfo);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(service.RegisteredCount, Is.EqualTo(1), "Each save used to leave the previous registration behind.");
+            Assert.That(service.IsRegistered(region.HotkeyInfo), Is.True);
+            Assert.That(triggered, Is.SameAs(region));
+        });
+    }
+
+    [Test]
+    public void RegisterHotkey_AfterTheEditorReplacesTheHotkey_ReleasesTheOldRegistration()
+    {
+        var service = new FakeHotkeyService();
+        using var manager = new WorkflowManager(service);
+        var region = new WorkflowSettings(WorkflowType.RectangleRegion, new HotkeyInfo(Key.Print, KeyModifiers.Control));
+        Assert.That(manager.RegisterHotkey(region), Is.True);
+        var previous = region.HotkeyInfo;
+
+        ReplaceWithEditorCopy(region);
+        Assert.That(manager.RegisterHotkey(region), Is.True);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(service.RegisteredCount, Is.EqualTo(1));
+            Assert.That(service.IsRegistered(region.HotkeyInfo), Is.True);
+            Assert.That(previous.Id, Is.EqualTo(0));
+        });
+    }
+
+    [Test]
+    public void UnregisterHotkey_AfterTheEditorReplacesTheHotkey_ReleasesTheRegistration()
+    {
+        var service = new FakeHotkeyService();
+        using var manager = new WorkflowManager(service);
+        var region = new WorkflowSettings(WorkflowType.RectangleRegion, new HotkeyInfo(Key.Print, KeyModifiers.Control));
+        Assert.That(manager.RegisterHotkey(region), Is.True);
+
+        ReplaceWithEditorCopy(region);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(manager.UnregisterHotkey(region), Is.True);
+            Assert.That(service.RegisteredCount, Is.EqualTo(0));
+            Assert.That(manager.Workflows, Does.Not.Contain(region));
+        });
+    }
+
     private sealed class FakeHotkeyService : IHotkeyService
     {
         private readonly HashSet<ushort> _registeredIds = new();
         private ushort _nextId = 1;
 
         public int UnregisterCallCount { get; private set; }
+        public int RegisteredCount => _registeredIds.Count;
         public bool FailNextRegisterAfterAssigningId { get; set; }
         public bool FailNextUnregister { get; set; }
 
