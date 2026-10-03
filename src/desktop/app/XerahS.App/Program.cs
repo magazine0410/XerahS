@@ -720,6 +720,8 @@ namespace XerahS.App
                         XerahS.Uploaders.PluginSystem.ProviderCatalog.LoadPlugins(XerahS.Common.PathsManager.GetPluginDirectories());
                         int pluginCount = XerahS.Uploaders.PluginSystem.ProviderCatalog.GetAllProviders().Count;
                         XerahS.Common.DebugHelper.WriteLine($"Plugins: {pluginCount} loaded");
+                        // As in ShareX, the built-in link sharing services are available without setup.
+                        XerahS.Uploaders.SharingServices.LinkSharingProvider.EnsureInstances();
                     }
                     catch (Exception ex)
                     {

@@ -111,12 +111,7 @@ namespace XerahS.Core.Tasks.Pipeline
 
             if (context.Info.Job == TaskJob.DownloadUpload)
             {
-                if (!await new Processors.DownloadJobProcessor().ProcessAsync(context.Info, token))
-                {
-                    context.Status = TaskStatus.Canceled;
-                    return PipelineStageResult.Stop;
-                }
-                return PipelineStageResult.Continue;
+                return await DownloadAsync(context, token);
             }
 
             // A supplied upload payload must not reopen its interactive workflow (or read the clipboard).
@@ -230,6 +225,12 @@ namespace XerahS.Core.Tasks.Pipeline
                     {
                         await _workerTask.UploadClipboardFilesAsync(taskSettings, clipboardFiles, token);
                         return PipelineStageResult.Stop;
+                    }
+
+                    // A copied URL with "Upload URL contents" on is downloaded first, like the Upload URL workflow.
+                    if (context.Info.Job == TaskJob.DownloadUpload)
+                    {
+                        return await DownloadAsync(context, token);
                     }
                     break;
 
@@ -865,6 +866,16 @@ namespace XerahS.Core.Tasks.Pipeline
                 $"CaptureStage: macOS selector preference source={(taskPreference == MacOSInteractiveRegionSelectorPreference.Automatic ? "default task settings" : "task settings")} (task={taskPreference}, default={defaultPreference}, effective={effectivePreference}).");
 
             return effectivePreference;
+        }
+
+        private static async Task<PipelineStageResult> DownloadAsync(PipelineContext context, CancellationToken token)
+        {
+            if (!await new Processors.DownloadJobProcessor().ProcessAsync(context.Info, token))
+            {
+                context.Status = TaskStatus.Canceled;
+                return PipelineStageResult.Stop;
+            }
+            return PipelineStageResult.Continue;
         }
 
         private static bool ShouldUseTransparentOverlay(WorkflowType workflowType)

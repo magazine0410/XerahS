@@ -23,25 +23,6 @@
 
 #endregion License Information (GPL v3)
 
-namespace XerahS.Uploaders.PluginSystem;
+using System.Runtime.CompilerServices;
 
-/// <summary>
-/// Configuration model for persisting uploader instances
-/// </summary>
-public class InstanceConfiguration
-{
-    /// <summary>
-    /// List of configured uploader instances
-    /// </summary>
-    public List<UploaderInstance> Instances { get; set; } = new();
-
-    /// <summary>
-    /// Default instance IDs per category
-    /// </summary>
-    public Dictionary<UploaderCategory, string> DefaultInstances { get; set; } = new();
-
-    /// <summary>
-    /// Built-in providers whose instances were added automatically once, so removing one keeps it removed.
-    /// </summary>
-    public List<string> AddedBuiltInProviderIds { get; set; } = new();
-}
+[assembly: InternalsVisibleTo("XerahS.Tests")]

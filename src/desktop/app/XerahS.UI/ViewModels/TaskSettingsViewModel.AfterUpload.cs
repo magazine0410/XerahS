@@ -142,6 +142,40 @@ namespace XerahS.UI.ViewModels
             }
         }
 
+        private List<UploaderInstance>? _urlSharingDestinations;
+
+        /// <summary>The workflow's URL sharing service for Share URL, ShareX's URLSharingServiceDestination.</summary>
+        public IReadOnlyList<UploaderInstance> UrlSharingDestinations
+        {
+            get
+            {
+                _urlSharingDestinations ??= [new UploaderInstance
+                    { InstanceId = string.Empty, DisplayName = "Default URL sharing service", Category = UploaderCategory.UrlSharing },
+                    .. InstanceManager.Instance.GetInstancesByCategory(UploaderCategory.UrlSharing)];
+                string? selectedId = SourceFor(_settings.UseDefaultDestinations).UrlSharingDestinationInstanceId;
+                if (!string.IsNullOrEmpty(selectedId) && _urlSharingDestinations.All(item => item.InstanceId != selectedId))
+                {
+                    _urlSharingDestinations.Add(new UploaderInstance
+                    {
+                        InstanceId = selectedId, DisplayName = "Unavailable URL sharing service", Category = UploaderCategory.UrlSharing
+                    });
+                }
+                return _urlSharingDestinations;
+            }
+        }
+
+        public UploaderInstance? SelectedUrlSharingDestination
+        {
+            get => UrlSharingDestinations.FirstOrDefault(item => item.InstanceId ==
+                (SourceFor(_settings.UseDefaultDestinations).UrlSharingDestinationInstanceId ?? string.Empty));
+            set
+            {
+                if (value == null) return;
+                SourceFor(_settings.UseDefaultDestinations).UrlSharingDestinationInstanceId = value.InstanceId;
+                OnPropertyChanged();
+            }
+        }
+
         public bool ShowAfterUploadShortenerDestination => Job != WorkflowType.ShortenURL;
 
         private void UpdateAfterUploadTask(AfterUploadTasks task, bool enabled)

@@ -95,9 +95,12 @@ public class TaskInfo
                 return ResolvedUploaderHost;
             }
 
-            if (TryGetCategoryForDataType(DataType, out var category))
+            UploaderCategory category = UploaderCategory.UrlSharing;
+            if (Job == TaskJob.ShareURL || TryGetCategoryForDataType(DataType, out category))
             {
-                var instanceId = TaskSettings.GetDestinationInstanceIdForDataType(DataType);
+                var instanceId = Job == TaskJob.ShareURL
+                    ? TaskSettings.UrlSharingDestinationInstanceId
+                    : TaskSettings.GetDestinationInstanceIdForDataType(DataType);
                 var instance = !string.IsNullOrEmpty(instanceId)
                     ? InstanceManager.Instance.GetInstance(instanceId)
                     : InstanceManager.Instance.GetDefaultInstance(category);
@@ -124,11 +127,9 @@ public class TaskInfo
 
             // Legacy: URL shortener / sharing still read from deprecated enum for display
 #pragma warning disable CS0618
-            if (DataType == EDataType.URL)
+            if (DataType == EDataType.URL && Job != TaskJob.ShareURL)
             {
-                return Job == TaskJob.ShareURL
-                    ? EnumExtensions.GetDescription(TaskSettings.URLSharingServiceDestination)
-                    : EnumExtensions.GetDescription(TaskSettings.URLShortenerDestination);
+                return EnumExtensions.GetDescription(TaskSettings.URLShortenerDestination);
             }
 #pragma warning restore CS0618
 

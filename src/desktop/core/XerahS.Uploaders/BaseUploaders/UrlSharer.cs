@@ -23,25 +23,14 @@
 
 #endregion License Information (GPL v3)
 
-namespace XerahS.Uploaders.PluginSystem;
+namespace XerahS.Uploaders;
 
 /// <summary>
-/// Configuration model for persisting uploader instances
+/// Base class for URL sharing services (plugin category UrlSharing), ShareX's URLSharer.
+/// A share sends or opens the URL somewhere; it does not produce a new URL.
 /// </summary>
-public class InstanceConfiguration
+public abstract class UrlSharer : Uploader
 {
-    /// <summary>
-    /// List of configured uploader instances
-    /// </summary>
-    public List<UploaderInstance> Instances { get; set; } = new();
-
-    /// <summary>
-    /// Default instance IDs per category
-    /// </summary>
-    public Dictionary<UploaderCategory, string> DefaultInstances { get; set; } = new();
-
-    /// <summary>
-    /// Built-in providers whose instances were added automatically once, so removing one keeps it removed.
-    /// </summary>
-    public List<string> AddedBuiltInProviderIds { get; set; } = new();
+    /// <summary>Shares the URL. The result keeps the URL, with IsURLExpected false, and any errors.</summary>
+    public abstract Task<UploadResult> ShareURLAsync(string url, CancellationToken cancellationToken = default);
 }

@@ -52,7 +52,7 @@ public partial class BeforeUploadViewModel : ObservableObject, IDisposable
     public BeforeUploadViewModel(TaskInfo info)
     {
         _info = info;
-        var category = info.DataType switch
+        var category = info.Job == TaskJob.ShareURL ? UploaderCategory.UrlSharing : info.DataType switch
         {
             EDataType.Image => UploaderCategory.Image,
             EDataType.Text => UploaderCategory.Text,
@@ -67,7 +67,10 @@ public partial class BeforeUploadViewModel : ObservableObject, IDisposable
             instances = instances.Concat(manager.GetInstancesByCategory(UploaderCategory.File)).DistinctBy(instance => instance.InstanceId).ToList();
         options.AddRange(instances.Where(instance => instance.IsAvailable).Select(instance => new BeforeUploadDestination(instance.InstanceId, instance.DisplayName)));
         Destinations = options;
-        SelectedDestination = options.FirstOrDefault(option => option.InstanceId == info.TaskSettings.GetDestinationInstanceIdForDataType(info.DataType)) ?? options[0];
+        string? selectedId = info.Job == TaskJob.ShareURL
+            ? info.TaskSettings.UrlSharingDestinationInstanceId
+            : info.TaskSettings.GetDestinationInstanceIdForDataType(info.DataType);
+        SelectedDestination = options.FirstOrDefault(option => option.InstanceId == selectedId) ?? options[0];
 
         // File actions may have replaced the captured image. Preview what will actually be uploaded.
         if (!string.IsNullOrEmpty(info.FilePath) && FileHelpers.IsImageFile(info.FilePath)) _image = ImageHelpers.LoadBitmap(info.FilePath);
@@ -83,7 +86,8 @@ public partial class BeforeUploadViewModel : ObservableObject, IDisposable
     public void ApplySelection()
     {
         if (SelectedDestination == null) return;
-        if (_info.DataType == EDataType.URL) _info.TaskSettings.UrlShortenerDestinationInstanceId = SelectedDestination.InstanceId;
+        if (_info.Job == TaskJob.ShareURL) _info.TaskSettings.UrlSharingDestinationInstanceId = SelectedDestination.InstanceId;
+        else if (_info.DataType == EDataType.URL) _info.TaskSettings.UrlShortenerDestinationInstanceId = SelectedDestination.InstanceId;
         else _info.TaskSettings.DestinationInstanceId = SelectedDestination.InstanceId;
     }
 

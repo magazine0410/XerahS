@@ -79,6 +79,28 @@ public static class UploaderUploadAdapter
         return result;
     }
 
+    /// <summary>Shares a URL with a URL sharing service, as ShareX's ShareURL does.</summary>
+    public static async Task<UploadResult> ShareAsync(object? instance, string url, CancellationToken cancellationToken)
+    {
+        using var scope = new UploadCancellationScope(cancellationToken);
+        cancellationToken = scope.Token;
+        cancellationToken.ThrowIfCancellationRequested();
+        if (instance is Uploader uploader) uploader.RequestCancellationToken = cancellationToken;
+        using var registration = instance is Uploader legacy ? cancellationToken.Register(legacy.StopUpload) : default;
+        UploadResult result = instance switch
+        {
+            UrlSharer sharer => await sharer.ShareURLAsync(url, cancellationToken).ConfigureAwait(false),
+            CustomUploader.CustomUploaderExecutor custom => await Task.Run(() => custom.ShareUrl(url), cancellationToken).ConfigureAwait(false),
+            _ => new UploadResult { Response = "The selected destination does not support URL sharing." }
+        };
+        cancellationToken.ThrowIfCancellationRequested();
+        if (instance is Uploader source && source.Errors.Count > 0 && !ReferenceEquals(source.Errors, result.Errors))
+        {
+            result.Errors.Add(source.Errors);
+        }
+        return result;
+    }
+
     private static async Task<UploadOutcome> UploadLegacyAsync(
         GenericUploader uploader,
         UploadRequest request,

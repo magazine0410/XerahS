@@ -236,8 +236,6 @@
                         AutomationProperties.Name="Use URL Shortener"/>
               <CheckBox Content="Share URL"
                         IsChecked="{Binding ShareURL}"
-                        IsEnabled="False"
-                        ToolTip.Tip="URL sharing services are not available yet."
                         IsVisible="{Binding ShowUrlOptions}"
                         AutomationProperties.Name="Share URL"/>
               <CheckBox Content="Open URL"

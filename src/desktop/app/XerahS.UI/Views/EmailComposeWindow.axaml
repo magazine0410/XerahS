@@ -1,0 +1,46 @@
+<ui:SurfaceWindow xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:ui="using:XerahS.UI.Views"
+        xmlns:theming="clr-namespace:ShareX.ImageEditor.Presentation.Theming;assembly=ShareX.ImageEditor"
+        x:Class="XerahS.UI.Views.EmailComposeWindow"
+        Title="XerahS - Send email"
+        Width="520" SizeToContent="Height" MinHeight="360"
+        WindowStartupLocation="CenterScreen">
+
+  <!-- Fields and wording follow ShareX's email window. -->
+  <StackPanel Margin="18,14" Spacing="14">
+    <Grid ColumnDefinitions="Auto,*" ColumnSpacing="10">
+      <Border Width="40" Height="40" CornerRadius="6" Background="{DynamicResource CardBackgroundFillColorDefaultBrush}">
+        <TextBlock Classes="icon" Text="{x:Static theming:LucideIcons.mail}" FontSize="20"
+                   Foreground="{DynamicResource AccentFillColorDefaultBrush}" HorizontalAlignment="Center"/>
+      </Border>
+      <StackPanel Grid.Column="1" Spacing="1" VerticalAlignment="Center">
+        <TextBlock Text="Send email" FontSize="19" FontWeight="SemiBold"/>
+        <TextBlock Text="Share the URL by email." Foreground="{DynamicResource TextFillColorSecondaryBrush}"/>
+      </StackPanel>
+    </Grid>
+
+    <StackPanel Spacing="6">
+      <TextBlock Text="To email"/>
+      <TextBox x:Name="ToEmailTextBox" PlaceholderText="name@example.com" AutomationProperties.Name="To email"/>
+    </StackPanel>
+    <StackPanel Spacing="6">
+      <TextBlock Text="Subject"/>
+      <TextBox x:Name="SubjectTextBox" PlaceholderText="Email subject" AutomationProperties.Name="Subject"/>
+    </StackPanel>
+    <StackPanel Spacing="6">
+      <TextBlock Text="Message"/>
+      <TextBox x:Name="MessageTextBox" AcceptsReturn="True" TextWrapping="Wrap" MinHeight="120" MaxHeight="320"
+               AutomationProperties.Name="Message"/>
+    </StackPanel>
+
+    <Grid ColumnDefinitions="*,Auto,Auto" ColumnSpacing="8">
+      <Button x:Name="SendButton" Grid.Column="1" Content="Send" Classes="accent" Click="OnSendClick" IsDefault="True" MinWidth="92"/>
+      <Button Grid.Column="2" Content="Cancel" Click="OnCancelClick" IsCancel="True" MinWidth="92"/>
+    </Grid>
+  </StackPanel>
+
+  <ui:SurfaceWindow.Styles>
+    <StyleInclude Source="avares://XerahS.UI/Themes/ToolWindowStyles.axaml"/>
+  </ui:SurfaceWindow.Styles>
+</ui:SurfaceWindow>

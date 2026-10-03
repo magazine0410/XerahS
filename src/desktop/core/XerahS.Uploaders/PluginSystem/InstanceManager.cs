@@ -215,6 +215,55 @@ public class InstanceManager
     }
 
     /// <summary>
+    /// Adds an instance for each built-in provider not added before, unless one already exists for it.
+    /// Returns the number of instances added.
+    /// </summary>
+    public int AddInstancesOnce(UploaderCategory category, IEnumerable<(string ProviderId, string DisplayName)> providers)
+    {
+        lock (_lock)
+        {
+            int added = 0;
+            bool changed = false;
+            foreach (var (providerId, displayName) in providers)
+            {
+                if (_configuration.AddedBuiltInProviderIds.Contains(providerId, StringComparer.OrdinalIgnoreCase))
+                {
+                    continue;
+                }
+
+                _configuration.AddedBuiltInProviderIds.Add(providerId);
+                changed = true;
+                if (_configuration.Instances.Any(i => i.Category == category &&
+                    string.Equals(i.ProviderId, providerId, StringComparison.OrdinalIgnoreCase)))
+                {
+                    continue;
+                }
+
+                var instance = new UploaderInstance
+                {
+                    ProviderId = providerId,
+                    Category = category,
+                    DisplayName = displayName,
+                    SettingsJson = "{}",
+                    CreatedAt = DateTime.UtcNow,
+                    ModifiedAt = DateTime.UtcNow
+                };
+                NormalizeInstance(instance);
+                instance.InstanceId = GenerateInstanceId(providerId, displayName, instance.CreatedAt);
+                _configuration.Instances.Add(instance);
+                added++;
+            }
+
+            if (changed)
+            {
+                SaveConfiguration();
+            }
+
+            return added;
+        }
+    }
+
+    /// <summary>
     /// Update an existing instance
     /// </summary>
     public void UpdateInstance(UploaderInstance instance)
@@ -676,6 +725,7 @@ public class InstanceManager
     {
         configuration.Instances ??= new List<UploaderInstance>();
         configuration.DefaultInstances ??= new Dictionary<UploaderCategory, string>();
+        configuration.AddedBuiltInProviderIds ??= new List<string>();
 
         foreach (var instance in configuration.Instances)
         {

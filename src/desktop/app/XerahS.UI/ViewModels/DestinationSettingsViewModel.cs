@@ -105,12 +105,25 @@ public partial class DestinationSettingsViewModel : ViewModelBase
 
         Common.DebugHelper.WriteLine("[DestinationSettings] ========================================");
 
+        AddBuiltInSharingServices();
         LoadCategories();
 
         // Show the one-time legacy import button only on the first app run.
         ShowImportShareXConfig = SettingsManager.Settings.IsFirstTimeRun;
 
         _isInitialized = true;
+    }
+
+    private static void AddBuiltInSharingServices()
+    {
+        try
+        {
+            XerahS.Uploaders.SharingServices.LinkSharingProvider.EnsureInstances();
+        }
+        catch (Exception ex)
+        {
+            Common.DebugHelper.WriteException(ex, "Failed to add the built-in URL sharing services");
+        }
     }
 
     private void Provider_ConfigChanged(object? sender, EventArgs e)
@@ -136,6 +149,10 @@ public partial class DestinationSettingsViewModel : ViewModelBase
         var urlCategory = new CategoryViewModel("URL Shorteners", UploaderCategory.UrlShortener);
         urlCategory.LoadInstances();
         Categories.Add(urlCategory);
+
+        var sharingCategory = new CategoryViewModel("URL Sharing Services", UploaderCategory.UrlSharing);
+        sharingCategory.LoadInstances();
+        Categories.Add(sharingCategory);
 
         // Select first category by default
         SelectedCategory = Categories.FirstOrDefault();

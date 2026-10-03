@@ -39,7 +39,7 @@ using XerahS.Uploaders.PluginSystem;
 namespace XerahS.Tests.Tasks;
 
 [TestFixture, NonParallelizable]
-public class AfterUploadTasksTests
+public partial class AfterUploadTasksTests
 {
     private const string ProviderId = "after-upload-test-provider";
     private const string OriginalUrl = "https://files.test/original.png";

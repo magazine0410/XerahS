@@ -23,25 +23,20 @@
 
 #endregion License Information (GPL v3)
 
-namespace XerahS.Uploaders.PluginSystem;
+using Avalonia.Controls;
+using Avalonia.Markup.Xaml;
 
-/// <summary>
-/// Configuration model for persisting uploader instances
-/// </summary>
-public class InstanceConfiguration
+namespace ShareX.Email.Plugin.Views;
+
+public partial class EmailConfigView : UserControl
 {
-    /// <summary>
-    /// List of configured uploader instances
-    /// </summary>
-    public List<UploaderInstance> Instances { get; set; } = new();
+    public EmailConfigView()
+    {
+        InitializeComponent();
+    }
 
-    /// <summary>
-    /// Default instance IDs per category
-    /// </summary>
-    public Dictionary<UploaderCategory, string> DefaultInstances { get; set; } = new();
-
-    /// <summary>
-    /// Built-in providers whose instances were added automatically once, so removing one keeps it removed.
-    /// </summary>
-    public List<string> AddedBuiltInProviderIds { get; set; } = new();
+    private void InitializeComponent()
+    {
+        AvaloniaXamlLoader.Load(this);
+    }
 }

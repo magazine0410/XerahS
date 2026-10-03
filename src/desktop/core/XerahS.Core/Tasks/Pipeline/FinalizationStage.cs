@@ -57,9 +57,11 @@ namespace XerahS.Core.Tasks.Pipeline
             // Cancelling the before-upload window is not an upload failure.
             if (!context.Info.UploadCancelled && ShouldRequireSuccessfulUpload(context.Info) && !IsUploadResultSuccessful(context.Info.Result))
             {
-                string message = string.IsNullOrWhiteSpace(context.Info.Result?.Response)
-                    ? "Upload failed."
-                    : context.Info.Result.Response!;
+                string message = !string.IsNullOrWhiteSpace(context.Info.Result?.Response)
+                    ? context.Info.Result.Response!
+                    : context.Info.Result?.Errors.Count > 0
+                        ? context.Info.Result.Errors.ToString()
+                        : context.Info.Job == TaskJob.ShareURL ? "Sharing the URL failed." : "Upload failed.";
 
                 DebugHelper.WriteLine($"Upload failed during task execution: {message}");
                 context.Error = new InvalidOperationException(message);
@@ -72,7 +74,7 @@ namespace XerahS.Core.Tasks.Pipeline
 
         private static bool ShouldRequireSuccessfulUpload(TaskInfo info)
         {
-            return info.Job is TaskJob.FileUpload or TaskJob.TextUpload or TaskJob.ShortenURL or TaskJob.DownloadUpload;
+            return info.Job is TaskJob.FileUpload or TaskJob.TextUpload or TaskJob.ShortenURL or TaskJob.ShareURL or TaskJob.DownloadUpload;
         }
 
         private static bool IsUploadResultSuccessful(XerahS.Uploaders.UploadResult? result)

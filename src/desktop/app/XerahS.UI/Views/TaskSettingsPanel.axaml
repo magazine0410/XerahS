@@ -381,6 +381,20 @@
                                             </ComboBox.ItemTemplate>
                                         </ComboBox>
                                     </StackPanel>
+                                    <StackPanel Spacing="8">
+                                        <TextBlock Text="URL sharing service:"/>
+                                        <ComboBox ItemsSource="{Binding UrlSharingDestinations}"
+                                                  SelectedItem="{Binding SelectedUrlSharingDestination}"
+                                                  HorizontalAlignment="Stretch"
+                                                  AutomationProperties.Name="Select URL Sharing Service"
+                                                  ToolTip.Tip="Used by Share URL. Configure URL sharing services in Destination Settings.">
+                                            <ComboBox.ItemTemplate>
+                                                <DataTemplate x:DataType="uploaders:UploaderInstance">
+                                                    <TextBlock Text="{Binding DisplayName}"/>
+                                                </DataTemplate>
+                                            </ComboBox.ItemTemplate>
+                                        </ComboBox>
+                                    </StackPanel>
                                 </StackPanel>
                             </Border>
                         </StackPanel>
@@ -396,6 +410,8 @@
                                 <StackPanel Spacing="10">
                                     <CheckBox IsChecked="{Binding ClipboardUploadURLContents}" Content="Upload URL contents"/>
                                     <CheckBox IsChecked="{Binding ClipboardUploadShortenURL}" Content="Shorten URL"/>
+                                    <CheckBox IsChecked="{Binding ClipboardUploadShareURL}" Content="Share URL"
+                                              ToolTip.Tip="If the clipboard contains a URL, share it with the URL sharing service. Upload URL contents and Shorten URL take precedence, as in ShareX."/>
                                 </StackPanel>
                             </Border>
                         </StackPanel>
@@ -418,9 +434,8 @@
                                               AutomationProperties.Name="Show After Upload Window"/>
                                     <CheckBox IsChecked="{Binding UseURLShortener}" 
                                               Content="Shorten URL"/>
-                                    <CheckBox IsChecked="{Binding ShareURL}"
-                                              Content="Share URL" IsEnabled="False"
-                                              ToolTip.Tip="URL sharing services are not available yet."/>
+                                    <CheckBox IsChecked="{Binding ShareURL}" Content="Share URL"
+                                              ToolTip.Tip="Shares the URL with the URL sharing service selected in Destinations."/>
                                     <CheckBox IsChecked="{Binding CopyURLToClipboard}"
                                               Content="Copy URL to clipboard"/>
                                     <CheckBox IsChecked="{Binding OpenURL}"

@@ -23,25 +23,29 @@
 
 #endregion License Information (GPL v3)
 
-namespace XerahS.Uploaders.PluginSystem;
+using XerahS.Common;
+
+namespace XerahS.Uploaders.SharingServices;
+
+/// <summary>An email to send, as shown in and returned by the compose window.</summary>
+public sealed record EmailMessageDraft(string ToEmail, string Subject, string Body);
 
 /// <summary>
-/// Configuration model for persisting uploader instances
+/// What URL sharing services need from the host application. The desktop app sets these at
+/// startup; without it, URLs open through the system and the email compose window is unavailable.
 /// </summary>
-public class InstanceConfiguration
+public static class UrlSharingHost
 {
-    /// <summary>
-    /// List of configured uploader instances
-    /// </summary>
-    public List<UploaderInstance> Instances { get; set; } = new();
+    /// <summary>Opens a URL in the default browser. Returns false when it could not be opened.</summary>
+    public static Func<string, bool> OpenUrl { get; set; } = url =>
+    {
+        URLHelpers.OpenURL(url);
+        return true;
+    };
 
     /// <summary>
-    /// Default instance IDs per category
+    /// ShareX's email window: shows the draft for editing and returns the email to send, or null
+    /// when the window is cancelled.
     /// </summary>
-    public Dictionary<UploaderCategory, string> DefaultInstances { get; set; } = new();
-
-    /// <summary>
-    /// Built-in providers whose instances were added automatically once, so removing one keeps it removed.
-    /// </summary>
-    public List<string> AddedBuiltInProviderIds { get; set; } = new();
+    public static Func<EmailMessageDraft, CancellationToken, Task<EmailMessageDraft?>>? ComposeEmailAsync { get; set; }
 }

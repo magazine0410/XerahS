@@ -75,6 +75,7 @@ namespace XerahS.Core.Tasks
                     Info.TextContent = content.Text;
                     Info.DataType = EDataType.Text;
                     Info.Job = TaskJob.TextUpload;
+                    ApplyClipboardURLJob(Info, taskSettings);
                     string textExtension = taskSettings.AdvancedSettings.TextFileExtension;
                     Info.SetFileName(TaskHelpers.GetFileName(taskSettings, textExtension, metadata));
                     return true;
@@ -92,6 +93,39 @@ namespace XerahS.Core.Tasks
             }
 
             return false;
+        }
+
+        /// <summary>
+        /// ShareX's ProcessTextUpload: copied text that is a URL is downloaded and uploaded, shortened,
+        /// or shared, by the first of those clipboard upload options that is on. Otherwise it stays a text upload.
+        /// </summary>
+        internal static void ApplyClipboardURLJob(TaskInfo info, TaskSettings taskSettings)
+        {
+            string url = info.TextContent?.Trim() ?? string.Empty;
+            if (!URLHelpers.IsValidURL(url)) return;
+
+            var upload = taskSettings.UploadSettings;
+            if (upload.ClipboardUploadURLContents)
+            {
+                info.DataType = EDataType.File;
+                info.Job = TaskJob.DownloadUpload;
+            }
+            else if (upload.ClipboardUploadShortenURL)
+            {
+                info.DataType = EDataType.URL;
+                info.Job = TaskJob.ShortenURL;
+            }
+            else if (upload.ClipboardUploadShareURL)
+            {
+                info.DataType = EDataType.URL;
+                info.Job = TaskJob.ShareURL;
+            }
+            else
+            {
+                return;
+            }
+
+            info.TextContent = url;
         }
 
         internal async Task UploadClipboardFilesAsync(TaskSettings taskSettings, string[] files, CancellationToken token)

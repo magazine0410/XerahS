@@ -23,25 +23,17 @@
 
 #endregion License Information (GPL v3)
 
-namespace XerahS.Uploaders.PluginSystem;
+namespace ShareX.Email.Plugin;
 
-/// <summary>
-/// Configuration model for persisting uploader instances
-/// </summary>
-public class InstanceConfiguration
+/// <summary>ShareX's email settings. The password and the last "To" address are kept in the secret store.</summary>
+public sealed class EmailConfigModel
 {
-    /// <summary>
-    /// List of configured uploader instances
-    /// </summary>
-    public List<UploaderInstance> Instances { get; set; } = new();
-
-    /// <summary>
-    /// Default instance IDs per category
-    /// </summary>
-    public Dictionary<UploaderCategory, string> DefaultInstances { get; set; } = new();
-
-    /// <summary>
-    /// Built-in providers whose instances were added automatically once, so removing one keeps it removed.
-    /// </summary>
-    public List<string> AddedBuiltInProviderIds { get; set; } = new();
+    public string SecretKey { get; set; } = Guid.NewGuid().ToString("N");
+    public string SmtpServer { get; set; } = "smtp.gmail.com";
+    public int SmtpPort { get; set; } = 587;
+    public string FromEmail { get; set; } = string.Empty;
+    public bool RememberLastTo { get; set; } = true;
+    public string DefaultSubject { get; set; } = "Sending email from XerahS";
+    public bool AutomaticSend { get; set; }
+    public string AutomaticSendTo { get; set; } = string.Empty;
 }

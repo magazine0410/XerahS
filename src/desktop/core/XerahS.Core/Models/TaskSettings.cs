@@ -86,6 +86,9 @@ public class TaskSettings
     public string? DestinationInstanceId { get; set; }
     public string? UrlShortenerDestinationInstanceId { get; set; }
 
+    /// <summary>URL sharing service instance for Share URL; empty uses the default one.</summary>
+    public string? UrlSharingDestinationInstanceId { get; set; }
+
     /// <summary>
     /// When false, UploadJobProcessor must not fall back across uploader categories
     /// (Image↔File↔Text). Default true preserves GUI and xerahscli behaviour.
@@ -249,6 +252,7 @@ public class TaskSettings
         {
             DestinationInstanceId = defaults.DestinationInstanceId;
             UrlShortenerDestinationInstanceId = defaults.UrlShortenerDestinationInstanceId;
+            UrlSharingDestinationInstanceId = defaults.UrlSharingDestinationInstanceId;
             OverrideFTP = defaults.OverrideFTP;
             FTPIndex = defaults.FTPIndex;
             OverrideCustomUploader = defaults.OverrideCustomUploader;
@@ -352,7 +356,12 @@ public class TaskSettings
     /// </summary>
     public string? GetDestinationInstanceIdByCategory(UploaderCategory category)
     {
-        return category == UploaderCategory.UrlShortener ? UrlShortenerDestinationInstanceId : DestinationInstanceId;
+        return category switch
+        {
+            UploaderCategory.UrlShortener => UrlShortenerDestinationInstanceId,
+            UploaderCategory.UrlSharing => UrlSharingDestinationInstanceId,
+            _ => DestinationInstanceId
+        };
     }
 
     /// <summary>

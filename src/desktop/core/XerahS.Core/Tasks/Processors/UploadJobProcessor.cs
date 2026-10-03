@@ -99,8 +99,9 @@ namespace XerahS.Core.Tasks.Processors
                     }
                     finally
                     {
-                        // The upload is already durable even if a later task is cancelled.
-                        TryAppendHistoryItem(info);
+                        // The upload is already durable even if a later task is cancelled. As in ShareX,
+                        // a Share URL job whose share failed is not added to history.
+                        if (!(info.Job == TaskJob.ShareURL && result.IsError)) TryAppendHistoryItem(info);
                     }
                 }
                 else
@@ -185,6 +186,10 @@ namespace XerahS.Core.Tasks.Processors
                     EDataType.Image => await UploadWithPluginSystemAsync(info, UploaderCategory.Image, token).ConfigureAwait(false),
                     EDataType.Text => await UploadWithPluginSystemAsync(info, UploaderCategory.Text, token).ConfigureAwait(false),
                     EDataType.File => await UploadWithPluginSystemAsync(info, UploaderCategory.File, token).ConfigureAwait(false),
+                    // As in ShareX, a Share URL job's result is the URL itself; the share runs with the after-upload tasks.
+                    EDataType.URL when info.Job == TaskJob.ShareURL => string.IsNullOrWhiteSpace(info.TextContent)
+                        ? new UploadResult { IsSuccess = false, Response = "There is no URL to share." }
+                        : new UploadResult { URL = info.TextContent.Trim(), IsSuccess = true },
                     EDataType.URL => await ShortenUrlAsync(info, info.TextContent?.Trim() ?? string.Empty, token, standaloneJob: true).ConfigureAwait(false),
                     _ => null
                 };
@@ -245,6 +250,43 @@ namespace XerahS.Core.Tasks.Processors
             {
                 DebugHelper.WriteException(ex, "URL shortening failed");
                 return new UploadResult { IsSuccess = false, Response = ex.Message };
+            }
+        }
+
+        /// <summary>
+        /// ShareX's ShareURL: shares the URL with the workflow's URL sharing service, or the default one.
+        /// Returns the error, or null when the URL was shared (or the email window was cancelled).
+        /// </summary>
+        private static async Task<string?> ShareUrlAsync(TaskInfo info, string url, CancellationToken token, bool standaloneJob)
+        {
+            if (string.IsNullOrWhiteSpace(url)) return null;
+
+            EnsurePluginsLoaded();
+            var manager = InstanceManager.Instance;
+            var id = info.TaskSettings.UrlSharingDestinationInstanceId;
+            var instance = string.IsNullOrWhiteSpace(id)
+                ? ResolveDefaultInstance(manager, UploaderCategory.UrlSharing)
+                : ResolveRequestedInstance(manager, id, UploaderCategory.UrlSharing, allowCrossCategoryFallback: false);
+            if (instance == null)
+            {
+                return "No URL sharing service is selected. Choose one under \"URL sharing service\" in the workflow's Upload tab, " +
+                    "or set a default in Destination Settings > URL Sharing Services.";
+            }
+
+            try
+            {
+                object? sharer = ProviderCatalog.GetProvider(instance.ProviderId)?.CreateInstance(instance.SettingsJson);
+                var result = await UploaderUploadAdapter.ShareAsync(sharer, url, token).ConfigureAwait(false);
+                token.ThrowIfCancellationRequested();
+                if (standaloneJob) info.ResolvedUploaderHost = instance.DisplayName;
+                if (result.Errors.Count > 0) return result.Errors.ToString();
+                return sharer is UrlSharer or XerahS.Uploaders.CustomUploader.CustomUploaderExecutor ? null : result.Response;
+            }
+            catch (OperationCanceledException) { throw; }
+            catch (Exception ex)
+            {
+                DebugHelper.WriteException(ex, "URL sharing failed");
+                return ex.Message;
             }
         }
 
@@ -930,9 +972,17 @@ namespace XerahS.Core.Tasks.Processors
                 }
 
                 token.ThrowIfCancellationRequested();
-                if (tasks.HasFlag(AfterUploadTasks.ShareURL))
+                if (info.Job != TaskJob.ShortenURL && (tasks.HasFlag(AfterUploadTasks.ShareURL) || info.Job == TaskJob.ShareURL))
                 {
-                    DebugHelper.WriteLine("AfterUpload: Share URL skipped; URL sharing services are not implemented.");
+                    // As in ShareX, the shortened URL is shared when there is one.
+                    string? error = await ShareUrlAsync(info, result.ToString(), token, standaloneJob: info.Job == TaskJob.ShareURL);
+                    if (error != null)
+                    {
+                        result.Errors.Add(error);
+                        DebugHelper.WriteLine($"AfterUpload: URL sharing failed: {error}");
+                    }
+                    // A Share URL job produces no new URL, so its errors make it a failed task.
+                    if (info.Job == TaskJob.ShareURL) result.IsURLExpected = false;
                 }
 
                 if (tasks.HasFlag(AfterUploadTasks.CopyURLToClipboard))
@@ -982,7 +1032,8 @@ namespace XerahS.Core.Tasks.Processors
             }
 
             token.ThrowIfCancellationRequested();
-            if (tasks.HasFlag(AfterUploadTasks.ShowAfterUploadWindow))
+            // ShareX shows no after-upload window for a Share URL job.
+            if (tasks.HasFlag(AfterUploadTasks.ShowAfterUploadWindow) && info.Job != TaskJob.ShareURL)
             {
                 var ui = PlatformServices.UI;
                 if (ui == null)
