@@ -24,6 +24,10 @@
 #endregion License Information (GPL v3)
 using Avalonia.Controls;
 using Avalonia.Input;
+using Avalonia.Interactivity;
+using Avalonia.Threading;
+using Avalonia.VisualTree;
+using System.ComponentModel;
 using Avalonia.Markup.Xaml;
 using XerahS.History;
 using XerahS.UI.Services;
@@ -36,13 +40,55 @@ namespace XerahS.UI.Views
         private readonly ListBox? _gridHistoryListBox;
         private readonly ListBox? _listHistoryListBox;
         private bool _isSynchronizingSelection;
+        private ScrollViewer? _gridScrollViewer;
+        private HistoryViewModel? _observedViewModel;
 
-        public HistoryView()
+        private void OnHistoryLoaded(object? sender, RoutedEventArgs e)
+        {
+            if (_observedViewModel != null) return;
+            _observedViewModel = DataContext as HistoryViewModel;
+            if (_observedViewModel != null) _observedViewModel.PropertyChanged += OnHistoryPropertyChanged;
+            _gridScrollViewer = _gridHistoryListBox?.GetVisualDescendants().OfType<ScrollViewer>().FirstOrDefault();
+            if (_gridScrollViewer != null) _gridScrollViewer.ScrollChanged += OnHistoryScrollChanged;
+            QueueLoadMoreCheck();
+        }
+
+        private void OnHistoryUnloaded(object? sender, RoutedEventArgs e)
+        {
+            if (_observedViewModel != null) _observedViewModel.PropertyChanged -= OnHistoryPropertyChanged;
+            if (_gridScrollViewer != null) _gridScrollViewer.ScrollChanged -= OnHistoryScrollChanged;
+            _observedViewModel = null;
+            _gridScrollViewer = null;
+        }
+
+        private void OnHistoryPropertyChanged(object? sender, PropertyChangedEventArgs e)
+        {
+            if (e.PropertyName == nameof(HistoryViewModel.HistoryItems) && _gridScrollViewer != null)
+                _gridScrollViewer.Offset = default;
+            if (e.PropertyName is nameof(HistoryViewModel.IsLoading) or nameof(HistoryViewModel.IsGridView) or nameof(HistoryViewModel.AutoLoadMoreItems))
+                QueueLoadMoreCheck();
+        }
+
+        private void OnHistoryScrollChanged(object? sender, ScrollChangedEventArgs e) => QueueLoadMoreCheck();
+
+        private void QueueLoadMoreCheck() => Dispatcher.UIThread.Post(() =>
+        {
+            if (_observedViewModel is not { IsGridView: true, AutoLoadMoreItems: true, IsLoading: false, CanLoadMoreItems: true } vm ||
+                _gridScrollViewer is not { Viewport.Height: > 0 } scroll) return;
+            double remaining = scroll.Extent.Height - scroll.Offset.Y - scroll.Viewport.Height;
+            if (remaining <= Math.Max(120, vm.ThumbnailHeight)) vm.LoadMoreItemsCommand.Execute(null);
+        }, DispatcherPriority.Background);
+
+        public HistoryView() : this(UiViewModelFactoryAccessor.GetRequired().CreateHistoryViewModel())
+        {
+        }
+
+        internal HistoryView(HistoryViewModel viewModel)
         {
             InitializeComponent();
             _gridHistoryListBox = this.FindControl<ListBox>("GridHistoryListBox");
             _listHistoryListBox = this.FindControl<ListBox>("ListHistoryListBox");
-            DataContext = UiViewModelFactoryAccessor.GetRequired().CreateHistoryViewModel();
+            DataContext = viewModel;
         }
 
         private void InitializeComponent()

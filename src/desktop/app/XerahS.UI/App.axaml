@@ -30,6 +30,43 @@
             <MenuFlyout x:Key="HistoryItemMenuFlyout"
                         x:DataType="vm:IHistoryItemMenuContext"
                         Opened="OnHistoryItemMenuFlyoutOpened">
+                <MenuItem Header="Open" IsVisible="{Binding IsHistoryContext}">
+                    <MenuItem Header="URL" Command="{Binding OpenURLCommand}" IsEnabled="{Binding Item.URL, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"/>
+                    <MenuItem Header="Shortened URL" Command="{Binding HistoryActions.OpenShortenedUrlCommand}"/>
+                    <MenuItem Header="Thumbnail URL" Command="{Binding HistoryActions.OpenThumbnailUrlCommand}"/>
+                    <MenuItem Header="Deletion URL" Command="{Binding HistoryActions.OpenDeletionUrlCommand}"/>
+                    <Separator/>
+                    <MenuItem Header="File" Command="{Binding OpenFileCommand}" IsEnabled="{Binding Item.HasExistingFile}"/>
+                    <MenuItem Header="Folder" Command="{Binding OpenFolderCommand}" IsEnabled="{Binding Item.HasFilePath}"/>
+                </MenuItem>
+                <MenuItem Header="Copy" IsVisible="{Binding IsHistoryContext}">
+                    <MenuItem Header="URL" Command="{Binding HistoryActions.CopyCommand}" CommandParameter="{x:Static vm:HistoryCopyFormat.URL}"/>
+                    <MenuItem Header="Shortened URL" Command="{Binding HistoryActions.CopyCommand}" CommandParameter="{x:Static vm:HistoryCopyFormat.ShortenedURL}"/>
+                    <MenuItem Header="Thumbnail URL" Command="{Binding HistoryActions.CopyCommand}" CommandParameter="{x:Static vm:HistoryCopyFormat.ThumbnailURL}"/>
+                    <MenuItem Header="Deletion URL" Command="{Binding HistoryActions.CopyCommand}" CommandParameter="{x:Static vm:HistoryCopyFormat.DeletionURL}"/>
+                    <MenuItem Header="File" Command="{Binding HistoryActions.CopyCommand}" CommandParameter="{x:Static vm:HistoryCopyFormat.File}"/>
+                    <MenuItem Header="Image" Command="{Binding HistoryActions.CopyCommand}" CommandParameter="{x:Static vm:HistoryCopyFormat.Image}"/>
+                    <MenuItem Header="Text" Command="{Binding HistoryActions.CopyCommand}" CommandParameter="{x:Static vm:HistoryCopyFormat.TextContents}"/>
+                    <MenuItem Header="File path" Command="{Binding HistoryActions.CopyCommand}" CommandParameter="{x:Static vm:HistoryCopyFormat.FilePath}"/>
+                    <MenuItem Header="File name" Command="{Binding HistoryActions.CopyCommand}" CommandParameter="{x:Static vm:HistoryCopyFormat.FileName}"/>
+                    <MenuItem Header="File name with extension" Command="{Binding HistoryActions.CopyCommand}" CommandParameter="{x:Static vm:HistoryCopyFormat.FileNameWithExtension}"/>
+                    <MenuItem Header="Folder" Command="{Binding HistoryActions.CopyCommand}" CommandParameter="{x:Static vm:HistoryCopyFormat.Folder}"/>
+                    <MenuItem Header="Image dimensions" Command="{Binding HistoryActions.CopyCommand}" CommandParameter="{x:Static vm:HistoryCopyFormat.ImageDimensions}"/>
+                    <Separator/>
+                    <MenuItem Header="HTML link" Command="{Binding HistoryActions.CopyCommand}" CommandParameter="{x:Static vm:HistoryCopyFormat.HtmlLink}"/>
+                    <MenuItem Header="HTML image" Command="{Binding HistoryActions.CopyCommand}" CommandParameter="{x:Static vm:HistoryCopyFormat.HtmlImage}"/>
+                    <MenuItem Header="HTML linked image" Command="{Binding HistoryActions.CopyCommand}" CommandParameter="{x:Static vm:HistoryCopyFormat.HtmlLinkedImage}"/>
+                    <MenuItem Header="Forum (BBCode) link" Command="{Binding HistoryActions.CopyCommand}" CommandParameter="{x:Static vm:HistoryCopyFormat.ForumLink}"/>
+                    <MenuItem Header="Forum (BBCode) image" Command="{Binding HistoryActions.CopyCommand}" CommandParameter="{x:Static vm:HistoryCopyFormat.ForumImage}"/>
+                    <MenuItem Header="Forum (BBCode) linked image" Command="{Binding HistoryActions.CopyCommand}" CommandParameter="{x:Static vm:HistoryCopyFormat.ForumLinkedImage}"/>
+                    <MenuItem Header="Markdown link" Command="{Binding HistoryActions.CopyCommand}" CommandParameter="{x:Static vm:HistoryCopyFormat.MarkdownLink}"/>
+                    <MenuItem Header="Markdown image" Command="{Binding HistoryActions.CopyCommand}" CommandParameter="{x:Static vm:HistoryCopyFormat.MarkdownImage}"/>
+                    <MenuItem Header="Markdown linked image" Command="{Binding HistoryActions.CopyCommand}" CommandParameter="{x:Static vm:HistoryCopyFormat.MarkdownLinkedImage}"/>
+                    <Separator/>
+                    <MenuItem Header="Errors" Command="{Binding CopyErrorsCommand}" IsEnabled="{Binding Item.HasErrors}"/>
+                </MenuItem>
+                <MenuItem Header="{Binding HistoryActions.FavoriteHeader}" Command="{Binding HistoryActions.ToggleFavoriteCommand}"
+                          IsVisible="{Binding IsHistoryContext}"/>
                 <MenuItem Header="Edit..."
                           Command="{Binding EditImageCommand}"
                           IsVisible="{Binding Item.HasExistingFile}"
@@ -45,33 +82,83 @@
                           IsVisible="{Binding Item.HasEditableAnnotations}"
                           InputGesture="Ctrl+Shift+E"/>
                 <MenuItem Header="Open File"
-                          Command="{Binding OpenFileCommand}"
-                          IsVisible="{Binding Item.HasExistingFile}"/>
+                          Command="{Binding OpenFileCommand}">
+                    <MenuItem.IsVisible>
+                        <MultiBinding Converter="{x:Static BoolConverters.And}">
+                            <Binding Path="!IsHistoryContext"/>
+                            <Binding Path="Item.HasExistingFile"/>
+                        </MultiBinding>
+                    </MenuItem.IsVisible>
+                </MenuItem>
                 <MenuItem Header="Upload"
                           Command="{Binding UploadItemCommand}"
                           IsVisible="{Binding Item.HasExistingFile}"/>
                 <MenuItem Header="Show in Explorer"
-                          Command="{Binding OpenFolderCommand}"
-                          IsVisible="{Binding Item.HasFilePath}"/>
+                          Command="{Binding OpenFolderCommand}">
+                    <MenuItem.IsVisible>
+                        <MultiBinding Converter="{x:Static BoolConverters.And}">
+                            <Binding Path="!IsHistoryContext"/>
+                            <Binding Path="Item.HasFilePath"/>
+                        </MultiBinding>
+                    </MenuItem.IsVisible>
+                </MenuItem>
                 <Separator/>
+                <MenuItem Header="Show errors" Command="{Binding HistoryActions.ShowErrorsCommand}"
+                          IsVisible="{Binding IsHistoryContext}"/>
                 <MenuItem Header="Copy Path"
-                          Command="{Binding CopyFilePathCommand}"
-                          IsVisible="{Binding Item.HasFilePath}"/>
+                          Command="{Binding CopyFilePathCommand}">
+                    <MenuItem.IsVisible>
+                        <MultiBinding Converter="{x:Static BoolConverters.And}">
+                            <Binding Path="!IsHistoryContext"/>
+                            <Binding Path="Item.HasFilePath"/>
+                        </MultiBinding>
+                    </MenuItem.IsVisible>
+                </MenuItem>
                 <MenuItem Header="Copy URL"
-                          Command="{Binding CopyURLCommand}"
-                          IsVisible="{Binding Item.URL, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"/>
+                          Command="{Binding CopyURLCommand}">
+                    <MenuItem.IsVisible>
+                        <MultiBinding Converter="{x:Static BoolConverters.And}">
+                            <Binding Path="!IsHistoryContext"/>
+                            <Binding Path="Item.URL" Converter="{x:Static StringConverters.IsNotNullOrEmpty}"/>
+                        </MultiBinding>
+                    </MenuItem.IsVisible>
+                </MenuItem>
                 <MenuItem Header="Copy markdown image"
-                          Command="{Binding CopyMarkdownImageCommand}"
-                          IsVisible="{Binding Item.URL, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"/>
+                          Command="{Binding CopyMarkdownImageCommand}">
+                    <MenuItem.IsVisible>
+                        <MultiBinding Converter="{x:Static BoolConverters.And}">
+                            <Binding Path="!IsHistoryContext"/>
+                            <Binding Path="Item.URL" Converter="{x:Static StringConverters.IsNotNullOrEmpty}"/>
+                        </MultiBinding>
+                    </MenuItem.IsVisible>
+                </MenuItem>
                 <MenuItem Header="Copy image to clipboard"
-                          Command="{Binding CopyImageToClipboardCommand}"
-                          IsVisible="{Binding Item.HasImageFile}"/>
+                          Command="{Binding CopyImageToClipboardCommand}">
+                    <MenuItem.IsVisible>
+                        <MultiBinding Converter="{x:Static BoolConverters.And}">
+                            <Binding Path="!IsHistoryContext"/>
+                            <Binding Path="Item.HasImageFile"/>
+                        </MultiBinding>
+                    </MenuItem.IsVisible>
+                </MenuItem>
                 <MenuItem Header="Copy Errors"
-                          Command="{Binding CopyErrorsCommand}"
-                          IsVisible="{Binding Item.HasErrors}"/>
+                          Command="{Binding CopyErrorsCommand}">
+                    <MenuItem.IsVisible>
+                        <MultiBinding Converter="{x:Static BoolConverters.And}">
+                            <Binding Path="!IsHistoryContext"/>
+                            <Binding Path="Item.HasErrors"/>
+                        </MultiBinding>
+                    </MenuItem.IsVisible>
+                </MenuItem>
                 <MenuItem Header="Open URL"
-                          Command="{Binding OpenURLCommand}"
-                          IsVisible="{Binding Item.URL, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"/>
+                          Command="{Binding OpenURLCommand}">
+                    <MenuItem.IsVisible>
+                        <MultiBinding Converter="{x:Static BoolConverters.And}">
+                            <Binding Path="!IsHistoryContext"/>
+                            <Binding Path="Item.URL" Converter="{x:Static StringConverters.IsNotNullOrEmpty}"/>
+                        </MultiBinding>
+                    </MenuItem.IsVisible>
+                </MenuItem>
                 <MenuItem Header="Publish"
                           Command="{Binding PublishCommand}"
                           IsVisible="{Binding Item.CanPublish}"/>

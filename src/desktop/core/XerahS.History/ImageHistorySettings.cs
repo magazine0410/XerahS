@@ -28,11 +28,19 @@ using System.Drawing;
 
 namespace XerahS.History
 {
+    public enum ImageHistoryThumbnailHeaderPosition
+    {
+        None,
+        Top,
+        Bottom
+    }
+
     public class ImageHistorySettings
     {
         public bool RememberWindowState { get; set; } = true;
         public WindowPlacementState WindowState { get; set; } = new WindowPlacementState();
         public Size ThumbnailSize { get; set; } = new Size(250, 150);
+        public ImageHistoryThumbnailHeaderPosition ThumbnailHeaderPosition { get; set; } = ImageHistoryThumbnailHeaderPosition.Top;
         public int MaxItemCount { get; set; } = 500;
         public bool AutoLoadMoreItems { get; set; } = true;
         public bool FilterMissingFiles { get; set; } = false;

@@ -1,6 +1,7 @@
 <views:PageView xmlns="https://github.com/avaloniaui"
                 xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
                 xmlns:views="using:XerahS.UI.Views"
+                xmlns:controls="using:XerahS.UI.Controls"
                 xmlns:vm="using:XerahS.UI.ViewModels"
                 xmlns:uiconverters="clr-namespace:XerahS.UI.Converters"
                 xmlns:history="using:XerahS.History"
@@ -10,7 +11,8 @@
                 x:Class="XerahS.UI.Views.HistoryView"
                 x:DataType="vm:HistoryViewModel"
                 x:Name="Root"
-                Cursor="Arrow">
+                Cursor="Arrow"
+                Loaded="OnHistoryLoaded" Unloaded="OnHistoryUnloaded">
     
     <Design.DataContext>
         <vm:HistoryViewModel/>
@@ -21,12 +23,14 @@
         <Border Grid.Row="0" Padding="16" Background="{DynamicResource SolidBackgroundFillColorBaseBrush}"
                 BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}" BorderThickness="0,0,0,1">
             <StackPanel Spacing="12">
-                <StackPanel Orientation="Horizontal" Spacing="16">
+                <WrapPanel Orientation="Horizontal">
                     <TextBox Text="{Binding SearchText, UpdateSourceTrigger=PropertyChanged}"
-                             PlaceholderText="Search history"
+                             PlaceholderText="Search history (* and ? supported)"
+                             IsEnabled="{Binding CanSearch}"
+                             Margin="0,0,8,0"
                              MinWidth="260"
                              AutomationProperties.Name="Search History"/>
-                    <Button Content="Search"
+                    <Button Content="Search" Margin="0,0,8,0"
                             Command="{Binding SearchHistoryCommand}"
                             IsEnabled="{Binding !IsLoading}"
                             AutomationProperties.Name="Search History"/>
@@ -36,7 +40,38 @@
                             IsEnabled="{Binding !IsLoading}"
                             AutomationProperties.Name="Clear History Search"/>
 
-                    <Separator Classes="vertical" Height="20"/>
+                    <ToggleButton Content="Favorites" IsChecked="{Binding FavoritesOnly}" Margin="8,0"
+                                  AutomationProperties.Name="Show favorites"/>
+                    <Button Content="Options" Margin="0,0,8,0">
+                        <Button.Flyout>
+                            <Flyout Placement="Bottom">
+                                <ScrollViewer MaxHeight="520">
+                                    <StackPanel Spacing="10" Margin="8" MinWidth="300">
+                                        <CheckBox Content="Remember search text" IsChecked="{Binding RememberSearchText}"/>
+                                        <StackPanel Spacing="10" IsVisible="{Binding IsGridView}">
+                                            <CheckBox Content="Auto-load more items" IsChecked="{Binding AutoLoadMoreItems}"/>
+                                            <CheckBox Content="Hide missing files" IsChecked="{Binding HideMissingFiles}"/>
+                                            <CheckBox Content="Images only" IsChecked="{Binding ImagesOnly}"/>
+                                            <TextBlock Text="Thumbnail size"/>
+                                            <Grid ColumnDefinitions="*,Auto,*">
+                                                <NumericUpDown Value="{Binding ThumbnailWidth}" Minimum="32" Maximum="800" Increment="10"
+                                                               AutomationProperties.Name="Thumbnail width"/>
+                                                <TextBlock Grid.Column="1" Text="×" Margin="8" VerticalAlignment="Center"/>
+                                                <NumericUpDown Grid.Column="2" Value="{Binding ThumbnailHeight}" Minimum="32" Maximum="800" Increment="10"
+                                                               AutomationProperties.Name="Thumbnail height"/>
+                                            </Grid>
+                                            <TextBlock Text="Thumbnail header position"/>
+                                            <ComboBox ItemsSource="{Binding ThumbnailHeaderPositions}" SelectedItem="{Binding ThumbnailHeaderPosition}"
+                                                      HorizontalAlignment="Stretch" AutomationProperties.Name="Thumbnail header position"/>
+                                            <TextBlock Text="Items per load (0 = all)"/>
+                                            <NumericUpDown Value="{Binding ImageBatchSize}" Minimum="0" Maximum="100000" Increment="50"
+                                                           AutomationProperties.Name="Items per load"/>
+                                        </StackPanel>
+                                    </StackPanel>
+                                </ScrollViewer>
+                            </Flyout>
+                        </Button.Flyout>
+                    </Button>
 
                     <Button Content="Refresh" Command="{Binding RefreshHistoryCommand}" 
                             IsEnabled="{Binding !IsLoading}"
@@ -66,13 +101,37 @@
                         </StackPanel>
                     </Button>
                     
-                    <Separator Classes="vertical" Height="20"/>
+                    <Border Width="1" Height="20" Margin="12,0"
+                            Background="{DynamicResource CardStrokeColorDefaultBrush}"/>
 
                     <TextBlock Text="{Binding HistoryItems.Count, StringFormat='{}{0} items'}" 
                                VerticalAlignment="Center" 
                                Foreground="{DynamicResource TextFillColorSecondaryBrush}"/>
                     
-                </StackPanel>
+                </WrapPanel>
+
+                <Expander Header="Filters" HorizontalAlignment="Stretch">
+                    <StackPanel Spacing="8" Margin="0,8,0,0">
+                        <WrapPanel IsEnabled="{Binding CanUseAdvancedFilters}">
+                            <CheckBox Content="Date range" IsChecked="{Binding FilterDate}" Margin="0,0,12,8"/>
+                            <DatePicker SelectedDate="{Binding FromDate}" IsEnabled="{Binding FilterDate}" Margin="0,0,8,8"
+                                        AutomationProperties.Name="From date"/>
+                            <TextBlock Text="to" VerticalAlignment="Center" Margin="0,0,8,8"/>
+                            <DatePicker SelectedDate="{Binding ToDate}" IsEnabled="{Binding FilterDate}" Margin="0,0,8,8"
+                                        AutomationProperties.Name="To date"/>
+                        </WrapPanel>
+                        <TextBlock Text="The start date must be on or before the end date." IsVisible="{Binding IsDateRangeInvalid}"/>
+                        <WrapPanel IsEnabled="{Binding CanUseAdvancedFilters}">
+                            <CheckBox Content="Type" IsChecked="{Binding FilterType}" Margin="0,0,8,0"/>
+                            <ComboBox ItemsSource="{Binding AvailableTypes}" SelectedItem="{Binding SelectedType}" MinWidth="120"
+                                      IsEnabled="{Binding FilterType}" Margin="0,0,16,0" AutomationProperties.Name="File type"/>
+                            <CheckBox Content="Host" IsChecked="{Binding FilterHost}" Margin="0,0,8,0"/>
+                            <TextBox Text="{Binding HostFilter}" IsEnabled="{Binding FilterHost}" MinWidth="160"
+                                     PlaceholderText="Host contains" AutomationProperties.Name="Host"/>
+                        </WrapPanel>
+                        <Button Content="Reset filters" Command="{Binding ResetFiltersCommand}"/>
+                    </StackPanel>
+                </Expander>
 
                 <StackPanel Orientation="Horizontal"
                             Spacing="12"
@@ -131,7 +190,7 @@
             <ListBox.ItemTemplate>
                 <DataTemplate x:DataType="history:HistoryItem">
                     <Border Classes="history-grid-item"
-                            Margin="8" Width="200"
+                            Margin="8" Width="{Binding #Root.((vm:HistoryViewModel)DataContext).ThumbnailCardWidth}"
                             Background="{DynamicResource CardBackgroundFillColorDefaultBrush}" 
                             BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}"
                             BorderThickness="1"
@@ -148,11 +207,16 @@
                             </MultiBinding>
                         </Border.Tag>
                         <StackPanel Spacing="12">
+                            <TextBlock Text="{Binding FileName}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis"
+                                       IsVisible="{Binding #Root.((vm:HistoryViewModel)DataContext).ShowTopThumbnailHeader}"/>
                             <!-- Thumbnail -->
-                            <Border Height="140" Background="{DynamicResource SolidBackgroundFillColorBaseBrush}" CornerRadius="4" ClipToBounds="True">
+                            <Border Height="{Binding #Root.((vm:HistoryViewModel)DataContext).ThumbnailHeight}" Background="{DynamicResource SolidBackgroundFillColorBaseBrush}" CornerRadius="4" ClipToBounds="True">
                                 <Grid>
-                                    <Image Source="{Binding FilePath, Converter={x:Static vm:HistoryViewModel.ThumbnailConverter}}"
-                                           Stretch="Uniform"/>
+                                    <controls:HistoryThumbnail FilePath="{Binding FilePath}"
+                                                               DecodeWidth="{Binding #Root.((vm:HistoryViewModel)DataContext).ThumbnailWidth}" Stretch="Uniform"/>
+                                    <TextBlock Text="★" IsVisible="{Binding Favorite}" HorizontalAlignment="Left" VerticalAlignment="Top"
+                                               Margin="6" FontSize="20" Foreground="{DynamicResource AccentFillColorDefaultBrush}"
+                                               AutomationProperties.Name="Favorite"/>
                                     <Border HorizontalAlignment="Center"
                                             VerticalAlignment="Center"
                                             Width="44"
@@ -183,12 +247,9 @@
                                     </Border>
                                 </Grid>
                             </Border>
-                            <!-- Info -->
-                            <StackPanel Spacing="4">
-                                <TextBlock Text="{Binding FileName}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis"/>
-                                <TextBlock Text="{Binding DateTime, StringFormat='yyyy-MM-dd HH:mm'}" 
-                                           FontSize="12" Foreground="{DynamicResource TextFillColorSecondaryBrush}"/>
-                            </StackPanel>
+                            <!-- As in ShareX, the header is the file name, above or below the thumbnail. -->
+                            <TextBlock Text="{Binding FileName}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis"
+                                       IsVisible="{Binding #Root.((vm:HistoryViewModel)DataContext).ShowBottomThumbnailHeader}"/>
                         </StackPanel>
                     </Border>
                 </DataTemplate>
@@ -244,8 +305,7 @@
                             <!-- Thumbnail -->
                             <Border Grid.Column="0" Width="36" Height="36" Background="{DynamicResource SolidBackgroundFillColorBaseBrush}" CornerRadius="4" ClipToBounds="True">
                                 <Grid>
-                                    <Image Source="{Binding FilePath, Converter={x:Static vm:HistoryViewModel.ThumbnailConverter}}"
-                                           Stretch="UniformToFill"/>
+                                    <controls:HistoryThumbnail FilePath="{Binding FilePath}" DecodeWidth="72" Stretch="UniformToFill"/>
                                     <Border HorizontalAlignment="Center"
                                             VerticalAlignment="Center"
                                             Width="18"
@@ -273,9 +333,11 @@
                                 </Grid>
                             </Border>
                             <!-- Filename -->
-                            <TextBlock Grid.Column="1" Text="{Binding FileName}" 
-                                       VerticalAlignment="Center" Margin="16,0"
-                                       TextTrimming="CharacterEllipsis"/>
+                            <Grid Grid.Column="1" ColumnDefinitions="Auto,*" Margin="16,0">
+                                <TextBlock Text="★" IsVisible="{Binding Favorite}" Margin="0,0,8,0" VerticalAlignment="Center"
+                                           Foreground="{DynamicResource AccentFillColorDefaultBrush}" AutomationProperties.Name="Favorite"/>
+                                <TextBlock Grid.Column="1" Text="{Binding FileName}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis"/>
+                            </Grid>
                             <!-- Type/Host -->
                             <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center" Spacing="8">
                                 <TextBlock Text="{Binding Type}" FontSize="12" Foreground="{DynamicResource TextFillColorSecondaryBrush}"/>
@@ -308,7 +370,8 @@
         <!-- Pagination Footer -->
         <Border Grid.Row="3" Padding="16" Background="{DynamicResource SolidBackgroundFillColorBaseBrush}" 
                 BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}" BorderThickness="0,1,0,0">
-            <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" Spacing="24">
+            <Grid>
+            <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" Spacing="24" IsVisible="{Binding !IsGridView}">
                 <Button Content="Previous" Command="{Binding PreviousPageCommand}" 
                         IsEnabled="{Binding CanGoPrevious}"
                         AutomationProperties.Name="Previous Page"/>
@@ -320,6 +383,12 @@
                         IsEnabled="{Binding CanGoNext}"
                         AutomationProperties.Name="Next Page"/>
             </StackPanel>
+            <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" Spacing="24" IsVisible="{Binding IsGridView}">
+                <TextBlock Text="{Binding ImageBatchInfo}" VerticalAlignment="Center"/>
+                <Button Content="Load more" Command="{Binding LoadMoreItemsCommand}" IsVisible="{Binding CanLoadMoreItems}"
+                        IsEnabled="{Binding !IsLoading}" AutomationProperties.Name="Load more history items"/>
+            </StackPanel>
+            </Grid>
         </Border>
     </Grid>
 </views:PageView>

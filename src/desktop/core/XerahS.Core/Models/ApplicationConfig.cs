@@ -234,8 +234,8 @@ public class ApplicationConfig : SettingsBase<ApplicationConfig>
     public bool RecentTasksShowInTrayMenu = true;
     public bool RecentTasksTrayMenuMostRecentFirst = false;
 
-    // TODO: Add HistorySettings when HistoryLib is ported
-    // TODO: Add ImageHistorySettings when HistoryLib is ported
+    public XerahS.History.HistorySettings HistorySettings { get; set; } = new();
+    public XerahS.History.ImageHistorySettings ImageHistorySettings { get; set; } = new();
 
     #endregion Settings - History
 

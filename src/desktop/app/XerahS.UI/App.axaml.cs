@@ -669,6 +669,7 @@ public partial class App : Application
             return;
         }
 
+        context.HistoryActions?.Refresh();
         ApplyMenuContext(menuFlyout.Items, context);
     }
 

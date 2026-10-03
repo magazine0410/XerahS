@@ -39,6 +39,9 @@ namespace XerahS.History
         public bool FilterHost { get; set; }
         public string Host { get; set; } = string.Empty;
         public bool FilterFavorites { get; set; }
+        public bool ImageOnly { get; set; }
+        public bool FilterMissingFiles { get; set; }
+        public bool RequireFilePath { get; set; }
 
         public int MaxItemCount { get; set; }
         public bool SearchInTags { get; set; } = true;
@@ -80,8 +83,23 @@ namespace XerahS.History
 
                 if (FilterDate)
                 {
-                    historyItems = historyItems.Where(x => x.DateTime.Date >= FromDate && x.DateTime.Date <= ToDate);
+                    historyItems = historyItems.Where(x => x.DateTime.Date >= FromDate.Date && x.DateTime.Date <= ToDate.Date);
                 }
+            }
+
+            if (RequireFilePath)
+            {
+                historyItems = historyItems.Where(x => !string.IsNullOrWhiteSpace(x.FilePath));
+            }
+
+            if (ImageOnly)
+            {
+                historyItems = historyItems.Where(x => XerahS.Common.FileHelpers.IsImageFile(x.FilePath));
+            }
+
+            if (FilterMissingFiles)
+            {
+                historyItems = historyItems.Where(x => System.IO.File.Exists(x.FilePath));
             }
 
             if (MaxItemCount > 0)
@@ -93,4 +111,3 @@ namespace XerahS.History
         }
     }
 }
-
