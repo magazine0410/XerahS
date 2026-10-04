@@ -409,7 +409,11 @@ public class InstanceManager
                     _configuration.DefaultInstances.Remove(category);
                     LogStaleDefaultRemoved(category, instanceId, GetStaleDefaultReason(instance, category));
                     SaveConfiguration();
-                    return null;
+
+                    // Saving may have chosen the next instance as the required default.
+                    return _configuration.DefaultInstances.TryGetValue(category, out var nextId)
+                        ? _configuration.Instances.FirstOrDefault(i => InstanceIdsEqual(i.InstanceId, nextId))
+                        : null;
                 }
 
                 return instance;
@@ -731,6 +735,9 @@ public class InstanceManager
         {
             NormalizeInstance(instance);
         }
+
+        // Settings saved without a default URL shortener get one when they are loaded or imported.
+        EnsureRequiredDefaults(configuration);
     }
 
     private static FileTypeScope GetFileTypeRouting(UploaderInstance instance)
@@ -774,6 +781,40 @@ public class InstanceManager
     private static bool InstanceIdsEqual(string? left, string? right) =>
         string.Equals(left, right, StringComparison.OrdinalIgnoreCase);
 
+    /// <summary>
+    /// Categories that have a default instance whenever one exists, as ShareX always has one URL shortener selected.
+    /// </summary>
+    private static readonly UploaderCategory[] CategoriesWithRequiredDefault = { UploaderCategory.UrlShortener };
+
+    /// <summary>
+    /// Makes the first added available instance the default of each such category that has none.
+    /// A default that still exists is kept, even when it is unavailable; GetDefaultInstance replaces that one.
+    /// </summary>
+    private static void EnsureRequiredDefaults(InstanceConfiguration configuration)
+    {
+        foreach (var category in CategoriesWithRequiredDefault)
+        {
+            if (configuration.DefaultInstances.TryGetValue(category, out var defaultId) &&
+                configuration.Instances.Any(i => i.Category == category && InstanceIdsEqual(i.InstanceId, defaultId)))
+            {
+                continue;
+            }
+
+            var first = configuration.Instances
+                .Where(i => i.Category == category && i.IsAvailable)
+                .OrderBy(i => i.CreatedAt)
+                .FirstOrDefault();
+            if (first != null)
+            {
+                configuration.DefaultInstances[category] = first.InstanceId;
+            }
+            else
+            {
+                configuration.DefaultInstances.Remove(category);
+            }
+        }
+    }
+
     private static string GetStaleDefaultReason(UploaderInstance? instance, UploaderCategory category)
     {
         if (instance == null)
@@ -801,6 +842,8 @@ public class InstanceManager
 
     private void SaveConfiguration(bool throwOnError = false)
     {
+        // Every change is saved here, so adding, removing, duplicating, or editing instances keeps the required defaults.
+        EnsureRequiredDefaults(_configuration);
         using var configLock = AcquireConfigLock();
         try
         {

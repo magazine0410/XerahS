@@ -799,6 +799,91 @@ public class InstanceManagerTests
         Assert.That(File.Exists(InstanceManager.ConfigLockFilePath), Is.True);
     }
 
+    [Test]
+    public void FirstUrlShortener_BecomesTheDefault_AndLaterOnesDoNotReplaceIt()
+    {
+        var first = AddShortener("First");
+        var second = AddShortener("Second");
+
+        Assert.That(InstanceManager.Instance.GetDefaultInstance(UploaderCategory.UrlShortener)?.InstanceId, Is.EqualTo(first.InstanceId));
+        Assert.That(InstanceManager.Instance.IsDefaultInstance(UploaderCategory.UrlShortener, second.InstanceId), Is.False);
+    }
+
+    [Test]
+    public void RemovingTheDefaultUrlShortener_MakesTheNextOneTheDefault()
+    {
+        var first = AddShortener("First");
+        var second = AddShortener("Second");
+        var third = AddShortener("Third");
+        InstanceManager.Instance.SetDefaultInstance(UploaderCategory.UrlShortener, third.InstanceId);
+
+        InstanceManager.Instance.RemoveInstance(third.InstanceId);
+        Assert.That(InstanceManager.Instance.IsDefaultInstance(UploaderCategory.UrlShortener, first.InstanceId), Is.True);
+
+        InstanceManager.Instance.RemoveInstance(first.InstanceId);
+        Assert.That(InstanceManager.Instance.IsDefaultInstance(UploaderCategory.UrlShortener, second.InstanceId), Is.True);
+
+        InstanceManager.Instance.RemoveInstance(second.InstanceId);
+        Assert.That(InstanceManager.Instance.GetDefaultInstance(UploaderCategory.UrlShortener), Is.Null);
+    }
+
+    [Test]
+    public void UnavailableDefaultUrlShortener_IsReplacedByAnAvailableOne()
+    {
+        var unavailable = AddShortener("Unavailable");
+        var available = AddShortener("Available");
+        InstanceManager.Instance.SetDefaultInstance(UploaderCategory.UrlShortener, unavailable.InstanceId);
+        unavailable.IsAvailable = false;
+
+        Assert.That(InstanceManager.Instance.GetDefaultInstance(UploaderCategory.UrlShortener)?.InstanceId, Is.EqualTo(available.InstanceId));
+    }
+
+    [Test]
+    public void SettingsWithoutADefaultUrlShortener_GetOneWhenLoaded()
+    {
+        var older = AddShortener("Older");
+        var newer = AddShortener("Newer");
+        string json = File.ReadAllText(InstanceManager.ConfigFilePath);
+        var configuration = Newtonsoft.Json.JsonConvert.DeserializeObject<InstanceConfiguration>(json)!;
+        configuration.DefaultInstances.Clear();
+        configuration.Instances.Reverse();
+        File.WriteAllText(InstanceManager.ConfigFilePath, Newtonsoft.Json.JsonConvert.SerializeObject(configuration));
+
+        InstanceManager.Instance.ReloadConfiguration();
+
+        Assert.That(InstanceManager.Instance.IsDefaultInstance(UploaderCategory.UrlShortener, older.InstanceId), Is.True);
+        Assert.That(InstanceManager.Instance.IsDefaultInstance(UploaderCategory.UrlShortener, newer.InstanceId), Is.False);
+    }
+
+    [Test]
+    public void OtherCategories_DoNotGetADefaultAutomatically()
+    {
+        InstanceManager.Instance.AddInstance(new UploaderInstance
+        {
+            ProviderId = "test-provider",
+            Category = UploaderCategory.Image,
+            DisplayName = "Image",
+            SettingsJson = "{}"
+        });
+
+        Assert.That(InstanceManager.Instance.GetDefaultInstance(UploaderCategory.Image), Is.Null);
+    }
+
+    private static UploaderInstance AddShortener(string name)
+    {
+        var instance = new UploaderInstance
+        {
+            ProviderId = "test-shortener",
+            Category = UploaderCategory.UrlShortener,
+            DisplayName = name,
+            SettingsJson = "{}"
+        };
+        InstanceManager.Instance.AddInstance(instance);
+        // Instances added in the same clock tick would otherwise have the same creation time.
+        Thread.Sleep(2);
+        return instance;
+    }
+
     private static void ClearInstances()
     {
         foreach (var instance in InstanceManager.Instance.GetInstances().ToList())
