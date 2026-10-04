@@ -1,0 +1,19 @@
+{
+  "pluginId": "pushbullet",
+  "name": "Pushbullet",
+  "version": "1.0.0",
+  "author": "ShareX Team",
+  "description": "Push files to a Pushbullet device",
+  "apiVersion": "1.0",
+  "entryPoint": "ShareX.Pushbullet.Plugin.PushbulletProvider",
+  "assemblyFileName": "XerahS.Pushbullet.Plugin.dll",
+  "supportedCategories": [
+    "Image",
+    "Text",
+    "File"
+  ],
+  "supportsExplorer": false,
+  "configViewId": "pushbullet",
+  "dependencies": [],
+  "homepageUrl": "https://www.pushbullet.com/"
+}

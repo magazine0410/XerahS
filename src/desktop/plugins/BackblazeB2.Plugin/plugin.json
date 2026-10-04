@@ -1,0 +1,19 @@
+{
+  "pluginId": "backblazeb2",
+  "name": "Backblaze B2",
+  "version": "1.0.0",
+  "author": "ShareX Team",
+  "description": "Upload files to a Backblaze B2 bucket",
+  "apiVersion": "1.0",
+  "entryPoint": "ShareX.BackblazeB2.Plugin.BackblazeB2Provider",
+  "assemblyFileName": "XerahS.BackblazeB2.Plugin.dll",
+  "supportedCategories": [
+    "Image",
+    "Text",
+    "File"
+  ],
+  "supportsExplorer": false,
+  "configViewId": "backblazeb2",
+  "dependencies": [],
+  "homepageUrl": "https://www.backblaze.com/cloud-storage"
+}

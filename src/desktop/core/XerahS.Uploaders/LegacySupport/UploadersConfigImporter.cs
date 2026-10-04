@@ -269,6 +269,18 @@ namespace XerahS.Uploaders
                 result.AddImported("Backblaze B2");
             }
 
+            if (!string.IsNullOrEmpty(source.SulAPIKey))
+            {
+                target.SulAPIKey = source.SulAPIKey;
+                result.AddImported("s-ul");
+            }
+
+            if (!string.IsNullOrEmpty(source.PushbulletSettings?.UserAPIKey))
+            {
+                target.PushbulletSettings = source.PushbulletSettings;
+                result.AddImported("Pushbullet");
+            }
+
             if (source.CustomUploadersList != null && source.CustomUploadersList.Count > 0)
             {
                 target.CustomUploadersList = source.CustomUploadersList;

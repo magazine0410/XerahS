@@ -1,0 +1,19 @@
+{
+  "pluginId": "googledrive",
+  "name": "Google Drive",
+  "version": "1.0.0",
+  "author": "ShareX Team",
+  "description": "Upload files to Google Drive",
+  "apiVersion": "1.0",
+  "entryPoint": "ShareX.GoogleDrive.Plugin.GoogleDriveProvider",
+  "assemblyFileName": "XerahS.GoogleDrive.Plugin.dll",
+  "supportedCategories": [
+    "Image",
+    "Text",
+    "File"
+  ],
+  "supportsExplorer": false,
+  "configViewId": "googledrive",
+  "dependencies": [],
+  "homepageUrl": "https://drive.google.com/"
+}

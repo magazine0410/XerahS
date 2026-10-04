@@ -1,0 +1,17 @@
+{
+  "pluginId": "youtube",
+  "name": "YouTube",
+  "version": "1.0.0",
+  "author": "ShareX Team",
+  "description": "Upload videos to YouTube",
+  "apiVersion": "1.0",
+  "entryPoint": "ShareX.YouTube.Plugin.YouTubeProvider",
+  "assemblyFileName": "XerahS.YouTube.Plugin.dll",
+  "supportedCategories": [
+    "File"
+  ],
+  "supportsExplorer": false,
+  "configViewId": "youtube",
+  "dependencies": [],
+  "homepageUrl": "https://www.youtube.com/"
+}

@@ -71,6 +71,16 @@
     <ProjectReference Include="..\..\src\desktop\plugins\ImgBB.Plugin\XerahS.ImgBB.Plugin.csproj" />
     <ProjectReference Include="..\..\src\desktop\plugins\Vgyme.Plugin\XerahS.Vgyme.Plugin.csproj" />
     <ProjectReference Include="..\..\src\desktop\plugins\Upaste.Plugin\XerahS.Upaste.Plugin.csproj" />
+    <ProjectReference Include="..\..\src\desktop\plugins\ImgFish.Plugin\XerahS.ImgFish.Plugin.csproj" />
+    <ProjectReference Include="..\..\src\desktop\plugins\Sul.Plugin\XerahS.Sul.Plugin.csproj" />
+    <ProjectReference Include="..\..\src\desktop\plugins\Pushbullet.Plugin\XerahS.Pushbullet.Plugin.csproj" />
+    <ProjectReference Include="..\..\src\desktop\plugins\BackblazeB2.Plugin\XerahS.BackblazeB2.Plugin.csproj" />
+    <ProjectReference Include="..\..\src\desktop\plugins\Mega.Plugin\XerahS.Mega.Plugin.csproj" />
+    <ProjectReference Include="..\..\src\desktop\plugins\GoogleDrive.Plugin\XerahS.GoogleDrive.Plugin.csproj" />
+    <ProjectReference Include="..\..\src\desktop\plugins\GoogleCloudStorage.Plugin\XerahS.GoogleCloudStorage.Plugin.csproj" />
+    <ProjectReference Include="..\..\src\desktop\plugins\YouTube.Plugin\XerahS.YouTube.Plugin.csproj" />
+    <ProjectReference Include="..\..\src\desktop\plugins\OneDrive.Plugin\XerahS.OneDrive.Plugin.csproj" />
+    <ProjectReference Include="..\..\src\desktop\plugins\Box.Plugin\XerahS.Box.Plugin.csproj" />
     <ProjectReference Include="..\..\src\mobile-experimental\XerahS.Mobile.Core\XerahS.Mobile.Core.csproj" />
     <ProjectReference Include="..\..\src\desktop\app\XerahS.UI\XerahS.UI.csproj" />
     <ProjectReference Include="..\..\src\desktop\app\XerahS.RegionCapture\XerahS.RegionCapture.csproj" />

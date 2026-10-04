@@ -1,0 +1,19 @@
+{
+  "pluginId": "sul",
+  "name": "s-ul",
+  "version": "1.0.0",
+  "author": "ShareX Team",
+  "description": "Upload files to s-ul",
+  "apiVersion": "1.0",
+  "entryPoint": "ShareX.Sul.Plugin.SulProvider",
+  "assemblyFileName": "XerahS.Sul.Plugin.dll",
+  "supportedCategories": [
+    "Image",
+    "Text",
+    "File"
+  ],
+  "supportsExplorer": false,
+  "configViewId": "sul",
+  "dependencies": [],
+  "homepageUrl": "https://s-ul.eu/"
+}

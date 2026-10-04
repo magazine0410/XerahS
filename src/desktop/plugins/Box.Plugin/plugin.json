@@ -1,0 +1,19 @@
+{
+  "pluginId": "box",
+  "name": "Box",
+  "version": "1.0.0",
+  "author": "ShareX Team",
+  "description": "Upload files to Box",
+  "apiVersion": "1.0",
+  "entryPoint": "ShareX.Box.Plugin.BoxProvider",
+  "assemblyFileName": "XerahS.Box.Plugin.dll",
+  "supportedCategories": [
+    "Image",
+    "Text",
+    "File"
+  ],
+  "supportsExplorer": false,
+  "configViewId": "box",
+  "dependencies": [],
+  "homepageUrl": "https://www.box.com/"
+}

@@ -1,0 +1,88 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:ShareX.YouTube.Plugin.ViewModels"
+             x:Class="ShareX.YouTube.Plugin.Views.YouTubeConfigView"
+             x:DataType="vm:YouTubeConfigViewModel">
+
+    <UserControl.Styles>
+        <Style Selector="Border.heroCard">
+            <Setter Property="Background" Value="{DynamicResource LayerFillColorDefaultBrush}"/>
+            <Setter Property="CornerRadius" Value="18"/>
+            <Setter Property="Padding" Value="20"/>
+            <Setter Property="BorderBrush" Value="{DynamicResource AccentFillColorDefaultBrush}"/>
+            <Setter Property="BorderThickness" Value="1"/>
+        </Style>
+        <Style Selector="Border.card">
+            <Setter Property="Background" Value="{DynamicResource CardBackgroundFillColorDefaultBrush}"/>
+            <Setter Property="CornerRadius" Value="14"/>
+            <Setter Property="Padding" Value="18"/>
+            <Setter Property="BorderBrush" Value="{DynamicResource CardStrokeColorDefaultBrush}"/>
+            <Setter Property="BorderThickness" Value="1"/>
+        </Style>
+        <Style Selector="TextBlock.fieldLabel">
+            <Setter Property="FontWeight" Value="SemiBold"/>
+        </Style>
+        <Style Selector="TextBlock.helper">
+            <Setter Property="FontSize" Value="11"/>
+            <Setter Property="TextWrapping" Value="Wrap"/>
+            <Setter Property="Foreground" Value="{DynamicResource TextFillColorSecondaryBrush}"/>
+        </Style>
+    </UserControl.Styles>
+
+    <ScrollViewer HorizontalScrollBarVisibility="Disabled">
+        <StackPanel Spacing="18">
+            <Border Classes="heroCard">
+                <StackPanel Spacing="8">
+                    <TextBlock Text="YouTube" FontSize="24" FontWeight="Bold"/>
+                    <TextBlock Text="Upload videos to your YouTube channel, as in ShareX. The video's title is the file name. XerahS needs your own Google OAuth client: ShareX's release builds include their own."
+                               TextWrapping="Wrap" Foreground="{DynamicResource TextFillColorSecondaryBrush}" MaxWidth="680"/>
+                </StackPanel>
+            </Border>
+
+            <Border Classes="card">
+                <StackPanel Spacing="15">
+                    <TextBlock Text="Account" FontSize="16" FontWeight="SemiBold"/>
+                    <TextBlock Classes="helper" Text="Create an OAuth client ID of the type Desktop app in the Google Cloud console, and enable the YouTube Data API v3 for its project. Desktop app clients accept any local redirect URI, so the default works without registering it."/>
+                    <Button Content="Open Google Cloud Credentials" Command="{Binding OpenAppRegistrationCommand}" HorizontalAlignment="Left"/>
+                    <StackPanel Spacing="6">
+                        <TextBlock Classes="fieldLabel" Text="Client ID"/>
+                        <TextBox Text="{Binding ClientId, UpdateSourceTrigger=PropertyChanged}" PlaceholderText="Stored in the secret store"/>
+                    </StackPanel>
+                    <StackPanel Spacing="6">
+                        <TextBlock Classes="fieldLabel" Text="Client secret"/>
+                        <TextBox Text="{Binding ClientSecret, UpdateSourceTrigger=PropertyChanged}" PasswordChar="*" PlaceholderText="Stored in the secret store"/>
+                    </StackPanel>
+                    <StackPanel Spacing="6">
+                        <TextBlock Classes="fieldLabel" Text="Redirect URI"/>
+                        <TextBox Text="{Binding RedirectUri, UpdateSourceTrigger=PropertyChanged}"/>
+                        <TextBlock Classes="helper" Text="Register this exact address as a redirect URI in your app. XerahS receives the authorization on it."/>
+                    </StackPanel>
+                    <StackPanel Orientation="Horizontal" Spacing="10">
+                        <Button Content="Authorize" Command="{Binding AuthorizeCommand}" IsEnabled="{Binding !IsBusy}"/>
+                        <Button Content="Cancel" Command="{Binding CancelLoginCommand}" IsVisible="{Binding IsBusy}"/>
+                        <Button Content="Disconnect" Command="{Binding DisconnectCommand}" IsEnabled="{Binding IsConnected}"/>
+                    </StackPanel>
+                    <TextBlock Text="{Binding ConnectionStatus}" FontWeight="SemiBold"/>
+                </StackPanel>
+            </Border>
+
+            <Border Classes="card">
+                <StackPanel Spacing="15">
+                    <TextBlock Text="Video" FontSize="16" FontWeight="SemiBold"/>
+                    <StackPanel Spacing="6">
+                        <TextBlock Classes="fieldLabel" Text="Visibility"/>
+                        <ComboBox ItemsSource="{Binding PrivacyTypes}" SelectedItem="{Binding PrivacyType}" MinWidth="200"/>
+                    </StackPanel>
+                    <CheckBox Content="Use shortened link (youtu.be)" IsChecked="{Binding UseShortenedLink}"/>
+                </StackPanel>
+            </Border>
+
+            <Border Background="{DynamicResource LayerFillColorDefaultBrush}"
+                    BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}"
+                    BorderThickness="1" CornerRadius="10" Padding="12"
+                    IsVisible="{Binding StatusMessage, Converter={x:Static StringConverters.IsNotNullOrEmpty}}">
+                <TextBlock Text="{Binding StatusMessage}" TextWrapping="Wrap"/>
+            </Border>
+        </StackPanel>
+    </ScrollViewer>
+</UserControl>

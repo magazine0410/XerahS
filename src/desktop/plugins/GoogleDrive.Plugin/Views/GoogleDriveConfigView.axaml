@@ -1,0 +1,103 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:ShareX.GoogleDrive.Plugin.ViewModels"
+             x:Class="ShareX.GoogleDrive.Plugin.Views.GoogleDriveConfigView"
+             x:DataType="vm:GoogleDriveConfigViewModel">
+
+    <UserControl.Styles>
+        <Style Selector="Border.heroCard">
+            <Setter Property="Background" Value="{DynamicResource LayerFillColorDefaultBrush}"/>
+            <Setter Property="CornerRadius" Value="18"/>
+            <Setter Property="Padding" Value="20"/>
+            <Setter Property="BorderBrush" Value="{DynamicResource AccentFillColorDefaultBrush}"/>
+            <Setter Property="BorderThickness" Value="1"/>
+        </Style>
+        <Style Selector="Border.card">
+            <Setter Property="Background" Value="{DynamicResource CardBackgroundFillColorDefaultBrush}"/>
+            <Setter Property="CornerRadius" Value="14"/>
+            <Setter Property="Padding" Value="18"/>
+            <Setter Property="BorderBrush" Value="{DynamicResource CardStrokeColorDefaultBrush}"/>
+            <Setter Property="BorderThickness" Value="1"/>
+        </Style>
+        <Style Selector="TextBlock.fieldLabel">
+            <Setter Property="FontWeight" Value="SemiBold"/>
+        </Style>
+        <Style Selector="TextBlock.helper">
+            <Setter Property="FontSize" Value="11"/>
+            <Setter Property="TextWrapping" Value="Wrap"/>
+            <Setter Property="Foreground" Value="{DynamicResource TextFillColorSecondaryBrush}"/>
+        </Style>
+    </UserControl.Styles>
+
+    <ScrollViewer HorizontalScrollBarVisibility="Disabled">
+        <StackPanel Spacing="18">
+            <Border Classes="heroCard">
+                <StackPanel Spacing="8">
+                    <TextBlock Text="Google Drive" FontSize="24" FontWeight="Bold"/>
+                    <TextBlock Text="Upload files to your Google Drive, as in ShareX. XerahS needs your own Google OAuth client: ShareX's release builds include their own."
+                               TextWrapping="Wrap" Foreground="{DynamicResource TextFillColorSecondaryBrush}" MaxWidth="680"/>
+                </StackPanel>
+            </Border>
+
+            <Border Classes="card">
+                <StackPanel Spacing="15">
+                    <TextBlock Text="Account" FontSize="16" FontWeight="SemiBold"/>
+                    <TextBlock Classes="helper" Text="Create an OAuth client ID of the type Desktop app in the Google Cloud console, and enable the Google Drive API for its project. Desktop app clients accept any local redirect URI, so the default works without registering it."/>
+                    <Button Content="Open Google Cloud Credentials" Command="{Binding OpenAppRegistrationCommand}" HorizontalAlignment="Left"/>
+                    <StackPanel Spacing="6">
+                        <TextBlock Classes="fieldLabel" Text="Client ID"/>
+                        <TextBox Text="{Binding ClientId, UpdateSourceTrigger=PropertyChanged}" PlaceholderText="Stored in the secret store"/>
+                    </StackPanel>
+                    <StackPanel Spacing="6">
+                        <TextBlock Classes="fieldLabel" Text="Client secret"/>
+                        <TextBox Text="{Binding ClientSecret, UpdateSourceTrigger=PropertyChanged}" PasswordChar="*" PlaceholderText="Stored in the secret store"/>
+                    </StackPanel>
+                    <StackPanel Spacing="6">
+                        <TextBlock Classes="fieldLabel" Text="Redirect URI"/>
+                        <TextBox Text="{Binding RedirectUri, UpdateSourceTrigger=PropertyChanged}"/>
+                        <TextBlock Classes="helper" Text="Register this exact address as a redirect URI in your app. XerahS receives the authorization on it."/>
+                    </StackPanel>
+                    <StackPanel Orientation="Horizontal" Spacing="10">
+                        <Button Content="Authorize" Command="{Binding AuthorizeCommand}" IsEnabled="{Binding !IsBusy}"/>
+                        <Button Content="Cancel" Command="{Binding CancelLoginCommand}" IsVisible="{Binding IsBusy}"/>
+                        <Button Content="Disconnect" Command="{Binding DisconnectCommand}" IsEnabled="{Binding IsConnected}"/>
+                    </StackPanel>
+                    <TextBlock Text="{Binding ConnectionStatus}" FontWeight="SemiBold"/>
+                </StackPanel>
+            </Border>
+
+            <Border Classes="card">
+                <StackPanel Spacing="15">
+                    <TextBlock Text="Upload" FontSize="16" FontWeight="SemiBold"/>
+                    <CheckBox Content="Is public" IsChecked="{Binding IsPublic}"/>
+                    <TextBlock Classes="helper" Text="Anyone with the link can view the file."/>
+                    <CheckBox Content="Direct link" IsChecked="{Binding DirectLink}"/>
+                    <TextBlock Classes="helper" Text="The link downloads the file instead of opening its Google Drive page."/>
+                    <StackPanel Spacing="6">
+                        <TextBlock Classes="fieldLabel" Text="Drive"/>
+                        <StackPanel Orientation="Horizontal" Spacing="10">
+                            <ComboBox ItemsSource="{Binding Drives}" SelectedItem="{Binding SelectedDrive}" MinWidth="260"/>
+                            <Button Content="Load Shared Drives" Command="{Binding LoadDrivesCommand}" IsEnabled="{Binding IsConnected}"/>
+                        </StackPanel>
+                    </StackPanel>
+                    <CheckBox Content="Upload to a folder" IsChecked="{Binding UseFolder}"/>
+                    <StackPanel Spacing="6" IsEnabled="{Binding UseFolder}">
+                        <TextBlock Classes="fieldLabel" Text="Folder ID"/>
+                        <TextBox Text="{Binding FolderID, UpdateSourceTrigger=PropertyChanged}"/>
+                        <StackPanel Orientation="Horizontal" Spacing="10">
+                            <ComboBox ItemsSource="{Binding Folders}" SelectedItem="{Binding SelectedFolder}" MinWidth="260" PlaceholderText="Choose a folder"/>
+                            <Button Content="Load Folders" Command="{Binding LoadFoldersCommand}" IsEnabled="{Binding IsConnected}"/>
+                        </StackPanel>
+                    </StackPanel>
+                </StackPanel>
+            </Border>
+
+            <Border Background="{DynamicResource LayerFillColorDefaultBrush}"
+                    BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}"
+                    BorderThickness="1" CornerRadius="10" Padding="12"
+                    IsVisible="{Binding StatusMessage, Converter={x:Static StringConverters.IsNotNullOrEmpty}}">
+                <TextBlock Text="{Binding StatusMessage}" TextWrapping="Wrap"/>
+            </Border>
+        </StackPanel>
+    </ScrollViewer>
+</UserControl>

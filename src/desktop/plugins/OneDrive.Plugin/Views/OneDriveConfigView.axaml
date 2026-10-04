@@ -1,0 +1,94 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:ShareX.OneDrive.Plugin.ViewModels"
+             x:Class="ShareX.OneDrive.Plugin.Views.OneDriveConfigView"
+             x:DataType="vm:OneDriveConfigViewModel">
+
+    <UserControl.Styles>
+        <Style Selector="Border.heroCard">
+            <Setter Property="Background" Value="{DynamicResource LayerFillColorDefaultBrush}"/>
+            <Setter Property="CornerRadius" Value="18"/>
+            <Setter Property="Padding" Value="20"/>
+            <Setter Property="BorderBrush" Value="{DynamicResource AccentFillColorDefaultBrush}"/>
+            <Setter Property="BorderThickness" Value="1"/>
+        </Style>
+        <Style Selector="Border.card">
+            <Setter Property="Background" Value="{DynamicResource CardBackgroundFillColorDefaultBrush}"/>
+            <Setter Property="CornerRadius" Value="14"/>
+            <Setter Property="Padding" Value="18"/>
+            <Setter Property="BorderBrush" Value="{DynamicResource CardStrokeColorDefaultBrush}"/>
+            <Setter Property="BorderThickness" Value="1"/>
+        </Style>
+        <Style Selector="TextBlock.fieldLabel">
+            <Setter Property="FontWeight" Value="SemiBold"/>
+        </Style>
+        <Style Selector="TextBlock.helper">
+            <Setter Property="FontSize" Value="11"/>
+            <Setter Property="TextWrapping" Value="Wrap"/>
+            <Setter Property="Foreground" Value="{DynamicResource TextFillColorSecondaryBrush}"/>
+        </Style>
+    </UserControl.Styles>
+
+    <ScrollViewer HorizontalScrollBarVisibility="Disabled">
+        <StackPanel Spacing="18">
+            <Border Classes="heroCard">
+                <StackPanel Spacing="8">
+                    <TextBlock Text="OneDrive" FontSize="24" FontWeight="Bold"/>
+                    <TextBlock Text="Upload files to your OneDrive, as in ShareX. XerahS needs your own Microsoft app registration: ShareX's release builds include their own."
+                               TextWrapping="Wrap" Foreground="{DynamicResource TextFillColorSecondaryBrush}" MaxWidth="680"/>
+                </StackPanel>
+            </Border>
+
+            <Border Classes="card">
+                <StackPanel Spacing="15">
+                    <TextBlock Text="Account" FontSize="16" FontWeight="SemiBold"/>
+                    <TextBlock Classes="helper" Text="Register an app in Microsoft Entra that supports personal Microsoft accounts. Add a Web platform with the redirect URI below, and create a client secret."/>
+                    <Button Content="Open App Registrations" Command="{Binding OpenAppRegistrationCommand}" HorizontalAlignment="Left"/>
+                    <StackPanel Spacing="6">
+                        <TextBlock Classes="fieldLabel" Text="Client ID"/>
+                        <TextBox Text="{Binding ClientId, UpdateSourceTrigger=PropertyChanged}" PlaceholderText="Stored in the secret store"/>
+                    </StackPanel>
+                    <StackPanel Spacing="6">
+                        <TextBlock Classes="fieldLabel" Text="Client secret"/>
+                        <TextBox Text="{Binding ClientSecret, UpdateSourceTrigger=PropertyChanged}" PasswordChar="*" PlaceholderText="Stored in the secret store"/>
+                    </StackPanel>
+                    <StackPanel Spacing="6">
+                        <TextBlock Classes="fieldLabel" Text="Redirect URI"/>
+                        <TextBox Text="{Binding RedirectUri, UpdateSourceTrigger=PropertyChanged}"/>
+                        <TextBlock Classes="helper" Text="Register this exact address as a redirect URI in your app. XerahS receives the authorization on it."/>
+                    </StackPanel>
+                    <StackPanel Orientation="Horizontal" Spacing="10">
+                        <Button Content="Authorize" Command="{Binding AuthorizeCommand}" IsEnabled="{Binding !IsBusy}"/>
+                        <Button Content="Cancel" Command="{Binding CancelLoginCommand}" IsVisible="{Binding IsBusy}"/>
+                        <Button Content="Disconnect" Command="{Binding DisconnectCommand}" IsEnabled="{Binding IsConnected}"/>
+                    </StackPanel>
+                    <TextBlock Text="{Binding ConnectionStatus}" FontWeight="SemiBold"/>
+                </StackPanel>
+            </Border>
+
+            <Border Classes="card">
+                <StackPanel Spacing="15">
+                    <TextBlock Text="Upload" FontSize="16" FontWeight="SemiBold"/>
+                    <StackPanel Spacing="6">
+                        <TextBlock Classes="fieldLabel" Text="Folder"/>
+                        <StackPanel Orientation="Horizontal" Spacing="10">
+                            <ComboBox ItemsSource="{Binding Folders}" SelectedItem="{Binding SelectedFolder}" MinWidth="260"/>
+                            <Button Content="Load Folders" Command="{Binding LoadFoldersCommand}" IsEnabled="{Binding IsConnected}"/>
+                        </StackPanel>
+                    </StackPanel>
+                    <CheckBox Content="Create a shareable link" IsChecked="{Binding AutoCreateShareableLink}"/>
+                    <TextBlock Classes="helper" Text="An anonymous view link. Without it, the result is the file's OneDrive page, which only you can open."/>
+                    <CheckBox Content="Use direct link" IsChecked="{Binding UseDirectLink}" IsEnabled="{Binding AutoCreateShareableLink}"/>
+                    <TextBlock Classes="helper" Text="An embed link instead of a view link."/>
+                </StackPanel>
+            </Border>
+
+            <Border Background="{DynamicResource LayerFillColorDefaultBrush}"
+                    BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}"
+                    BorderThickness="1" CornerRadius="10" Padding="12"
+                    IsVisible="{Binding StatusMessage, Converter={x:Static StringConverters.IsNotNullOrEmpty}}">
+                <TextBlock Text="{Binding StatusMessage}" TextWrapping="Wrap"/>
+            </Border>
+        </StackPanel>
+    </ScrollViewer>
+</UserControl>

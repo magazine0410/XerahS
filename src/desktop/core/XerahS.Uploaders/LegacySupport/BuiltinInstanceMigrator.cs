@@ -108,6 +108,9 @@ public static class BuiltinInstanceMigrator
         MigrateChevereto(source, result);
         MigrateVgyme(source, result);
         MigrateUpaste(source, result);
+        MigrateBackblazeB2(source, result);
+        MigrateSul(source, result);
+        MigratePushbullet(source, result);
         CollectSkippedProviders(source, result);
 
         return result;
@@ -454,6 +457,52 @@ public static class BuiltinInstanceMigrator
         UpsertInstance(UploaderCategory.Text, "upaste", "uPaste", json, result, "uPaste");
     }
 
+    // ── Backblaze B2, s-ul, Pushbullet (file destinations) ───────────────────
+
+    private static void MigrateBackblazeB2(UploadersConfig source, BuiltinMigrationResult result)
+    {
+        if (string.IsNullOrEmpty(source.B2ApplicationKeyId))
+            return;
+
+        var json = new JObject
+        {
+            ["ApplicationKeyId"] = source.B2ApplicationKeyId,
+            ["ApplicationKey"] = source.B2ApplicationKey,
+            ["BucketName"] = source.B2BucketName,
+            ["UploadPath"] = source.B2UploadPath,
+            ["UseCustomUrl"] = source.B2UseCustomUrl,
+            ["CustomUrl"] = source.B2CustomUrl
+        };
+
+        UpsertInstance(UploaderCategory.File, "backblazeb2", "Backblaze B2", json, result, "Backblaze B2");
+    }
+
+    private static void MigrateSul(UploadersConfig source, BuiltinMigrationResult result)
+    {
+        if (string.IsNullOrEmpty(source.SulAPIKey))
+            return;
+
+        UpsertInstance(UploaderCategory.File, "sul", "s-ul", new JObject { ["APIKey"] = source.SulAPIKey }, result, "s-ul");
+    }
+
+    private static void MigratePushbullet(UploadersConfig source, BuiltinMigrationResult result)
+    {
+        var settings = source.PushbulletSettings;
+        if (string.IsNullOrEmpty(settings?.UserAPIKey))
+            return;
+
+        var devices = settings.DeviceList ?? [];
+        string selectedDeviceKey = settings.SelectedDevice >= 0 && settings.SelectedDevice < devices.Count ? devices[settings.SelectedDevice].Key : string.Empty;
+        var json = new JObject
+        {
+            ["UserAPIKey"] = settings.UserAPIKey,
+            ["DeviceList"] = JArray.FromObject(devices.Select(device => new { device.Key, device.Name })),
+            ["SelectedDeviceKey"] = selectedDeviceKey
+        };
+
+        UpsertInstance(UploaderCategory.File, "pushbullet", "Pushbullet", json, result, "Pushbullet");
+    }
+
     /// <summary>Creates the provider's instance in the category, or updates it while keeping its SecretKey (and stored secrets).</summary>
     private static void UpsertInstance(UploaderCategory category, string providerId, string displayName, JObject json, BuiltinMigrationResult result, string label)
     {
@@ -518,11 +567,18 @@ public static class BuiltinInstanceMigrator
         if (source.GoogleDriveOAuth2Info != null)
             result.SkippedProviders.Add("Google Drive");
 
+        if (source.BoxOAuth2Info != null)
+            result.SkippedProviders.Add("Box");
+
+        if (source.YouTubeOAuth2Info != null)
+            result.SkippedProviders.Add("YouTube");
+
+        // The MEGA login ShareX stored (MegaAuthInfos) cannot be turned into the session XerahS uses; log in again.
+        if (source.MegaAuthInfos != null)
+            result.SkippedProviders.Add("MEGA");
+
         if (!string.IsNullOrEmpty(source.AzureStorageAccountName))
             result.SkippedProviders.Add("Azure Storage");
-
-        if (!string.IsNullOrEmpty(source.B2ApplicationKeyId))
-            result.SkippedProviders.Add("Backblaze B2");
 
         if (source.BitlyOAuth2Info != null)
             result.SkippedProviders.Add("bit.ly");

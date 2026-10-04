@@ -1,0 +1,19 @@
+{
+  "pluginId": "onedrive",
+  "name": "OneDrive",
+  "version": "1.0.0",
+  "author": "ShareX Team",
+  "description": "Upload files to OneDrive",
+  "apiVersion": "1.0",
+  "entryPoint": "ShareX.OneDrive.Plugin.OneDriveProvider",
+  "assemblyFileName": "XerahS.OneDrive.Plugin.dll",
+  "supportedCategories": [
+    "Image",
+    "Text",
+    "File"
+  ],
+  "supportsExplorer": false,
+  "configViewId": "onedrive",
+  "dependencies": [],
+  "homepageUrl": "https://onedrive.live.com/"
+}

@@ -1,0 +1,18 @@
+{
+  "pluginId": "imgfish",
+  "name": "img.fish",
+  "version": "1.0.0",
+  "author": "ShareX Team",
+  "description": "Upload images, videos, and audio to img.fish",
+  "apiVersion": "1.0",
+  "entryPoint": "ShareX.ImgFish.Plugin.ImgFishProvider",
+  "assemblyFileName": "XerahS.ImgFish.Plugin.dll",
+  "supportedCategories": [
+    "Image",
+    "File"
+  ],
+  "supportsExplorer": false,
+  "configViewId": "imgfish",
+  "dependencies": [],
+  "homepageUrl": "https://img.fish/"
+}

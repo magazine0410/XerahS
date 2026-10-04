@@ -1,0 +1,19 @@
+{
+  "pluginId": "mega",
+  "name": "MEGA",
+  "version": "1.0.0",
+  "author": "ShareX Team",
+  "description": "Upload files to MEGA",
+  "apiVersion": "1.0",
+  "entryPoint": "ShareX.Mega.Plugin.MegaProvider",
+  "assemblyFileName": "XerahS.Mega.Plugin.dll",
+  "supportedCategories": [
+    "Image",
+    "Text",
+    "File"
+  ],
+  "supportsExplorer": false,
+  "configViewId": "mega",
+  "dependencies": [],
+  "homepageUrl": "https://mega.nz/"
+}
