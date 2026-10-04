@@ -56,6 +56,13 @@ namespace XerahS.UI.ViewModels
 
         public ImageEffectsViewModel ImageEffects { get; private set; }
 
+        // The selected tabs survive the view being recreated when a dialog opened from the workflow editor closes.
+        [ObservableProperty]
+        private int _selectedTabIndex;
+
+        [ObservableProperty]
+        private int _selectedImageTabIndex;
+
         public TaskSettingsViewModel(TaskSettings settings, IViewDialogService dialogService) : this(settings, dialogService, null) { }
 
         public TaskSettingsViewModel(TaskSettings settings, IViewDialogService dialogService, EditorCore? editorCore)

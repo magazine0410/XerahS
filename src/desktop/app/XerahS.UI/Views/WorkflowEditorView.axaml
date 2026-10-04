@@ -13,7 +13,7 @@
         <Grid RowDefinitions="*,Auto" HorizontalAlignment="Stretch" VerticalAlignment="Stretch">
 
             <!-- Main Tabs -->
-            <TabControl Grid.Row="0" Margin="0,0,0,16" HorizontalAlignment="Stretch" VerticalAlignment="Stretch">
+            <TabControl Grid.Row="0" Margin="0,0,0,16" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" SelectedIndex="{Binding SelectedTabIndex}">
             
             <!-- Tab 1: Task (Trigger & Job) -->
             <TabItem Header="Task">

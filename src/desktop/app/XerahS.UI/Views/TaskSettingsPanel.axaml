@@ -21,7 +21,7 @@
     </UserControl.Resources>
 
     <Grid RowDefinitions="*" Margin="0" HorizontalAlignment="Stretch" VerticalAlignment="Stretch">
-        <TabControl Grid.Row="0" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" VerticalContentAlignment="Stretch" MinHeight="300">
+        <TabControl Grid.Row="0" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" VerticalContentAlignment="Stretch" MinHeight="300" SelectedIndex="{Binding SelectedTabIndex}">
             
             <!-- Capture Tab -->
             <TabItem Header="Capture">
