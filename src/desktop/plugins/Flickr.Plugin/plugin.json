@@ -1,0 +1,15 @@
+{
+  "pluginId": "flickr",
+  "name": "Flickr",
+  "version": "1.0.0",
+  "author": "ShareX Team",
+  "description": "Upload images to Flickr",
+  "apiVersion": "1.0",
+  "entryPoint": "ShareX.Flickr.Plugin.FlickrProvider",
+  "assemblyFileName": "XerahS.Flickr.Plugin.dll",
+  "supportedCategories": ["Image"],
+  "supportsExplorer": false,
+  "configViewId": "flickr",
+  "dependencies": [],
+  "homepageUrl": "https://www.flickr.com/"
+}

@@ -1,0 +1,15 @@
+{
+  "pluginId": "chevereto",
+  "name": "Chevereto",
+  "version": "1.0.0",
+  "author": "ShareX Team",
+  "description": "Upload images to a Chevereto server",
+  "apiVersion": "1.0",
+  "entryPoint": "ShareX.Chevereto.Plugin.CheveretoProvider",
+  "assemblyFileName": "XerahS.Chevereto.Plugin.dll",
+  "supportedCategories": ["Image"],
+  "supportsExplorer": false,
+  "configViewId": "chevereto",
+  "dependencies": [],
+  "homepageUrl": "https://chevereto.com/"
+}

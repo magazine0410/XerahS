@@ -1,0 +1,129 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:ShareX.Flickr.Plugin.ViewModels"
+             x:Class="ShareX.Flickr.Plugin.Views.FlickrConfigView"
+             x:DataType="vm:FlickrConfigViewModel">
+
+    <UserControl.Styles>
+        <Style Selector="Border.heroCard">
+            <Setter Property="Background" Value="{DynamicResource LayerFillColorDefaultBrush}"/>
+            <Setter Property="CornerRadius" Value="18"/>
+            <Setter Property="Padding" Value="20"/>
+            <Setter Property="BorderBrush" Value="{DynamicResource AccentFillColorDefaultBrush}"/>
+            <Setter Property="BorderThickness" Value="1"/>
+        </Style>
+        <Style Selector="Border.card">
+            <Setter Property="Background" Value="{DynamicResource CardBackgroundFillColorDefaultBrush}"/>
+            <Setter Property="CornerRadius" Value="14"/>
+            <Setter Property="Padding" Value="18"/>
+            <Setter Property="BorderBrush" Value="{DynamicResource CardStrokeColorDefaultBrush}"/>
+            <Setter Property="BorderThickness" Value="1"/>
+        </Style>
+        <Style Selector="TextBlock.fieldLabel">
+            <Setter Property="FontWeight" Value="SemiBold"/>
+        </Style>
+        <Style Selector="TextBlock.helper">
+            <Setter Property="FontSize" Value="11"/>
+            <Setter Property="TextWrapping" Value="Wrap"/>
+            <Setter Property="Foreground" Value="{DynamicResource TextFillColorSecondaryBrush}"/>
+        </Style>
+    </UserControl.Styles>
+
+    <ScrollViewer HorizontalScrollBarVisibility="Disabled">
+        <StackPanel Spacing="18">
+            <Border Classes="heroCard">
+                <StackPanel Spacing="8">
+                    <TextBlock Text="Flickr" FontSize="24" FontWeight="Bold"/>
+                    <TextBlock Text="Upload images to your Flickr account, as in ShareX. Flickr needs an app key and secret: ShareX's release builds include their own, XerahS needs yours (a free non-commercial key from Flickr's App Garden). Then authorize your account: Flickr shows a code to enter here."
+                               TextWrapping="Wrap" Foreground="{DynamicResource TextFillColorSecondaryBrush}" MaxWidth="680"/>
+                </StackPanel>
+            </Border>
+
+            <Border Classes="card">
+                <StackPanel Spacing="15">
+                    <TextBlock Text="Flickr app" FontSize="16" FontWeight="SemiBold"/>
+                    <StackPanel Spacing="6">
+                        <TextBlock Classes="fieldLabel" Text="Key *"/>
+                        <TextBox Text="{Binding ConsumerKey, UpdateSourceTrigger=PropertyChanged}"/>
+                    </StackPanel>
+                    <StackPanel Spacing="6">
+                        <TextBlock Classes="fieldLabel" Text="Secret *"/>
+                        <TextBox Text="{Binding ConsumerSecret, UpdateSourceTrigger=PropertyChanged}" PasswordChar="*" PlaceholderText="Stored in the secret store"/>
+                    </StackPanel>
+                    <Button Content="Create a Flickr App" Command="{Binding OpenAppRegistrationCommand}" HorizontalAlignment="Left"/>
+                </StackPanel>
+            </Border>
+
+            <Border Classes="card">
+                <StackPanel Spacing="15">
+                    <TextBlock Text="Account" FontSize="16" FontWeight="SemiBold"/>
+                    <StackPanel Orientation="Horizontal" Spacing="8">
+                        <TextBlock Classes="fieldLabel" Text="Status:" VerticalAlignment="Center"/>
+                        <TextBlock Text="{Binding ConnectionStatus}" TextWrapping="Wrap" VerticalAlignment="Center"/>
+                    </StackPanel>
+                    <StackPanel Spacing="6">
+                        <TextBlock Classes="fieldLabel" Text="Verification code"/>
+                        <TextBox Text="{Binding VerificationCode, UpdateSourceTrigger=PropertyChanged}" PlaceholderText="123-456-789"/>
+                    </StackPanel>
+                    <WrapPanel>
+                        <Button Content="Open Authorization Page" Command="{Binding OpenAuthorizationPageCommand}" IsEnabled="{Binding !IsBusy}" Margin="0,0,8,8"/>
+                        <Button Content="Complete Authorization" Command="{Binding CompleteAuthorizationCommand}" IsEnabled="{Binding !IsBusy}" Margin="0,0,8,8"/>
+                        <Button Content="Disconnect" Command="{Binding DisconnectCommand}" Margin="0,0,8,8"/>
+                    </WrapPanel>
+                </StackPanel>
+            </Border>
+
+            <Border Classes="card">
+                <StackPanel Spacing="15">
+                    <TextBlock Text="Upload" FontSize="16" FontWeight="SemiBold"/>
+                    <CheckBox Content="Direct link (link to the image file instead of its page)" IsChecked="{Binding DirectLink}"/>
+                    <StackPanel Spacing="6">
+                        <TextBlock Classes="fieldLabel" Text="Title"/>
+                        <TextBox Text="{Binding Title, UpdateSourceTrigger=PropertyChanged}"/>
+                    </StackPanel>
+                    <StackPanel Spacing="6">
+                        <TextBlock Classes="fieldLabel" Text="Description"/>
+                        <TextBox Text="{Binding PhotoDescription, UpdateSourceTrigger=PropertyChanged}" AcceptsReturn="True" TextWrapping="Wrap" MinHeight="60"/>
+                        <TextBlock Classes="helper" Text="May contain some limited HTML."/>
+                    </StackPanel>
+                    <StackPanel Spacing="6">
+                        <TextBlock Classes="fieldLabel" Text="Tags"/>
+                        <TextBox Text="{Binding Tags, UpdateSourceTrigger=PropertyChanged}"/>
+                        <TextBlock Classes="helper" Text="A space-separated list of tags to apply to the photo."/>
+                    </StackPanel>
+                    <StackPanel Spacing="6">
+                        <TextBlock Classes="fieldLabel" Text="Public"/>
+                        <ComboBox ItemsSource="{Binding YesNoOptions}" SelectedItem="{Binding IsPublic}" MinWidth="260"/>
+                    </StackPanel>
+                    <StackPanel Spacing="6">
+                        <TextBlock Classes="fieldLabel" Text="Visible to friends"/>
+                        <ComboBox ItemsSource="{Binding YesNoOptions}" SelectedItem="{Binding IsFriend}" MinWidth="260"/>
+                    </StackPanel>
+                    <StackPanel Spacing="6">
+                        <TextBlock Classes="fieldLabel" Text="Visible to family"/>
+                        <ComboBox ItemsSource="{Binding YesNoOptions}" SelectedItem="{Binding IsFamily}" MinWidth="260"/>
+                    </StackPanel>
+                    <StackPanel Spacing="6">
+                        <TextBlock Classes="fieldLabel" Text="Safety level"/>
+                        <ComboBox ItemsSource="{Binding SafetyLevelOptions}" SelectedItem="{Binding SafetyLevel}" MinWidth="260"/>
+                    </StackPanel>
+                    <StackPanel Spacing="6">
+                        <TextBlock Classes="fieldLabel" Text="Content type"/>
+                        <ComboBox ItemsSource="{Binding ContentTypeOptions}" SelectedItem="{Binding ContentType}" MinWidth="260"/>
+                    </StackPanel>
+                    <StackPanel Spacing="6">
+                        <TextBlock Classes="fieldLabel" Text="Search visibility"/>
+                        <ComboBox ItemsSource="{Binding HiddenOptions}" SelectedItem="{Binding Hidden}" MinWidth="260"/>
+                    </StackPanel>
+                </StackPanel>
+            </Border>
+
+            <Border Background="{DynamicResource LayerFillColorDefaultBrush}"
+                    BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}"
+                    BorderThickness="1" CornerRadius="10" Padding="12"
+                    IsVisible="{Binding StatusMessage, Converter={x:Static StringConverters.IsNotNullOrEmpty}}">
+                <TextBlock Text="{Binding StatusMessage}" TextWrapping="Wrap"/>
+            </Border>
+        </StackPanel>
+    </ScrollViewer>
+</UserControl>

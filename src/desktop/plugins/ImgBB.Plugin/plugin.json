@@ -1,0 +1,15 @@
+{
+  "pluginId": "imgbb",
+  "name": "ImgBB",
+  "version": "1.0.0",
+  "author": "ShareX Team",
+  "description": "Upload images to ImgBB",
+  "apiVersion": "1.0",
+  "entryPoint": "ShareX.ImgBB.Plugin.ImgBBProvider",
+  "assemblyFileName": "XerahS.ImgBB.Plugin.dll",
+  "supportedCategories": ["Image"],
+  "supportsExplorer": false,
+  "configViewId": "imgbb",
+  "dependencies": [],
+  "homepageUrl": "https://imgbb.com/"
+}

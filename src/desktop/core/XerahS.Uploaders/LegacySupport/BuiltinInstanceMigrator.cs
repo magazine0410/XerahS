@@ -25,6 +25,7 @@
 
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
+using ShareX.UploadersLib.ImageUploaders;
 using XerahS.Common;
 using XerahS.Uploaders.PluginSystem;
 
@@ -103,6 +104,10 @@ public static class BuiltinInstanceMigrator
         MigrateFtp(source, result);
         MigratePastebin(source, result);
         MigrateImgur(source, result);
+        MigrateImageShack(source, result);
+        MigrateFlickr(source, result);
+        MigrateChevereto(source, result);
+        MigrateVgyme(source, result);
         CollectSkippedProviders(source, result);
 
         return result;
@@ -386,21 +391,118 @@ public static class BuiltinInstanceMigrator
         DebugHelper.WriteLine($"{LogPrefix} Imgur: partial migration (preferences copied, OAuth re-auth needed).");
     }
 
+    // ── ImageShack, Flickr, Chevereto, vgy.me ─────────────────────────────────
+    // Plaintext secrets are written into SettingsJson; each provider's IInstanceSecretMigrator moves them into the
+    // secret store, as for Pastebin.
+
+    private static void MigrateImageShack(UploadersConfig source, BuiltinMigrationResult result)
+    {
+        var settings = source.ImageShackSettings;
+        if (settings == null || string.IsNullOrEmpty(settings.Auth_token))
+            return;
+
+        var json = new JObject
+        {
+            ["Username"] = settings.Username,
+            ["IsPublic"] = settings.IsPublic,
+            ["ThumbnailWidth"] = settings.ThumbnailWidth,
+            ["ThumbnailHeight"] = settings.ThumbnailHeight,
+            ["Password"] = settings.Password,
+            ["AuthToken"] = settings.Auth_token
+        };
+
+        string displayName = string.IsNullOrEmpty(settings.Username) ? "ImageShack" : $"ImageShack ({settings.Username})";
+        UpsertImageInstance("imageshack", displayName, json, result, "ImageShack");
+        result.PartialMigrations.Add("ImageShack: account migrated — enter your ImageShack API key in settings to enable uploads.");
+        DebugHelper.WriteLine($"{LogPrefix} ImageShack: partial migration (account migrated, API key not available).");
+    }
+
+    private static void MigrateFlickr(UploadersConfig source, BuiltinMigrationResult result)
+    {
+        if (source.FlickrOAuthInfo == null)
+            return;
+
+        // ShareX's tokens belong to ShareX's own Flickr app key, so they cannot be used with the user's app key.
+        var settings = source.FlickrSettings ?? new FlickrSettings();
+        var json = new JObject
+        {
+            ["DirectLink"] = settings.DirectLink,
+            ["Title"] = settings.Title,
+            ["Description"] = settings.Description,
+            ["Tags"] = settings.Tags,
+            ["IsPublic"] = settings.IsPublic,
+            ["IsFriend"] = settings.IsFriend,
+            ["IsFamily"] = settings.IsFamily,
+            ["SafetyLevel"] = settings.SafetyLevel,
+            ["ContentType"] = settings.ContentType,
+            ["Hidden"] = settings.Hidden
+        };
+
+        UpsertImageInstance("flickr", "Flickr", json, result, "Flickr");
+        result.PartialMigrations.Add("Flickr: preferences migrated — enter your Flickr app key and secret, then authorize your account in settings.");
+        DebugHelper.WriteLine($"{LogPrefix} Flickr: partial migration (preferences copied, app key and authorization needed).");
+    }
+
+    private static void MigrateChevereto(UploadersConfig source, BuiltinMigrationResult result)
+    {
+        var settings = source.CheveretoUploader;
+        if (settings == null || string.IsNullOrEmpty(settings.UploadURL))
+            return;
+
+        var json = new JObject
+        {
+            ["UploadURL"] = settings.UploadURL,
+            ["DirectURL"] = source.CheveretoDirectURL,
+            ["APIKey"] = settings.APIKey
+        };
+
+        UpsertImageInstance("chevereto", "Chevereto", json, result, "Chevereto");
+    }
+
+    private static void MigrateVgyme(UploadersConfig source, BuiltinMigrationResult result)
+    {
+        if (string.IsNullOrEmpty(source.VgymeUserKey))
+            return;
+
+        UpsertImageInstance("vgyme", "vgy.me", new JObject { ["UserKey"] = source.VgymeUserKey }, result, "vgy.me");
+    }
+
+    /// <summary>Creates the provider's image instance, or updates it while keeping its SecretKey (and stored secrets).</summary>
+    private static void UpsertImageInstance(string providerId, string displayName, JObject json, BuiltinMigrationResult result, string label)
+    {
+        var existing = InstanceManager.Instance.GetInstancesByCategory(UploaderCategory.Image)
+            .FirstOrDefault(i => i.ProviderId == providerId);
+
+        json["SecretKey"] = ExtractSecretKey(existing?.SettingsJson) is { Length: > 0 } secretKey ? secretKey : Guid.NewGuid().ToString("N");
+        string settingsJson = json.ToString(Formatting.Indented);
+
+        if (existing != null)
+        {
+            existing.SettingsJson = settingsJson;
+            existing.DisplayName = displayName;
+            InstanceManager.Instance.UpdateInstance(existing);
+            result.InstancesUpdated.Add($"{label} [Image]");
+        }
+        else
+        {
+            InstanceManager.Instance.AddInstance(new UploaderInstance
+            {
+                ProviderId = providerId,
+                Category = UploaderCategory.Image,
+                DisplayName = displayName,
+                SettingsJson = settingsJson,
+                FileTypeRouting = new FileTypeScope { AllFileTypes = true }
+            });
+            result.InstancesCreated.Add($"{label} [Image]");
+        }
+    }
+
     // ── Skipped providers (no XerahS plugin available) ────────────────────────
 
     private static void CollectSkippedProviders(UploadersConfig source, BuiltinMigrationResult result)
     {
-        if (!string.IsNullOrEmpty(source.ImageShackSettings?.Auth_token))
-            result.SkippedProviders.Add("ImageShack");
-
-        if (source.FlickrOAuthInfo != null)
-            result.SkippedProviders.Add("Flickr");
-
         if (source.PhotobucketOAuthInfo != null)
             result.SkippedProviders.Add("Photobucket");
-
-        if (!string.IsNullOrEmpty(source.VgymeUserKey))
-            result.SkippedProviders.Add("vgy.me");
 
         if (source.GistOAuth2Info != null)
             result.SkippedProviders.Add("GitHub Gist");

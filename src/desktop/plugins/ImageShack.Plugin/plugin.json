@@ -1,0 +1,15 @@
+{
+  "pluginId": "imageshack",
+  "name": "ImageShack",
+  "version": "1.0.0",
+  "author": "ShareX Team",
+  "description": "Upload images to ImageShack",
+  "apiVersion": "1.0",
+  "entryPoint": "ShareX.ImageShack.Plugin.ImageShackProvider",
+  "assemblyFileName": "XerahS.ImageShack.Plugin.dll",
+  "supportedCategories": ["Image"],
+  "supportsExplorer": false,
+  "configViewId": "imageshack",
+  "dependencies": [],
+  "homepageUrl": "https://imageshack.com/"
+}
