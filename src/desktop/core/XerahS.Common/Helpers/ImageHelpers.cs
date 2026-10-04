@@ -55,11 +55,25 @@ public static class ImageHelpers
 
         FileHelpers.CreateDirectoryFromFilePath(filePath);
 
+        if (IsTiffPath(filePath))
+        {
+            // SkiaSharp has no TIFF encoder.
+            byte[] tiff = TiffEncoder.Encode(bitmap);
+            File.WriteAllBytes(filePath, tiff);
+            return;
+        }
+
         SKEncodedImageFormat format = GetEncodedFormat(filePath);
         using SKImage image = SKImage.FromBitmap(bitmap);
         using SKData data = image.Encode(format, quality);
         using FileStream stream = File.Open(filePath, FileMode.Create, FileAccess.Write, FileShare.None);
         data.SaveTo(stream);
+    }
+
+    private static bool IsTiffPath(string filePath)
+    {
+        string extension = Path.GetExtension(filePath).TrimStart('.');
+        return extension.Equals("tif", StringComparison.OrdinalIgnoreCase) || extension.Equals("tiff", StringComparison.OrdinalIgnoreCase);
     }
 
     public static SKBitmap ResizeImage(SKBitmap bitmap, int width, int height, SKSamplingOptions? sampling = null)
@@ -269,7 +283,6 @@ public static class ImageHelpers
             "bmp" => SKEncodedImageFormat.Bmp,
             "gif" => SKEncodedImageFormat.Gif,
             "webp" => SKEncodedImageFormat.Webp,
-            "tif" or "tiff" => SKEncodedImageFormat.Png, // SkiaSharp lacks TIFF encoding, fall back to PNG
             _ => SKEncodedImageFormat.Png
         };
     }

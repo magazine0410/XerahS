@@ -588,13 +588,22 @@ public static partial class TaskHelpers
 
         try
         {
-            using var image = SkiaSharp.SKImage.FromBitmap(bmp);
+            if (imageFormat == EImageFormat.TIFF)
+            {
+                // SkiaSharp has no TIFF encoder.
+                TiffEncoder.Encode(bmp, ms);
+                ms.Position = 0;
+                return ms;
+            }
+
+            // As in ShareX, JPEG has no transparency, so transparent areas are filled with white instead of turning black.
+            using var opaque = imageFormat == EImageFormat.JPEG ? FillBackground(bmp, SkiaSharp.SKColors.White) : null;
+            using var image = SkiaSharp.SKImage.FromBitmap(opaque ?? bmp);
             using var data = imageFormat switch
             {
                 EImageFormat.JPEG => image.Encode(SkiaSharp.SKEncodedImageFormat.Jpeg, jpegQuality),
                 EImageFormat.GIF => image.Encode(SkiaSharp.SKEncodedImageFormat.Gif, 100),
                 EImageFormat.BMP => image.Encode(SkiaSharp.SKEncodedImageFormat.Bmp, 100),
-                EImageFormat.TIFF => image.Encode(SkiaSharp.SKEncodedImageFormat.Png, 100), // SkiaSharp doesn't support TIFF encoding
                 EImageFormat.WEBP => image.Encode(SkiaSharp.SKEncodedImageFormat.Webp, jpegQuality), // WebP uses quality like JPEG
                 EImageFormat.AVIF => image.Encode(SkiaSharp.SKEncodedImageFormat.Png, 100), // AVIF requires FFmpeg, fallback to PNG for stream
                 _ => image.Encode(SkiaSharp.SKEncodedImageFormat.Png, 100)
@@ -610,6 +619,18 @@ public static partial class TaskHelpers
             ms.Dispose();
             return null;
         }
+    }
+
+    /// <summary>
+    /// Draws the image over a solid color, as ShareX's ImageHelpers.FillBackground does.
+    /// </summary>
+    public static SkiaSharp.SKBitmap FillBackground(SkiaSharp.SKBitmap bmp, SkiaSharp.SKColor color)
+    {
+        var result = new SkiaSharp.SKBitmap(bmp.Width, bmp.Height, SkiaSharp.SKColorType.Bgra8888, SkiaSharp.SKAlphaType.Opaque);
+        using var canvas = new SkiaSharp.SKCanvas(result);
+        canvas.Clear(color);
+        canvas.DrawBitmap(bmp, 0, 0, new SkiaSharp.SKSamplingOptions());
+        return result;
     }
 
     /// <summary>
@@ -641,8 +662,8 @@ public static partial class TaskHelpers
 
     public static void SaveImageToPath(SkiaSharp.SKBitmap bmp, string filePath, TaskSettings taskSettings)
     {
-        if (taskSettings.ImageSettings.ImageFormat is EImageFormat.TIFF or EImageFormat.AVIF)
-            throw new NotSupportedException($"The stream encoder cannot save {taskSettings.ImageSettings.ImageFormat} images. Choose PNG, JPEG, or WebP; AVIF requires the AVIF encoder.");
+        if (taskSettings.ImageSettings.ImageFormat == EImageFormat.AVIF)
+            throw new NotSupportedException("The stream encoder cannot save AVIF images; AVIF requires the AVIF encoder.");
         using var encoded = SaveImageAsStream(bmp, taskSettings.ImageSettings.ImageFormat, taskSettings)
             ?? throw new NotSupportedException($"The configured {taskSettings.ImageSettings.ImageFormat} image format could not be encoded. Choose PNG, JPEG, or WebP.");
         WriteImageStreamToFile(encoded, filePath, overwrite: true);
@@ -665,7 +686,7 @@ public static partial class TaskHelpers
         }
     }
 
-    public static string? SaveImageAsFile(SkiaSharp.SKBitmap bmp, TaskSettings taskSettings, bool overwriteFile = false)
+    public static async Task<string?> SaveImageAsFileAsync(SkiaSharp.SKBitmap bmp, TaskSettings taskSettings, bool overwriteFile = false)
     {
         string screenshotsFolder = GetScreenshotsFolder(taskSettings);
         FileHelpers.CreateDirectory(screenshotsFolder);
@@ -680,7 +701,8 @@ public static partial class TaskHelpers
             if (string.IsNullOrEmpty(filePath)) return null;
         }
 
-        ImageHelpers.SaveBitmap(bmp, filePath);
+        // As in ShareX, the image settings' format and JPEG quality are used, as for Save As and uploads.
+        await SaveImageToPathAsync(bmp, filePath, taskSettings).ConfigureAwait(false);
         return filePath;
     }
 

@@ -301,15 +301,72 @@ public class AfterCaptureTasksTests
     }
 
     [Test]
-    public void SaveAs_UnavailableTiffEncoderDoesNotWriteDisguisedPngOrOverwriteTheTarget()
+    public async Task SaveImageToFile_UsesTheJpegQuality()
+    {
+        var settings = Settings(AfterCaptureTasks.SaveImageToFile);
+        settings.ImageSettings.ImageFormat = XerahS.Services.Abstractions.EImageFormat.JPEG;
+        settings.ImageSettings.ImageJPEGQuality = 20;
+        var random = new Random(3);
+        using var image = new SKBitmap(64, 48);
+        for (int y = 0; y < image.Height; y++)
+            for (int x = 0; x < image.Width; x++)
+                image.SetPixel(x, y, new SKColor((byte)random.Next(256), (byte)random.Next(256), (byte)random.Next(256)));
+
+        string? path = await TaskHelpers.SaveImageAsFileAsync(image, settings);
+
+        using var skImage = SKImage.FromBitmap(image);
+        using var expected = skImage.Encode(SKEncodedImageFormat.Jpeg, 20);
+        Assert.That(path, Does.EndWith(".jpg"));
+        Assert.That(await File.ReadAllBytesAsync(path!), Is.EqualTo(expected.ToArray()));
+    }
+
+    [Test]
+    public async Task SaveImageToFile_JpegFillsTransparentAreasWithWhite()
+    {
+        var settings = Settings(AfterCaptureTasks.SaveImageToFile);
+        settings.ImageSettings.ImageFormat = XerahS.Services.Abstractions.EImageFormat.JPEG;
+        using var image = new SKBitmap(16, 16);
+        image.Erase(SKColors.Transparent);
+        image.SetPixel(0, 0, SKColors.Red);
+
+        string? path = await TaskHelpers.SaveImageAsFileAsync(image, settings);
+
+        using var saved = SKBitmap.Decode(path!);
+        SKColor corner = saved.GetPixel(15, 15);
+        Assert.That(corner.Red, Is.GreaterThan(245));
+        Assert.That(corner.Green, Is.GreaterThan(245));
+        Assert.That(corner.Blue, Is.GreaterThan(245));
+    }
+
+    [Test]
+    public async Task SaveImageToFile_AvifUsesTheAvifEncoder()
+    {
+        var encoder = new TestImageEncoder();
+        PlatformServices.RegisterImageEncoderService(encoder);
+        var settings = Settings(AfterCaptureTasks.SaveImageToFile);
+        settings.ImageSettings.ImageFormat = XerahS.Services.Abstractions.EImageFormat.AVIF;
+        settings.ImageSettings.ImageJPEGQuality = 61;
+        using var image = new SKBitmap(20, 10);
+
+        string? path = await TaskHelpers.SaveImageAsFileAsync(image, settings);
+
+        Assert.That(path, Does.EndWith(".avif"));
+        Assert.That(encoder.Format, Is.EqualTo(XerahS.Services.Abstractions.EImageFormat.AVIF));
+        Assert.That(encoder.Quality, Is.EqualTo(61));
+        Assert.That(await File.ReadAllTextAsync(path!), Is.EqualTo("encoded avif"));
+    }
+
+    [Test]
+    public async Task SaveAs_TiffWritesATiffFile()
     {
         var settings = Settings(AfterCaptureTasks.None);
         settings.ImageSettings.ImageFormat = XerahS.Services.Abstractions.EImageFormat.TIFF;
         string path = Path.Combine(_directory, "saved.tiff");
         File.WriteAllText(path, "original");
         using var image = new SKBitmap(20, 10);
-        Assert.ThrowsAsync<NotSupportedException>(() => TaskHelpers.SaveImageToPathAsync(image, path, settings));
-        Assert.That(File.ReadAllText(path), Is.EqualTo("original"));
+        await TaskHelpers.SaveImageToPathAsync(image, path, settings);
+        byte[] saved = await File.ReadAllBytesAsync(path);
+        Assert.That(saved.Take(4), Is.EqualTo(new byte[] { (byte)'I', (byte)'I', 42, 0 }));
     }
 
     [Test]

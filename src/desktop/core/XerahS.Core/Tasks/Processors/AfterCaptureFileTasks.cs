@@ -126,13 +126,8 @@ public static class AfterCaptureFileTasks
         token.ThrowIfCancellationRequested();
 
         using var resized = ImageHelpers.ResizeImage(image, options.ThumbnailWidth, options.ThumbnailHeight);
-        using var opaque = new SKBitmap(resized.Width, resized.Height, SKColorType.Bgra8888, SKAlphaType.Opaque);
-        using (var canvas = new SKCanvas(opaque))
-        {
-            canvas.Clear(SKColors.White);
-            canvas.DrawBitmap(resized, 0, 0, new SKSamplingOptions());
-        }
-        using var encoded = TaskHelpers.SaveImageAsStream(opaque, EImageFormat.JPEG, jpegQuality: 90)
+        // JPEG encoding fills transparent areas with white, as ShareX's thumbnail does.
+        using var encoded = TaskHelpers.SaveImageAsStream(resized, EImageFormat.JPEG, jpegQuality: 90)
             ?? throw new IOException("The thumbnail could not be encoded.");
         TaskHelpers.WriteImageStreamToFile(encoded, path, overwrite);
         return path;

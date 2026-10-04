@@ -452,10 +452,7 @@ namespace XerahS.Core.Tasks.Processors
             SkiaSharp.SKBitmap bmp = info.Metadata.Image;
 
             // TaskHelpers contains the logic for folder resolution, naming, and file exists handling.
-            // It runs synchronously (SkiaSharp limitation), so wrap in Task.Run if needed, 
-            // though here we are already on background thread from WorkerTask.
-
-            string? filePath = TaskHelpers.SaveImageAsFile(bmp, info.TaskSettings);
+            string? filePath = await TaskHelpers.SaveImageAsFileAsync(bmp, info.TaskSettings);
             if (!string.IsNullOrEmpty(filePath))
             {
                 var directory = Path.GetDirectoryName(filePath) ?? "";
@@ -474,15 +471,13 @@ namespace XerahS.Core.Tasks.Processors
                 DebugHelper.WriteLine("Failed to save image.");
                 // info.Status = TaskStatus.Failed; // Logic to handle failure
             }
-
-            await Task.CompletedTask;
         }
 
         private async Task UploadImageAsync(TaskInfo info, CancellationToken token)
         {
             if (string.IsNullOrEmpty(info.FilePath) && info.Metadata?.Image != null)
             {
-                info.FilePath = TaskHelpers.SaveImageAsFile(info.Metadata.Image, info.TaskSettings) ?? string.Empty;
+                info.FilePath = await TaskHelpers.SaveImageAsFileAsync(info.Metadata.Image, info.TaskSettings) ?? string.Empty;
             }
 
             if (string.IsNullOrEmpty(info.FilePath))
