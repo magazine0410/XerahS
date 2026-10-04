@@ -52,6 +52,9 @@ namespace XerahS.UI;
 public partial class App : Application
 {
     public static bool IsExiting { get; set; } = false;
+
+    /// <summary>True when this run started with only the tray icon ("Start minimized to tray" or <c>-silent</c>).</summary>
+    public static bool StartedInTray { get; private set; }
     public IServiceProvider? ServiceProvider { get; private set; }
     private static readonly TimeSpan ClipboardViewerAutoOpenCooldown = TimeSpan.FromSeconds(2);
     private IWorkflowOrchestrator? _workflowOrchestrator;
@@ -243,16 +246,18 @@ public partial class App : Application
             // Prepare for Silent Run ("Start minimized to tray"). Honor the setting in
             // Debug and Release — Debug used to force the main window visible, which made
             // the Application Settings checkbox look broken when running from the IDE.
-            bool silentRun = Helpers.SilentRunStartupPolicy.ShouldHideMainWindowToTray(
-                XerahS.Core.SettingsManager.Settings.SilentRun, IsExiting, alreadyApplied: false);
+            StartedInTray = !IsExiting && Helpers.SilentRunStartupPolicy.StartsInTray(
+                XerahS.Core.SettingsManager.Settings.SilentRun, desktop.Args, XerahS.Core.SettingsManager.Settings.ShowTray);
+            bool silentRun = StartedInTray;
 
             if (silentRun)
             {
                 ApplyMenuBarOnlyModeFromSettings();
-
-                // If starting silently, we don't want the last window closing to shut down the app
-                desktop.ShutdownMode = ShutdownMode.OnExplicitShutdown;
             }
+
+            // As in ShareX, XerahS keeps running while its main window is hidden to the tray, also when other
+            // windows close, and exits when the main window is really closed (the tray icon is off, or Exit).
+            desktop.ShutdownMode = ShutdownMode.OnMainWindowClose;
 
             desktop.MainWindow = new Views.MainWindow(taskManager)
             {
@@ -470,7 +475,7 @@ public partial class App : Application
 
     private static void HideMainWindowToTray(Window? window)
     {
-        if (window == null || IsExiting || !SettingsManager.Settings.SilentRun)
+        if (window == null || IsExiting || !StartedInTray)
         {
             return;
         }

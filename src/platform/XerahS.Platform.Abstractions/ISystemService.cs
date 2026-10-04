@@ -41,6 +41,12 @@ namespace XerahS.Platform.Abstractions
         bool IsMenuBarOnlyModeSupported => false;
 
         /// <summary>
+        /// Gets whether a tray icon can be shown now. False on Linux when no tray host runs
+        /// (<c>org.kde.StatusNotifierWatcher</c>), for example on GNOME without the AppIndicator extension.
+        /// </summary>
+        bool IsTrayIconHostAvailable => true;
+
+        /// <summary>
         /// Enables or disables menu-bar-only presentation when supported.
         /// </summary>
         /// <param name="enabled">True to hide the application from the Dock/taskbar equivalent; false to restore the regular app presentation.</param>

@@ -69,6 +69,28 @@ public class SilentRunStartupPolicyTests
             Is.False);
     }
 
+    [TestCase(true, new string[0], true, true)]
+    [TestCase(false, new[] { "-silent" }, true, true)]
+    [TestCase(false, new[] { "-SILENT" }, true, true)]
+    [TestCase(false, new[] { "--settings-folder" }, true, false)]
+    [TestCase(false, new string[0], true, false)]
+    [TestCase(true, new string[0], false, false)]
+    [TestCase(false, new[] { "-silent" }, false, false)]
+    public void StartsInTray_FollowsTheSettingOrSilentFlag_OnlyWithTheTrayIcon(bool silentRun, string[] arguments, bool showTray, bool expected)
+    {
+        // ShareX: showMainWindow = !(StartupOptions.SilentRun || Settings.SilentRun) || !Settings.ShowTray.
+        Assert.That(SilentRunStartupPolicy.StartsInTray(silentRun, arguments, showTray), Is.EqualTo(expected));
+    }
+
+    [TestCase(true, false, true, true)]
+    [TestCase(false, false, true, false)]
+    [TestCase(true, true, true, false)]
+    [TestCase(true, false, false, false)]
+    public void HidesToTrayOnClose_WhileTheTrayIconIsShown_UnlessExiting(bool showTray, bool isExiting, bool trayHostAvailable, bool expected)
+    {
+        Assert.That(SilentRunStartupPolicy.HidesToTrayOnClose(showTray, isExiting, trayHostAvailable), Is.EqualTo(expected));
+    }
+
     [Test]
     public void ShouldActivateWindowOnNavigate_DuringConstruction_IsFalse()
     {

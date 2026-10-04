@@ -73,25 +73,8 @@ namespace XerahS.UI.ViewModels
         [ObservableProperty]
         private bool _silentRun;
 
-        partial void OnShowTrayChanged(bool value)
-        {
-            if (_isLoading) return;
-
-            if (!value && SilentRun)
-            {
-                SilentRun = false;
-            }
-        }
-
-        partial void OnSilentRunChanged(bool value)
-        {
-            if (_isLoading) return;
-
-            if (value && !ShowTray)
-            {
-                ShowTray = true;
-            }
-        }
+        // As in ShareX, "Start minimized to tray" keeps its value while "Show tray icon" is off; the option is
+        // greyed out then, and XerahS opens its main window at startup without the tray icon.
 
         [ObservableProperty]
         private int _selectedTheme;

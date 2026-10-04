@@ -33,6 +33,8 @@ namespace XerahS.Platform.Linux.Services
     {
         public bool IsDesktopWallpaperSupported => LinuxDesktopWallpaperProvider.IsSupported;
 
+        public bool IsTrayIconHostAvailable => PortalInterfaceChecker.HasStatusNotifierWatcher();
+
         public bool ShowFileInExplorer(string filePath)
         {
             if (string.IsNullOrEmpty(filePath) || !File.Exists(filePath))

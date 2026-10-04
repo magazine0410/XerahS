@@ -45,6 +45,7 @@ public class ApplicationConfig : SettingsBase<ApplicationConfig>
     public string LastImageSaveDirectory = "";
 
     // Main window
+    /// <summary>As in ShareX, the first time the main window is closed to the tray, a notification says so.</summary>
     public bool FirstTimeMinimizeToTray = true;
     public List<int> TaskListViewColumnWidths = new List<int>();
     public int PreviewSplitterDistance = 335;

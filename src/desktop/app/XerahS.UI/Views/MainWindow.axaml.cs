@@ -451,14 +451,9 @@ namespace XerahS.UI.Views
         {
             // First Opened only: later tray "Open Main Window" must stay visible.
             if (SilentRunStartupPolicy.ShouldHideMainWindowToTray(
-                    SettingsManager.Settings.SilentRun, App.IsExiting, _silentRunHideApplied))
+                    App.StartedInTray, App.IsExiting, _silentRunHideApplied))
             {
                 _silentRunHideApplied = true;
-                if (!SettingsManager.Settings.ShowTray)
-                {
-                    SettingsManager.Settings.ShowTray = true;
-                    TrayIconHelper.Instance.RefreshFromSettings();
-                }
                 SilentRunStartupPolicy.ApplyHiddenToTray(this);
                 XerahS.Common.DebugHelper.WriteLine("SilentRun startup: main window hidden to tray.");
             }
@@ -578,27 +573,59 @@ namespace XerahS.UI.Views
         {
             PersistWindowPlacement();
 
-            // If SilentRun ("Start minimized to tray") is enabled and we are not explicitly
-            // exiting via Tray → Exit, hide the window to tray instead of closing the app.
-            // This works on all platforms (Windows, Linux, macOS); no OS-specific logic.
-            bool silentRun = SettingsManager.Settings.SilentRun;
-
-            if (silentRun && !App.IsExiting)
+            // As in ShareX, closing the main window hides it to the tray while the tray icon is shown,
+            // unless XerahS is exiting from the tray menu. Without the tray icon, closing it exits XerahS.
+            if (SilentRunStartupPolicy.HidesToTrayOnClose(SettingsManager.Settings.ShowTray, App.IsExiting, IsTrayIconHostAvailable()))
             {
                 e.Cancel = true;
-                // Ensure tray icon is visible so user can restore or exit (handles edge case
-                // where config had SilentRun true but ShowTray false, e.g. from another machine).
-                if (!SettingsManager.Settings.ShowTray)
-                {
-                    SettingsManager.Settings.ShowTray = true;
-                    TrayIconHelper.Instance.RefreshFromSettings();
-                }
                 this.Hide();
                 this.ShowInTaskbar = false;
+                _ = SettingsManager.SaveAllSettingsAsync();
+
+                if (SettingsManager.Settings.FirstTimeMinimizeToTray)
+                {
+                    SettingsManager.Settings.FirstTimeMinimizeToTray = false;
+                    ShowMinimizedToTrayNotification();
+                }
+
                 return;
             }
 
             base.OnClosing(e);
+        }
+
+        private static bool IsTrayIconHostAvailable()
+        {
+            try
+            {
+                return XerahS.Platform.Abstractions.PlatformServices.System.IsTrayIconHostAvailable;
+            }
+            catch (InvalidOperationException)
+            {
+                return true;
+            }
+        }
+
+        private static void ShowMinimizedToTrayNotification()
+        {
+            try
+            {
+                if (XerahS.Platform.Abstractions.PlatformServices.IsToastServiceInitialized)
+                {
+                    XerahS.Platform.Abstractions.PlatformServices.Toast.ShowToast(new XerahS.Platform.Abstractions.ToastConfig
+                    {
+                        Title = XerahS.Common.AppResources.AppName,
+                        Text = $"{XerahS.Common.AppResources.AppName} is minimized to the system tray.",
+                        Duration = 8f,
+                        AutoHide = true,
+                        LeftClickAction = XerahS.Platform.Abstractions.ToastClickAction.CloseNotification
+                    });
+                }
+            }
+            catch (Exception ex)
+            {
+                XerahS.Common.DebugHelper.WriteException(ex, "Failed to show the minimized to tray notification");
+            }
         }
 
         private void ApplyInitialWindowPlacement()

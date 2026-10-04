@@ -24,6 +24,7 @@
 #endregion License Information (GPL v3)
 
 using Avalonia.Controls;
+using XerahS.Common;
 
 namespace XerahS.UI.Helpers;
 
@@ -39,6 +40,27 @@ internal static class SilentRunStartupPolicy
     public static bool ShouldHideMainWindowToTray(bool silentRunEnabled, bool isExiting, bool alreadyApplied)
     {
         return silentRunEnabled && !isExiting && !alreadyApplied;
+    }
+
+    /// <summary>
+    /// As in ShareX, XerahS starts in the tray when "Start minimized to tray" is on or it was started with
+    /// <c>-silent</c> (as the run-at-startup entries do), but only while the tray icon is shown; without
+    /// it, the main window opens.
+    /// </summary>
+    public static bool StartsInTray(bool silentRunSetting, IEnumerable<string>? arguments, bool showTray)
+    {
+        bool silentFlag = arguments?.Any(arg => arg.Equals(AppContracts.Cli.SilentStartupFlag, StringComparison.OrdinalIgnoreCase)) == true;
+        return (silentRunSetting || silentFlag) && showTray;
+    }
+
+    /// <summary>
+    /// As in ShareX, closing the main window hides it to the tray while the tray icon is shown, and exits
+    /// XerahS otherwise (or when it is exiting from the tray menu). Without a tray host (some Linux desktops),
+    /// the icon is not shown, so closing exits instead of leaving XerahS running with no window to return to.
+    /// </summary>
+    public static bool HidesToTrayOnClose(bool showTray, bool isExiting, bool trayHostAvailable)
+    {
+        return showTray && !isExiting && trayHostAvailable;
     }
 
     /// <summary>
