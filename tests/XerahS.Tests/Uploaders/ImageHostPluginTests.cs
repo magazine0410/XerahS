@@ -29,7 +29,6 @@ using NUnit.Framework;
 using ShareX.Chevereto.Plugin;
 using ShareX.Flickr.Plugin;
 using ShareX.ImageChest.Plugin;
-using ShareX.ImageShack.Plugin;
 using ShareX.ImgBB.Plugin;
 using ShareX.Vgyme.Plugin;
 using XerahS.Uploaders;
@@ -37,7 +36,7 @@ using XerahS.Uploaders.PluginSystem;
 
 namespace XerahS.Tests.Uploaders;
 
-// ShareX's Flickr, ImageShack, vgy.me, and Chevereto uploaders, and the ImgBB and Image Chest destinations.
+// ShareX's Flickr, vgy.me, and Chevereto uploaders, and the ImgBB and Image Chest destinations.
 [TestFixture]
 public class ImageHostPluginTests
 {
@@ -110,52 +109,6 @@ public class ImageHostPluginTests
         Assert.That(FlickrProvider.GetConfigError(new FlickrConfigModel { ConsumerKey = "key" }, "secret", "token", "token secret"), Is.Null);
     }
 
-    // ── ImageShack ──────────────────────────────────────────────────────────
-
-    [Test]
-    public void ImageShack_BuildsShareXsImageAndThumbnailUrls()
-    {
-        var result = new UploadResult { IsSuccess = true, Response = """
-            {"success":true,"result":{"images":[{"server":123,"bucket":45,"filename":"abc.png"}]}}
-            """ };
-
-        ImageShackUploader.ApplyResponse(result, new ImageShackConfigModel { ThumbnailWidth = 256 }, new UploaderErrorManager());
-
-        Assert.That(result.URL, Is.EqualTo("https://imagizer.imageshack.com/a/img123/45/abc.png"));
-        Assert.That(result.ThumbnailURL, Is.EqualTo("https://imagizer.imageshack.us/v2/256x0q90/123/abc.png"));
-    }
-
-    [Test]
-    public void ImageShack_ReportsItsErrorMessageAndCode()
-    {
-        var result = new UploadResult { IsSuccess = true, Response = """
-            {"success":false,"error":{"error_code":0,"error_message":"A valid API key is required for this request."}}
-            """ };
-        var errors = new UploaderErrorManager();
-
-        ImageShackUploader.ApplyResponse(result, new ImageShackConfigModel(), errors);
-
-        Assert.That(result.IsSuccess, Is.False);
-        Assert.That(errors.ToString(), Does.Contain("A valid API key is required").And.Contain("error code 0"));
-    }
-
-    [Test]
-    public void ImageShack_LoginReturnsTheAuthToken()
-    {
-        var errors = new UploaderErrorManager();
-        Assert.That(ImageShackUploader.ParseLoginResponse("""{"success":true,"result":{"auth_token":"token123"}}""", errors), Is.EqualTo("token123"));
-        Assert.That(ImageShackUploader.ParseLoginResponse("""{"success":false,"error":{"error_code":2,"error_message":"Wrong password"}}""", errors), Is.Null);
-        Assert.That(errors.ToString(), Does.Contain("Wrong password"));
-    }
-
-    [Test]
-    public void ImageShack_NeedsTheApiKeyAndALogin()
-    {
-        Assert.That(ImageShackProvider.GetConfigError(null, "token"), Does.Contain("API key"));
-        Assert.That(ImageShackProvider.GetConfigError("key", null), Does.Contain("Log in"));
-        Assert.That(ImageShackProvider.GetConfigError("key", "token"), Is.Null);
-    }
-
     // ── vgy.me ──────────────────────────────────────────────────────────────
 
     [Test]
@@ -184,9 +137,20 @@ public class ImageHostPluginTests
     }
 
     [Test]
-    public void Vgyme_WorksWithoutAUserKey_LikeShareX()
+    public void Vgyme_RequiresAUserKey_BecauseVgymeRejectsAnonymousUploads()
     {
-        Assert.That(new VgymeProvider().ValidateSettings("{}"), Is.True);
+        var secrets = new InMemorySecretStore();
+        secrets.SetSecret("vgyme", "k", "userKey", "key");
+        var provider = new VgymeProvider();
+        provider.SetContext(new TestProviderContext(secrets));
+        Assert.That(provider.ValidateSettings("{}"), Is.False);
+        Assert.That(provider.ValidateSettings("""{"SecretKey":"other"}"""), Is.False);
+        Assert.That(provider.ValidateSettings("""{"SecretKey":"k"}"""), Is.True);
+
+        var uploader = new VgymeUploader(null);
+        using var stream = new MemoryStream([1]);
+        Assert.That(uploader.Upload(stream, "a.png").URL, Is.Null.Or.Empty);
+        Assert.That(uploader.Errors.ToString(), Is.EqualTo(VgymeProvider.MissingUserKeyMessage));
     }
 
     // ── Chevereto ───────────────────────────────────────────────────────────
@@ -310,7 +274,7 @@ public class ImageHostPluginTests
         var secrets = new InMemorySecretStore();
         foreach (UploaderProviderBase provider in new UploaderProviderBase[]
         {
-            new VgymeProvider(), new CheveretoProvider(), new ImageShackProvider(), new FlickrProvider(), new ImgBBProvider(), new ImageChestProvider()
+            new VgymeProvider(), new CheveretoProvider(), new FlickrProvider(), new ImgBBProvider(), new ImageChestProvider()
         })
         {
             var viewModel = provider.CreateConfigViewModel()!;
@@ -341,12 +305,6 @@ public class ImageHostPluginTests
         Assert.That(new CheveretoProvider().TryMigrateSecrets("""{"SecretKey":"k2","UploadURL":"https://example.com/api/1/upload","APIKey":"api-key"}""", secrets, out string chevereto, out _), Is.True);
         Assert.That(secrets.GetSecret("chevereto", "k2", "apiKey"), Is.EqualTo("api-key"));
         Assert.That(chevereto, Does.Not.Contain("api-key").And.Contain("example.com"));
-
-        Assert.That(new ImageShackProvider().TryMigrateSecrets("""{"SecretKey":"k3","Username":"me","Password":"pw","AuthToken":"tok"}""", secrets, out string imageShack, out int count), Is.True);
-        Assert.That(count, Is.EqualTo(2));
-        Assert.That(secrets.GetSecret("imageshack", "k3", "password"), Is.EqualTo("pw"));
-        Assert.That(secrets.GetSecret("imageshack", "k3", "authToken"), Is.EqualTo("tok"));
-        Assert.That(imageShack, Does.Not.Contain("\"pw\"").And.Not.Contain("tok"));
 
         Assert.That(new VgymeProvider().TryMigrateSecrets("""{"SecretKey":"k1"}""", secrets, out _, out _), Is.False);
     }

@@ -68,7 +68,6 @@
     <ProjectReference Include="..\..\src\desktop\plugins\Chevereto.Plugin\XerahS.Chevereto.Plugin.csproj" />
     <ProjectReference Include="..\..\src\desktop\plugins\Flickr.Plugin\XerahS.Flickr.Plugin.csproj" />
     <ProjectReference Include="..\..\src\desktop\plugins\ImageChest.Plugin\XerahS.ImageChest.Plugin.csproj" />
-    <ProjectReference Include="..\..\src\desktop\plugins\ImageShack.Plugin\XerahS.ImageShack.Plugin.csproj" />
     <ProjectReference Include="..\..\src\desktop\plugins\ImgBB.Plugin\XerahS.ImgBB.Plugin.csproj" />
     <ProjectReference Include="..\..\src\desktop\plugins\Vgyme.Plugin\XerahS.Vgyme.Plugin.csproj" />
     <ProjectReference Include="..\..\src\mobile-experimental\XerahS.Mobile.Core\XerahS.Mobile.Core.csproj" />

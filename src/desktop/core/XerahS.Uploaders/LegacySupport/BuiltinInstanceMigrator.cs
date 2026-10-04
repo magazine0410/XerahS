@@ -104,7 +104,6 @@ public static class BuiltinInstanceMigrator
         MigrateFtp(source, result);
         MigratePastebin(source, result);
         MigrateImgur(source, result);
-        MigrateImageShack(source, result);
         MigrateFlickr(source, result);
         MigrateChevereto(source, result);
         MigrateVgyme(source, result);
@@ -391,31 +390,9 @@ public static class BuiltinInstanceMigrator
         DebugHelper.WriteLine($"{LogPrefix} Imgur: partial migration (preferences copied, OAuth re-auth needed).");
     }
 
-    // ── ImageShack, Flickr, Chevereto, vgy.me ─────────────────────────────────
+    // ── Flickr, Chevereto, vgy.me ─────────────────────────────────────────────
     // Plaintext secrets are written into SettingsJson; each provider's IInstanceSecretMigrator moves them into the
     // secret store, as for Pastebin.
-
-    private static void MigrateImageShack(UploadersConfig source, BuiltinMigrationResult result)
-    {
-        var settings = source.ImageShackSettings;
-        if (settings == null || string.IsNullOrEmpty(settings.Auth_token))
-            return;
-
-        var json = new JObject
-        {
-            ["Username"] = settings.Username,
-            ["IsPublic"] = settings.IsPublic,
-            ["ThumbnailWidth"] = settings.ThumbnailWidth,
-            ["ThumbnailHeight"] = settings.ThumbnailHeight,
-            ["Password"] = settings.Password,
-            ["AuthToken"] = settings.Auth_token
-        };
-
-        string displayName = string.IsNullOrEmpty(settings.Username) ? "ImageShack" : $"ImageShack ({settings.Username})";
-        UpsertImageInstance("imageshack", displayName, json, result, "ImageShack");
-        result.PartialMigrations.Add("ImageShack: account migrated — enter your ImageShack API key in settings to enable uploads.");
-        DebugHelper.WriteLine($"{LogPrefix} ImageShack: partial migration (account migrated, API key not available).");
-    }
 
     private static void MigrateFlickr(UploadersConfig source, BuiltinMigrationResult result)
     {
@@ -501,6 +478,10 @@ public static class BuiltinInstanceMigrator
 
     private static void CollectSkippedProviders(UploadersConfig source, BuiltinMigrationResult result)
     {
+        // ImageShack's login now needs a reCAPTCHA answer, so XerahS has no ImageShack destination.
+        if (!string.IsNullOrEmpty(source.ImageShackSettings?.Auth_token))
+            result.SkippedProviders.Add("ImageShack");
+
         if (source.PhotobucketOAuthInfo != null)
             result.SkippedProviders.Add("Photobucket");
 

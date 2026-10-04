@@ -29,7 +29,7 @@ using XerahS.Uploaders;
 
 namespace ShareX.Vgyme.Plugin;
 
-/// <summary>ShareX's vgy.me uploader: the image goes to vgy.me/upload, with the user key when there is one.</summary>
+/// <summary>ShareX's vgy.me uploader: the image goes to vgy.me/upload with the user key.</summary>
 public sealed class VgymeUploader : ImageUploader
 {
     internal const string UploadUrl = "https://vgy.me/upload";
@@ -44,12 +44,13 @@ public sealed class VgymeUploader : ImageUploader
 
     public override UploadResult Upload(Stream stream, string fileName)
     {
-        var args = new Dictionary<string, string>();
-        if (!string.IsNullOrEmpty(_userKey))
+        if (string.IsNullOrWhiteSpace(_userKey))
         {
-            args.Add("userkey", _userKey);
+            Errors.Add(VgymeProvider.MissingUserKeyMessage);
+            return new UploadResult();
         }
 
+        var args = new Dictionary<string, string> { ["userkey"] = _userKey };
         UploadResult result = SendRequestFile(UploadUrl, stream, fileName, "file", args);
         ApplyResponse(result, Errors);
         return result;

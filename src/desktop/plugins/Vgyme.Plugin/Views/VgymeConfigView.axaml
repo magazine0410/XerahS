@@ -34,7 +34,7 @@
             <Border Classes="heroCard">
                 <StackPanel Spacing="8">
                     <TextBlock Text="vgy.me" FontSize="24" FontWeight="Bold"/>
-                    <TextBlock Text="Upload images to vgy.me. As in ShareX, the user key is optional: without it, images are uploaded anonymously; with it, they go to your vgy.me account."
+                    <TextBlock Text="Upload images to your vgy.me account. vgy.me no longer accepts anonymous uploads, so a user key is required."
                                TextWrapping="Wrap" Foreground="{DynamicResource TextFillColorSecondaryBrush}" MaxWidth="680"/>
                 </StackPanel>
             </Border>
@@ -45,7 +45,7 @@
                     <StackPanel Spacing="6">
                         <TextBlock Classes="fieldLabel" Text="User key"/>
                         <TextBox Text="{Binding UserKey, UpdateSourceTrigger=PropertyChanged}" PasswordChar="*"
-                                 PlaceholderText="Optional; stored in the secret store"/>
+                                 PlaceholderText="Required; stored in the secret store"/>
                         <TextBlock Classes="helper" Text="Your user key is on your vgy.me account details page."/>
                     </StackPanel>
                     <Button Content="Open Account Details" Command="{Binding OpenAccountPageCommand}" HorizontalAlignment="Left"/>

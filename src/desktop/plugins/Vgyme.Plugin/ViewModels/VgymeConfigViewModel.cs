@@ -66,6 +66,12 @@ public partial class VgymeConfigViewModel : ObservableObject, IUploaderConfigVie
 
     public bool Validate()
     {
+        if (string.IsNullOrWhiteSpace(UserKey))
+        {
+            StatusMessage = VgymeProvider.MissingUserKeyMessage;
+            return false;
+        }
+
         PersistSecrets();
         StatusMessage = null;
         return true;

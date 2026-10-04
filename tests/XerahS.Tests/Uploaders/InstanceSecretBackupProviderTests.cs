@@ -28,7 +28,6 @@ using ShareX.AmazonS3.Plugin;
 using ShareX.Chevereto.Plugin;
 using ShareX.Flickr.Plugin;
 using ShareX.ImageChest.Plugin;
-using ShareX.ImageShack.Plugin;
 using ShareX.ImgBB.Plugin;
 using ShareX.Vgyme.Plugin;
 using ShareX.Dropbox.Plugin;
@@ -121,7 +120,6 @@ public class InstanceSecretBackupProviderTests
         yield return Case(new XBackBoneProvider(), "xbackbone", "apiToken");
         yield return Case(new VgymeProvider(), "vgyme", "userKey");
         yield return Case(new CheveretoProvider(), "chevereto", "apiKey");
-        yield return Case(new ImageShackProvider(), "imageshack", "apiKey", "password", "authToken");
         yield return Case(new FlickrProvider(), "flickr", "consumerSecret", "userToken", "userSecret");
         yield return Case(new ImgBBProvider(), "imgbb", "apiKey");
         yield return Case(new ImageChestProvider(), "imagechest", "accessToken");
@@ -138,7 +136,6 @@ public class InstanceSecretBackupProviderTests
         yield return new XBackBoneProvider();
         yield return new VgymeProvider();
         yield return new CheveretoProvider();
-        yield return new ImageShackProvider();
         yield return new FlickrProvider();
         yield return new ImgBBProvider();
         yield return new ImageChestProvider();

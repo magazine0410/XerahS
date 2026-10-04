@@ -34,6 +34,7 @@ public sealed class VgymeProvider : UploaderProviderBase, IInstanceSecretBackupP
 {
     internal const string Id = "vgyme";
     internal const string UserKeySecret = "userKey";
+    internal const string MissingUserKeyMessage = "Enter your vgy.me user key (from https://vgy.me/account/details).";
 
     public override string ProviderId => Id;
     public override string Name => "vgy.me";
@@ -49,8 +50,19 @@ public sealed class VgymeProvider : UploaderProviderBase, IInstanceSecretBackupP
         return new VgymeUploader(ResolveSecret(config.SecretKey, UserKeySecret));
     }
 
-    // As in ShareX, the user key is optional: without one, images are uploaded anonymously.
-    public override bool ValidateSettings(string settingsJson) => true;
+    // ShareX treats the user key as optional, but vgy.me now rejects anonymous uploads.
+    public override bool ValidateSettings(string settingsJson)
+    {
+        try
+        {
+            VgymeConfigModel config = DeserializeConfig(settingsJson);
+            return !string.IsNullOrWhiteSpace(ResolveSecret(config.SecretKey, UserKeySecret));
+        }
+        catch (JsonException)
+        {
+            return false;
+        }
+    }
 
     public override Dictionary<UploaderCategory, string[]> GetSupportedFileTypes() => new()
     {
