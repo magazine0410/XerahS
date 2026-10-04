@@ -24,6 +24,7 @@
 #endregion License Information (GPL v3)
 using System.IO;
 using System.Text;
+using System.Text.RegularExpressions;
 using XerahS.Common;
 using XerahS.Core;
 using XerahS.Core.Managers;
@@ -860,6 +861,7 @@ namespace XerahS.Core.Tasks.Processors
 
                 // Capture writes its history before after-upload tasks run. Keep the same row,
                 // including its annotations, OCR index and capture time.
+                if (!string.IsNullOrEmpty(info.Metadata?.UploadURL)) item.URL = info.Metadata.UploadURL;
                 ApplyUploadResult(item, info);
                 historyManager.Edit(item);
             }
@@ -951,6 +953,21 @@ namespace XerahS.Core.Tasks.Processors
             var advanced = info.TaskSettings.AdvancedSettings;
             try
             {
+                // As in ShareX, these change the URL before it is shortened, shared, copied, opened,
+                // encoded, and saved to history. An invalid pattern skips the remaining tasks, as in ShareX.
+                var upload = info.TaskSettings.UploadSettings;
+                if (upload.URLRegexReplace)
+                {
+                    result.URL = Regex.Replace(result.URL, upload.URLRegexReplacePattern, upload.URLRegexReplaceReplacement);
+                }
+
+                if (advanced.ResultForceHTTPS)
+                {
+                    result.ForceHTTPS();
+                }
+
+                if (info.Metadata != null) info.Metadata.UploadURL = result.URL;
+
                 // Standalone URL jobs already perform their operation in StartUploadAsync.
                 if (info.Job is not (TaskJob.ShortenURL or TaskJob.ShareURL) &&
                     (tasks.HasFlag(AfterUploadTasks.UseURLShortener) ||
