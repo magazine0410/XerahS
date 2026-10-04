@@ -57,10 +57,13 @@ internal static class SilentRunStartupPolicy
     /// As in ShareX, closing the main window hides it to the tray while the tray icon is shown, and exits
     /// XerahS otherwise (or when it is exiting from the tray menu). Without a tray host (some Linux desktops),
     /// the icon is not shown, so closing exits instead of leaving XerahS running with no window to return to.
+    /// As in ShareX, which hides only when the user closes the window, a session ending (logout, reboot) or an
+    /// application shutdown closes it: cancelling that close made the desktop cancel the logout.
     /// </summary>
-    public static bool HidesToTrayOnClose(bool showTray, bool isExiting, bool trayHostAvailable)
+    public static bool HidesToTrayOnClose(bool showTray, bool isExiting, bool trayHostAvailable, WindowCloseReason closeReason)
     {
-        return showTray && !isExiting && trayHostAvailable;
+        bool closedByUser = closeReason is not (WindowCloseReason.OSShutdown or WindowCloseReason.ApplicationShutdown);
+        return closedByUser && showTray && !isExiting && trayHostAvailable;
     }
 
     /// <summary>

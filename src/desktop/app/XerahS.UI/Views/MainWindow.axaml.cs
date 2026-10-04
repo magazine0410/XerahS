@@ -575,7 +575,7 @@ namespace XerahS.UI.Views
 
             // As in ShareX, closing the main window hides it to the tray while the tray icon is shown,
             // unless XerahS is exiting from the tray menu. Without the tray icon, closing it exits XerahS.
-            if (SilentRunStartupPolicy.HidesToTrayOnClose(SettingsManager.Settings.ShowTray, App.IsExiting, IsTrayIconHostAvailable()))
+            if (SilentRunStartupPolicy.HidesToTrayOnClose(SettingsManager.Settings.ShowTray, App.IsExiting, IsTrayIconHostAvailable(), e.CloseReason))
             {
                 e.Cancel = true;
                 this.Hide();

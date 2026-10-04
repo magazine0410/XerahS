@@ -82,13 +82,17 @@ public class SilentRunStartupPolicyTests
         Assert.That(SilentRunStartupPolicy.StartsInTray(silentRun, arguments, showTray), Is.EqualTo(expected));
     }
 
-    [TestCase(true, false, true, true)]
-    [TestCase(false, false, true, false)]
-    [TestCase(true, true, true, false)]
-    [TestCase(true, false, false, false)]
-    public void HidesToTrayOnClose_WhileTheTrayIconIsShown_UnlessExiting(bool showTray, bool isExiting, bool trayHostAvailable, bool expected)
+    [TestCase(true, false, true, WindowCloseReason.WindowClosing, true)]
+    [TestCase(true, false, true, WindowCloseReason.Undefined, true)]
+    [TestCase(false, false, true, WindowCloseReason.WindowClosing, false)]
+    [TestCase(true, true, true, WindowCloseReason.WindowClosing, false)]
+    [TestCase(true, false, false, WindowCloseReason.WindowClosing, false)]
+    [TestCase(true, false, true, WindowCloseReason.OSShutdown, false)]
+    [TestCase(true, false, true, WindowCloseReason.ApplicationShutdown, false)]
+    public void HidesToTrayOnClose_WhenTheUserClosesIt_WhileTheTrayIconIsShown(bool showTray, bool isExiting, bool trayHostAvailable,
+        WindowCloseReason closeReason, bool expected)
     {
-        Assert.That(SilentRunStartupPolicy.HidesToTrayOnClose(showTray, isExiting, trayHostAvailable), Is.EqualTo(expected));
+        Assert.That(SilentRunStartupPolicy.HidesToTrayOnClose(showTray, isExiting, trayHostAvailable, closeReason), Is.EqualTo(expected));
     }
 
     [Test]
