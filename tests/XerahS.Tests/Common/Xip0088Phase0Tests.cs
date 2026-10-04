@@ -129,6 +129,88 @@ public class Xip0088Phase0Tests
     }
 
     [Test]
+    public void DisplayBootstrap_Candidates_TryTheEnvironmentThenTheSessionThenEachSocketWithEachAuthorityFile()
+    {
+        var candidates = LinuxDisplayBootstrap.GetCandidates(
+            key => key == "DISPLAY" ? ":5" : null,
+            () => new Dictionary<string, string> { ["DISPLAY"] = ":0", ["XAUTHORITY"] = "/run/user/1000/xauth_new" },
+            () => ["/tmp/.X11-unix/X1", "/tmp/.X11-unix/X0"],
+            () => ["/run/user/1000/xauth_new", "/run/user/1000/xauth_old"]).ToList();
+
+        Assert.That(candidates.Select(c => (c.Display, c.XAuthority)), Is.EqualTo(new (string, string?)[]
+        {
+            (":5", null), (":0", "/run/user/1000/xauth_new"),
+            (":0", null), (":0", "/run/user/1000/xauth_new"), (":0", "/run/user/1000/xauth_old"),
+            (":1", null), (":1", "/run/user/1000/xauth_new"), (":1", "/run/user/1000/xauth_old")
+        }));
+    }
+
+    [Test]
+    public void DisplayBootstrap_AtAnEarlyAutostart_WaitsForTheSessionsDisplayAndAuthority()
+    {
+        // KDE Plasma after logging in again: DISPLAY, XAUTHORITY, and WAYLAND_DISPLAY are unset, XWayland's socket
+        // exists but needs its authority file, and the systemd user manager gets the variables a moment later.
+        int passes = 0;
+        var (result, chosen) = LinuxDisplayBootstrap.FindDisplay(TimeSpan.FromSeconds(15), isWayland: true,
+            _ => null,
+            () => passes >= 3 ? new Dictionary<string, string> { ["DISPLAY"] = ":0", ["XAUTHORITY"] = "/run/user/1000/xauth_a" } : null,
+            () => ["/tmp/.X11-unix/X0"],
+            () => [],
+            candidate => candidate.Display == ":0" && candidate.XAuthority == "/run/user/1000/xauth_a",
+            _ => passes++);
+
+        Assert.That(result.Usable, Is.True);
+        Assert.That(chosen, Is.EqualTo(new LinuxDisplayBootstrap.DisplayCandidate(":0", "/run/user/1000/xauth_a", "the systemd user manager's environment")));
+        Assert.That(passes, Is.EqualTo(3));
+    }
+
+    [Test]
+    public void DisplayBootstrap_UsesTheSocketWithItsAuthorityFile_WithoutTheSessionsVariables()
+    {
+        var (result, chosen) = LinuxDisplayBootstrap.FindDisplay(TimeSpan.FromSeconds(15), isWayland: true,
+            _ => null, () => null, () => ["/tmp/.X11-unix/X0"], () => ["/run/user/1000/xauth_b"],
+            candidate => candidate.XAuthority == "/run/user/1000/xauth_b",
+            _ => Assert.Fail("No wait is needed."));
+
+        Assert.That(result.DisplayAdopted, Is.True);
+        Assert.That(chosen?.Display, Is.EqualTo(":0"));
+        Assert.That(chosen?.XAuthority, Is.EqualTo("/run/user/1000/xauth_b"));
+    }
+
+    [Test]
+    public void DisplayBootstrap_NoConnectableDisplay_IsReportedAfterTheWait()
+    {
+        TimeSpan waited = TimeSpan.Zero;
+        var (result, chosen) = LinuxDisplayBootstrap.FindDisplay(TimeSpan.Zero, isWayland: true,
+            _ => null, () => null, () => ["/tmp/.X11-unix/X0"], () => [], _ => false, delay => waited += delay);
+
+        Assert.That(result.Usable, Is.False);
+        Assert.That(chosen, Is.Null);
+        Assert.That(result.Message, Does.Contain("accepted a connection"));
+    }
+
+    [Test]
+    public void DisplayBootstrap_ExplicitDisplayThatFailsTheTest_IsStillLeftToAvalonia()
+    {
+        var (result, chosen) = LinuxDisplayBootstrap.FindDisplay(TimeSpan.Zero, isWayland: false,
+            key => key == "DISPLAY" ? "remotehost:0" : null, () => null, () => [], () => [], _ => false, _ => { });
+
+        Assert.That(result.Usable, Is.True);
+        Assert.That(result.Display, Is.EqualTo("remotehost:0"));
+        Assert.That(chosen, Is.Null);
+    }
+
+    [Test]
+    public void DisplayBootstrap_ParsesTheSystemdUserEnvironment()
+    {
+        var environment = LinuxDisplayBootstrap.ParseEnvironment("DISPLAY=:0\nXAUTHORITY=/run/user/1000/xauth_cgOyQY\nPATH=/usr/bin:/bin\n");
+
+        Assert.That(environment["DISPLAY"], Is.EqualTo(":0"));
+        Assert.That(environment["XAUTHORITY"], Is.EqualTo("/run/user/1000/xauth_cgOyQY"));
+        Assert.That(environment["PATH"], Is.EqualTo("/usr/bin:/bin"));
+    }
+
+    [Test]
     public void DisplayBootstrap_SocketPathParsing()
     {
         Assert.That(LinuxDisplayBootstrap.GetX11SocketPath(":0"), Is.EqualTo("/tmp/.X11-unix/X0"));
