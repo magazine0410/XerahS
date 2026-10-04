@@ -107,6 +107,7 @@ public static class BuiltinInstanceMigrator
         MigrateFlickr(source, result);
         MigrateChevereto(source, result);
         MigrateVgyme(source, result);
+        MigrateUpaste(source, result);
         CollectSkippedProviders(source, result);
 
         return result;
@@ -390,7 +391,7 @@ public static class BuiltinInstanceMigrator
         DebugHelper.WriteLine($"{LogPrefix} Imgur: partial migration (preferences copied, OAuth re-auth needed).");
     }
 
-    // ── Flickr, Chevereto, vgy.me ─────────────────────────────────────────────
+    // ── Flickr, Chevereto, vgy.me, uPaste ─────────────────────────────────────
     // Plaintext secrets are written into SettingsJson; each provider's IInstanceSecretMigrator moves them into the
     // secret store, as for Pastebin.
 
@@ -415,7 +416,7 @@ public static class BuiltinInstanceMigrator
             ["Hidden"] = settings.Hidden
         };
 
-        UpsertImageInstance("flickr", "Flickr", json, result, "Flickr");
+        UpsertInstance(UploaderCategory.Image, "flickr", "Flickr", json, result, "Flickr");
         result.PartialMigrations.Add("Flickr: preferences migrated — enter your Flickr app key and secret, then authorize your account in settings.");
         DebugHelper.WriteLine($"{LogPrefix} Flickr: partial migration (preferences copied, app key and authorization needed).");
     }
@@ -433,7 +434,7 @@ public static class BuiltinInstanceMigrator
             ["APIKey"] = settings.APIKey
         };
 
-        UpsertImageInstance("chevereto", "Chevereto", json, result, "Chevereto");
+        UpsertInstance(UploaderCategory.Image, "chevereto", "Chevereto", json, result, "Chevereto");
     }
 
     private static void MigrateVgyme(UploadersConfig source, BuiltinMigrationResult result)
@@ -441,13 +442,22 @@ public static class BuiltinInstanceMigrator
         if (string.IsNullOrEmpty(source.VgymeUserKey))
             return;
 
-        UpsertImageInstance("vgyme", "vgy.me", new JObject { ["UserKey"] = source.VgymeUserKey }, result, "vgy.me");
+        UpsertInstance(UploaderCategory.Image, "vgyme", "vgy.me", new JObject { ["UserKey"] = source.VgymeUserKey }, result, "vgy.me");
     }
 
-    /// <summary>Creates the provider's image instance, or updates it while keeping its SecretKey (and stored secrets).</summary>
-    private static void UpsertImageInstance(string providerId, string displayName, JObject json, BuiltinMigrationResult result, string label)
+    private static void MigrateUpaste(UploadersConfig source, BuiltinMigrationResult result)
     {
-        var existing = InstanceManager.Instance.GetInstancesByCategory(UploaderCategory.Image)
+        if (string.IsNullOrEmpty(source.UpasteUserKey))
+            return;
+
+        var json = new JObject { ["UserKey"] = source.UpasteUserKey, ["IsPublic"] = source.UpasteIsPublic };
+        UpsertInstance(UploaderCategory.Text, "upaste", "uPaste", json, result, "uPaste");
+    }
+
+    /// <summary>Creates the provider's instance in the category, or updates it while keeping its SecretKey (and stored secrets).</summary>
+    private static void UpsertInstance(UploaderCategory category, string providerId, string displayName, JObject json, BuiltinMigrationResult result, string label)
+    {
+        var existing = InstanceManager.Instance.GetInstancesByCategory(category)
             .FirstOrDefault(i => i.ProviderId == providerId);
 
         json["SecretKey"] = ExtractSecretKey(existing?.SettingsJson) is { Length: > 0 } secretKey ? secretKey : Guid.NewGuid().ToString("N");
@@ -458,19 +468,19 @@ public static class BuiltinInstanceMigrator
             existing.SettingsJson = settingsJson;
             existing.DisplayName = displayName;
             InstanceManager.Instance.UpdateInstance(existing);
-            result.InstancesUpdated.Add($"{label} [Image]");
+            result.InstancesUpdated.Add($"{label} [{category}]");
         }
         else
         {
             InstanceManager.Instance.AddInstance(new UploaderInstance
             {
                 ProviderId = providerId,
-                Category = UploaderCategory.Image,
+                Category = category,
                 DisplayName = displayName,
                 SettingsJson = settingsJson,
                 FileTypeRouting = new FileTypeScope { AllFileTypes = true }
             });
-            result.InstancesCreated.Add($"{label} [Image]");
+            result.InstancesCreated.Add($"{label} [{category}]");
         }
     }
 
@@ -528,9 +538,6 @@ public static class BuiltinInstanceMigrator
 
         if (source.KuttSettings != null && !string.IsNullOrEmpty(source.KuttSettings.APIKey))
             result.SkippedProviders.Add("Kutt");
-
-        if (!string.IsNullOrEmpty(source.UpasteUserKey))
-            result.SkippedProviders.Add("uPaste");
     }
 
     // ── Helpers ───────────────────────────────────────────────────────────────

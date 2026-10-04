@@ -70,6 +70,7 @@
     <ProjectReference Include="..\..\src\desktop\plugins\ImageChest.Plugin\XerahS.ImageChest.Plugin.csproj" />
     <ProjectReference Include="..\..\src\desktop\plugins\ImgBB.Plugin\XerahS.ImgBB.Plugin.csproj" />
     <ProjectReference Include="..\..\src\desktop\plugins\Vgyme.Plugin\XerahS.Vgyme.Plugin.csproj" />
+    <ProjectReference Include="..\..\src\desktop\plugins\Upaste.Plugin\XerahS.Upaste.Plugin.csproj" />
     <ProjectReference Include="..\..\src\mobile-experimental\XerahS.Mobile.Core\XerahS.Mobile.Core.csproj" />
     <ProjectReference Include="..\..\src\desktop\app\XerahS.UI\XerahS.UI.csproj" />
     <ProjectReference Include="..\..\src\desktop\app\XerahS.RegionCapture\XerahS.RegionCapture.csproj" />

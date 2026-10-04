@@ -29,6 +29,7 @@ using ShareX.Chevereto.Plugin;
 using ShareX.Flickr.Plugin;
 using ShareX.ImageChest.Plugin;
 using ShareX.ImgBB.Plugin;
+using ShareX.Upaste.Plugin;
 using ShareX.Vgyme.Plugin;
 using ShareX.Dropbox.Plugin;
 using ShareX.GitHubGist.Plugin;
@@ -119,6 +120,7 @@ public class InstanceSecretBackupProviderTests
         yield return Case(new ImmichProvider(), "immich", "apiKey", "apiToken", "sharePassword");
         yield return Case(new XBackBoneProvider(), "xbackbone", "apiToken");
         yield return Case(new VgymeProvider(), "vgyme", "userKey");
+        yield return Case(new UpasteProvider(), "upaste", "userKey");
         yield return Case(new CheveretoProvider(), "chevereto", "apiKey");
         yield return Case(new FlickrProvider(), "flickr", "consumerSecret", "userToken", "userSecret");
         yield return Case(new ImgBBProvider(), "imgbb", "apiKey");
@@ -135,6 +137,7 @@ public class InstanceSecretBackupProviderTests
         yield return new ImmichProvider();
         yield return new XBackBoneProvider();
         yield return new VgymeProvider();
+        yield return new UpasteProvider();
         yield return new CheveretoProvider();
         yield return new FlickrProvider();
         yield return new ImgBBProvider();

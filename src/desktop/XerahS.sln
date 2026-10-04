@@ -109,6 +109,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "XerahS.ImgBB.Plugin", "plug
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "XerahS.ImageChest.Plugin", "plugins\ImageChest.Plugin\XerahS.ImageChest.Plugin.csproj", "{FF81066B-A138-48F0-B401-A903C7B9C06F}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "XerahS.Upaste.Plugin", "plugins\Upaste.Plugin\XerahS.Upaste.Plugin.csproj", "{A9432F97-CA2D-412E-89AC-B4AE1DBC8BE7}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -659,6 +661,18 @@ Global
 		{FF81066B-A138-48F0-B401-A903C7B9C06F}.Release|x64.Build.0 = Release|Any CPU
 		{FF81066B-A138-48F0-B401-A903C7B9C06F}.Release|x86.ActiveCfg = Release|Any CPU
 		{FF81066B-A138-48F0-B401-A903C7B9C06F}.Release|x86.Build.0 = Release|Any CPU
+		{A9432F97-CA2D-412E-89AC-B4AE1DBC8BE7}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{A9432F97-CA2D-412E-89AC-B4AE1DBC8BE7}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{A9432F97-CA2D-412E-89AC-B4AE1DBC8BE7}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{A9432F97-CA2D-412E-89AC-B4AE1DBC8BE7}.Debug|x64.Build.0 = Debug|Any CPU
+		{A9432F97-CA2D-412E-89AC-B4AE1DBC8BE7}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{A9432F97-CA2D-412E-89AC-B4AE1DBC8BE7}.Debug|x86.Build.0 = Debug|Any CPU
+		{A9432F97-CA2D-412E-89AC-B4AE1DBC8BE7}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{A9432F97-CA2D-412E-89AC-B4AE1DBC8BE7}.Release|Any CPU.Build.0 = Release|Any CPU
+		{A9432F97-CA2D-412E-89AC-B4AE1DBC8BE7}.Release|x64.ActiveCfg = Release|Any CPU
+		{A9432F97-CA2D-412E-89AC-B4AE1DBC8BE7}.Release|x64.Build.0 = Release|Any CPU
+		{A9432F97-CA2D-412E-89AC-B4AE1DBC8BE7}.Release|x86.ActiveCfg = Release|Any CPU
+		{A9432F97-CA2D-412E-89AC-B4AE1DBC8BE7}.Release|x86.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
@@ -712,6 +726,7 @@ Global
 		{2C2E9904-FC43-4FE9-841C-5F0C93F8B429} = {07D57EEB-2F50-60C4-C011-FE4FA775C9A8}
 		{15941805-EDB1-4464-BEDC-D2F73553275F} = {07D57EEB-2F50-60C4-C011-FE4FA775C9A8}
 		{FF81066B-A138-48F0-B401-A903C7B9C06F} = {07D57EEB-2F50-60C4-C011-FE4FA775C9A8}
+		{A9432F97-CA2D-412E-89AC-B4AE1DBC8BE7} = {07D57EEB-2F50-60C4-C011-FE4FA775C9A8}
 	EndGlobalSection
 	GlobalSection(ExtensibilityGlobals) = postSolution
 		SolutionGuid = {5F0A091F-7E5D-481D-8E95-59D51B437C9B}

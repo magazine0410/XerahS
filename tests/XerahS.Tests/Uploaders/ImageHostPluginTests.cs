@@ -30,13 +30,14 @@ using ShareX.Chevereto.Plugin;
 using ShareX.Flickr.Plugin;
 using ShareX.ImageChest.Plugin;
 using ShareX.ImgBB.Plugin;
+using ShareX.Upaste.Plugin;
 using ShareX.Vgyme.Plugin;
 using XerahS.Uploaders;
 using XerahS.Uploaders.PluginSystem;
 
 namespace XerahS.Tests.Uploaders;
 
-// ShareX's Flickr, vgy.me, and Chevereto uploaders, and the ImgBB and Image Chest destinations.
+// ShareX's Flickr, vgy.me, Chevereto, and uPaste uploaders, and the ImgBB and Image Chest destinations.
 [TestFixture]
 public class ImageHostPluginTests
 {
@@ -151,6 +152,60 @@ public class ImageHostPluginTests
         using var stream = new MemoryStream([1]);
         Assert.That(uploader.Upload(stream, "a.png").URL, Is.Null.Or.Empty);
         Assert.That(uploader.Errors.ToString(), Is.EqualTo(VgymeProvider.MissingUserKeyMessage));
+    }
+
+    // ── uPaste ──────────────────────────────────────────────────────────────
+
+    [Test]
+    public void Upaste_UsesThePasteLink_LikeShareX()
+    {
+        // The success response from uPaste's API v2 documentation.
+        var result = new UploadResult { IsSuccess = true, Response = """
+            {"paste":{"key":"562eb3","link":"https://upaste.me/562eb3","raw":"https://upaste.me/r/562eb3","download":"https://upaste.me/d/562eb3","expires":1756785600,"privacy":"unlisted","anonymous":0,"burn":0,"protected":0},"status":"success"}
+            """ };
+
+        UpasteUploader.ApplyResponse(result, new UploaderErrorManager());
+
+        Assert.That(result.URL, Is.EqualTo("https://upaste.me/562eb3"));
+    }
+
+    [Test]
+    public void Upaste_ReportsItsError()
+    {
+        var result = new UploadResult { IsSuccess = true, Response = """{"errorcode":0,"error":"invalid_key","status":"error"}""" };
+        var errors = new UploaderErrorManager();
+
+        UpasteUploader.ApplyResponse(result, errors);
+
+        Assert.That(result.IsSuccess, Is.False);
+        Assert.That(errors.ToString(), Is.EqualTo("uPaste: invalid_key"));
+    }
+
+    [TestCase(false, "1")]
+    [TestCase(true, "0")]
+    public void Upaste_SendsShareXsArguments(bool isPublic, string privacy)
+    {
+        Assert.That(UpasteUploader.CreateArguments("text", isPublic), Is.EqualTo(new Dictionary<string, string>
+        {
+            ["paste"] = "text", ["privacy"] = privacy, ["expire"] = "0"
+        }));
+    }
+
+    [Test]
+    public void Upaste_RequiresAUserKey_BecauseUpasteRejectsRequestsWithoutOne()
+    {
+        var secrets = new InMemorySecretStore();
+        secrets.SetSecret("upaste", "k", "userKey", "key");
+        var provider = new UpasteProvider();
+        provider.SetContext(new TestProviderContext(secrets));
+        Assert.That(provider.ValidateSettings("{}"), Is.False);
+        Assert.That(provider.ValidateSettings("""{"SecretKey":"other"}"""), Is.False);
+        Assert.That(provider.ValidateSettings("""{"SecretKey":"k"}"""), Is.True);
+        Assert.That(provider.SupportedCategories, Is.EqualTo(new[] { UploaderCategory.Text }));
+
+        var uploader = new UpasteUploader(null, false);
+        Assert.That(uploader.UploadText("text", "a.txt").URL, Is.Null.Or.Empty);
+        Assert.That(uploader.Errors.ToString(), Is.EqualTo(UpasteProvider.MissingUserKeyMessage));
     }
 
     // ── Chevereto ───────────────────────────────────────────────────────────
@@ -274,7 +329,7 @@ public class ImageHostPluginTests
         var secrets = new InMemorySecretStore();
         foreach (UploaderProviderBase provider in new UploaderProviderBase[]
         {
-            new VgymeProvider(), new CheveretoProvider(), new FlickrProvider(), new ImgBBProvider(), new ImageChestProvider()
+            new VgymeProvider(), new CheveretoProvider(), new FlickrProvider(), new ImgBBProvider(), new ImageChestProvider(), new UpasteProvider()
         })
         {
             var viewModel = provider.CreateConfigViewModel()!;
@@ -305,6 +360,11 @@ public class ImageHostPluginTests
         Assert.That(new CheveretoProvider().TryMigrateSecrets("""{"SecretKey":"k2","UploadURL":"https://example.com/api/1/upload","APIKey":"api-key"}""", secrets, out string chevereto, out _), Is.True);
         Assert.That(secrets.GetSecret("chevereto", "k2", "apiKey"), Is.EqualTo("api-key"));
         Assert.That(chevereto, Does.Not.Contain("api-key").And.Contain("example.com"));
+
+        Assert.That(new UpasteProvider().TryMigrateSecrets("""{"SecretKey":"k3","UserKey":"paste-key","IsPublic":true}""", secrets, out string upaste, out _), Is.True);
+        Assert.That(secrets.GetSecret("upaste", "k3", "userKey"), Is.EqualTo("paste-key"));
+        Assert.That(upaste, Does.Not.Contain("paste-key"));
+        Assert.That(UpasteProvider.DeserializeConfig(upaste).IsPublic, Is.True);
 
         Assert.That(new VgymeProvider().TryMigrateSecrets("""{"SecretKey":"k1"}""", secrets, out _, out _), Is.False);
     }
