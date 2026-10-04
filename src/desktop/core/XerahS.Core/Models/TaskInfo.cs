@@ -43,6 +43,8 @@ public class TaskInfo
     internal bool BeforeUploadConfirmed { get; set; }
     /// <summary>The before-upload window was cancelled. The task completes without an upload, as in ShareX.</summary>
     internal bool UploadCancelled { get; set; }
+    /// <summary>The capture job already ran the upload, so the upload job must not send the file again.</summary>
+    internal bool UploadAttemptedDuringCapture { get; set; }
 
     public bool IsUploadJob
     {

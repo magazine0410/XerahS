@@ -183,6 +183,36 @@ public class UploadWorkflowTests
     }
 
     [Test]
+    public async Task FailedCaptureUpload_IsNotSentAgainByTheUploadJob()
+    {
+        var instance = AddInstance(UploaderCategory.Image, "failed-image");
+        _imageUploads = 0;
+        var capture = TaskManager.Instance.StartTask(new TaskSettings
+        {
+            Job = WorkflowType.PrintScreen,
+            AfterCaptureJob = AfterCaptureTasks.UploadImageToHost,
+            AfterUploadJob = AfterUploadTasks.None,
+            DestinationInstanceId = instance.InstanceId,
+            AllowCrossCategoryFallback = false
+        }, new SkiaSharp.SKBitmap(10, 10));
+        await capture.WaitAsync(TimeSpan.FromSeconds(10));
+
+        Assert.That(_imageUploads, Is.EqualTo(1));
+    }
+
+    [Test]
+    public void UploadErrorText_IsTheUploadersOwnLastMessage()
+    {
+        var result = new UploadResult { Response = "{\"error\":true}" };
+        result.Errors.Add("Error message: (422) Unprocessable Entity");
+        result.Errors.Add("vgy.me: Anonymous uploads are not allowed.");
+        Assert.That(XerahS.Core.Tasks.Processors.UploadJobProcessor.GetUploadErrorText(result),
+            Is.EqualTo("vgy.me: Anonymous uploads are not allowed."));
+        Assert.That(XerahS.Core.Tasks.Processors.UploadJobProcessor.GetUploadErrorText(new UploadResult { Response = "rejected" }),
+            Is.EqualTo("rejected"));
+    }
+
+    [Test]
     public async Task StopJob_StopsTasksThatHaveNotReachedTheirUpload()
     {
         // As in ShareX (TaskManager.StopAllTasks), a capture that is still in its annotation editor is
@@ -268,7 +298,7 @@ public class UploadWorkflowTests
                 Assert.That(_uploadedText, Is.EqualTo("remote bytes"));
                 Assert.That(observed.IsSuccessful, Is.EqualTo(success));
                 if (success) Assert.That(observed.Info.UploaderHost, Is.EqualTo(instance.DisplayName));
-                else Assert.That(observed.Error!.Message, Does.Contain("All uploaders failed"));
+                else Assert.That(observed.Error!.Message, Does.Contain("upload rejected"), "The destination's own error, not the fallback's.");
             });
         }
         finally { TaskManager.Instance.TaskStarted -= Started; }
@@ -344,6 +374,7 @@ public class UploadWorkflowTests
             "text" => new TextSink(),
             "failed-file" => new TextSink(true),
             "blocking" => Blocking!,
+            "failed-image" => new FailingImageUploader(),
             _ => new Shortener(settingsJson == "fail")
         };
     }
@@ -354,6 +385,17 @@ public class UploadWorkflowTests
         {
             _shortenedInput = url;
             return new UploadResult { URL = url, ShortenedURL = fail ? null : "https://short.test/a", Response = fail ? "shortener failed" : "ok" };
+        }
+    }
+
+    private static int _imageUploads;
+
+    private sealed class FailingImageUploader : ImageUploader
+    {
+        public override UploadResult Upload(Stream stream, string fileName)
+        {
+            Interlocked.Increment(ref _imageUploads);
+            return new UploadResult { IsSuccess = false, Response = "upload rejected" };
         }
     }
 
