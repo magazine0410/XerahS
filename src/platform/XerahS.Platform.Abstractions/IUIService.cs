@@ -129,6 +129,13 @@ namespace XerahS.Platform.Abstractions
         Task ShowAfterUploadWindowAsync(AfterUploadWindowInfo info);
 
         /// <summary>
+        /// Opens a non-modal QR generator with the supplied text already encoded.
+        /// Completes when the window is shown, without waiting for it to close.
+        /// </summary>
+        Task ShowQrCodeAsync(string text, CancellationToken cancellationToken = default)
+            => Task.FromException(new NotSupportedException("The QR code window is unavailable in this host."));
+
+        /// <summary>
         /// Shows the Send-to action prompt and returns the chosen action.
         /// Implementations may return a fallback upload decision when interactive UI is unavailable.
         /// </summary>

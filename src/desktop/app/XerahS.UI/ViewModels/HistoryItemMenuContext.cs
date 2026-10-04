@@ -36,6 +36,8 @@ namespace XerahS.UI.ViewModels;
 /// </summary>
 public interface IHistoryItemMenuContext
 {
+    bool IsHistoryContext { get; }
+    HistoryItemActions? HistoryActions { get; }
     ICommand EditImageCommand { get; }
     ICommand EditAnnotationsCommand { get; }
     ICommand OpenFileCommand { get; }
@@ -96,7 +98,7 @@ public sealed class HistoryItemMenuTargetAdapter : IHistoryItemMenuTarget
     public string? URL => _item.URL;
     public bool HasErrors => _item.HasErrors;
     public bool HasEditableAnnotations => _item.HasEditableAnnotations;
-    public bool HasImageFile => !string.IsNullOrWhiteSpace(_item.FilePath) && FileHelpers.IsImageFile(_item.FilePath);
+    public bool HasImageFile => HasExistingFile && FileHelpers.IsImageFile(_item.FilePath);
     public bool HasFilePath => !string.IsNullOrWhiteSpace(_item.FilePath);
     public bool HasExistingFile => !string.IsNullOrWhiteSpace(_item.FilePath) && File.Exists(_item.FilePath);
     public bool CanPublish => HistoryPublishMetadata.CanPublish(_item, _currentOwnerSubject);
@@ -117,6 +119,7 @@ public sealed class HistoryItemMenuContext : IHistoryItemMenuContext
     {
         _vm = vm;
         _item = item;
+        HistoryActions = new HistoryItemActions(vm, item);
         Item = new HistoryItemMenuTargetAdapter(item, vm.CurrentCloudOwnerSubject);
         EditImageCommand = new RelayCommand(() => _vm.EditImageCommand.Execute(_item));
         EditAnnotationsCommand = new RelayCommand(() => _vm.EditAnnotationsCommand.Execute(_item));
@@ -139,6 +142,8 @@ public sealed class HistoryItemMenuContext : IHistoryItemMenuContext
 
     public IHistoryItemMenuTarget? Item { get; }
     public object? DisplayItem => _item;
+    public bool IsHistoryContext => true;
+    public HistoryItemActions? HistoryActions { get; }
 
     public ICommand EditImageCommand { get; }
     public ICommand EditAnnotationsCommand { get; }
@@ -200,6 +205,8 @@ public sealed class ToastMenuContext : IHistoryItemMenuContext
 
     public IHistoryItemMenuTarget? Item { get; }
     public object? DisplayItem => null;
+    public bool IsHistoryContext => false;
+    public HistoryItemActions? HistoryActions => null;
 
     public ICommand EditImageCommand => ViewModel.EditImageCommand;
     public ICommand EditAnnotationsCommand => ViewModel.EditImageCommand;

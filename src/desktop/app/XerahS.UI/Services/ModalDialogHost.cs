@@ -6,6 +6,7 @@
 #endregion License Information (GPL v3)
 
 using System;
+using System.Collections.Generic;
 using System.ComponentModel;
 using System.Threading.Tasks;
 using Avalonia;
@@ -23,6 +24,11 @@ namespace XerahS.UI.Services;
 /// </summary>
 public static class ModalDialogHost
 {
+    // The main window has one modal slot. A dialog opened from another dialog (for example the image effect
+    // browser from the workflow editor) takes the slot, and gives it back to the dialog below it when it closes,
+    // instead of closing that one too.
+    private static readonly List<object> OpenDialogs = new();
+
     public static Task<T> ShowAsync<T>(
         object viewModel,
         Action<Action<T>> assignCloseCallback,
@@ -40,26 +46,56 @@ public static class ModalDialogHost
 
         var tcs = new TaskCompletionSource<T>(TaskCreationOptions.RunContinuationsAsynchronously);
 
-        void Complete(T result)
+        bool IsTopDialog() => OpenDialogs.Count > 0 && ReferenceEquals(OpenDialogs[^1], viewModel);
+
+        void Finish(T result)
         {
             mainVm.PropertyChanged -= OnModalPropertyChanged;
-            if (mainVm.ModalContent == viewModel)
-                mainVm.CloseModalCommand.Execute(null);
+            OpenDialogs.Remove(viewModel);
             tcs.TrySetResult(result);
+        }
+
+        void ShowDialogBelow()
+        {
+            if (OpenDialogs.Count > 0)
+            {
+                mainVm.ModalContent = OpenDialogs[^1];
+                mainVm.IsModalOpen = true;
+            }
+        }
+
+        void Complete(T result)
+        {
+            if (tcs.Task.IsCompleted) return;
+            bool wasTop = IsTopDialog();
+            Finish(result);
+            if (!wasTop) return;
+
+            if (OpenDialogs.Count > 0)
+                ShowDialogBelow();
+            else if (mainVm.ModalContent == viewModel)
+                mainVm.CloseModalCommand.Execute(null);
         }
 
         void OnModalPropertyChanged(object? sender, PropertyChangedEventArgs e)
         {
+            // Only the dialog on top is dismissed by the backdrop, Escape, or CloseModal.
             if (e.PropertyName == nameof(MainViewModel.IsModalOpen) &&
                 !mainVm.IsModalOpen &&
-                !tcs.Task.IsCompleted)
+                !tcs.Task.IsCompleted &&
+                IsTopDialog())
             {
-                mainVm.PropertyChanged -= OnModalPropertyChanged;
-                tcs.TrySetResult(dismissResult);
+                Finish(dismissResult);
+                if (OpenDialogs.Count > 0)
+                {
+                    // CloseModal clears ModalContent after IsModalOpen, so restore the dialog below afterwards.
+                    Dispatcher.UIThread.Post(ShowDialogBelow, DispatcherPriority.Send);
+                }
             }
         }
 
         assignCloseCallback(Complete);
+        OpenDialogs.Add(viewModel);
         mainVm.PropertyChanged += OnModalPropertyChanged;
         ModalOpenService.Open(mainVm, viewModel, debugSource);
         return tcs.Task;

@@ -21,7 +21,8 @@ Total items: `184`
 - [ ] VP-UI-HistoryView HistoryView
 - [ ] VP-UI-HotkeySelectionControl HotkeySelectionControl
 - [ ] VP-UI-HotkeySettingsView HotkeySettingsView
-- [ ] VP-UI-ImageAnalyzerWindow ImageAnalyzerWindow
+- [ ] VP-UI-AnalyzeImageWindow AnalyzeImageWindow
+- [ ] VP-UI-AnalyzeImageOptionsWindow AnalyzeImageOptionsWindow
 - [ ] VP-UI-ImageCombinerWindow ImageCombinerWindow
 - [ ] VP-UI-ImageEffectsBrowserDialog ImageEffectsBrowserDialog
 - [ ] VP-UI-ImageSplitterWindow ImageSplitterWindow
@@ -35,6 +36,7 @@ Total items: `184`
 - [ ] VP-UI-OpenImageChoiceDialog OpenImageChoiceDialog
 - [ ] VP-UI-PinnedImageWindow PinnedImageWindow
 - [ ] VP-UI-PinToScreenStartupDialog PinToScreenStartupDialog
+- [ ] VP-UI-PrintWindow PrintWindow
 - [ ] VP-UI-PluginInstallerDialog PluginInstallerDialog
 - [ ] VP-UI-ProviderCatalogDialog ProviderCatalogDialog
 - [ ] VP-UI-ProviderCatalogView ProviderCatalogView

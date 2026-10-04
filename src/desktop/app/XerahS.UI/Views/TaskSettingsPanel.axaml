@@ -4,6 +4,7 @@
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              xmlns:vm="using:XerahS.UI.ViewModels"
              xmlns:core="using:XerahS.Core"
+             xmlns:uploaders="using:XerahS.Uploaders.PluginSystem"
              xmlns:views="using:XerahS.UI.Views"
              xmlns:controls="using:XerahS.UI.Controls"
              xmlns:converters="using:XerahS.UI.Converters"
@@ -20,7 +21,7 @@
     </UserControl.Resources>
 
     <Grid RowDefinitions="*" Margin="0" HorizontalAlignment="Stretch" VerticalAlignment="Stretch">
-        <TabControl Grid.Row="0" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" VerticalContentAlignment="Stretch" MinHeight="300">
+        <TabControl Grid.Row="0" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" VerticalContentAlignment="Stretch" MinHeight="300" SelectedIndex="{Binding SelectedTabIndex}">
             
             <!-- Capture Tab -->
             <TabItem Header="Capture">
@@ -181,14 +182,31 @@
                                                Foreground="{DynamicResource SystemControlForegroundBaseMediumBrush}" 
                                                Margin="0,0,0,4"/>
                                     
-                                    <CheckBox IsChecked="{Binding SaveImageToFile}" Content="Save image to file"/>
-                                    <CheckBox IsChecked="{Binding CopyImageToClipboard}" Content="Copy image to clipboard"/>
-                                    <CheckBox IsChecked="{Binding UploadImageToHost}" Content="Upload image to host" FontWeight="SemiBold"/>
-                                    <CheckBox IsChecked="{Binding ApplyImageEffects}" Content="Apply image effects"/>
-                                    <CheckBox IsChecked="{Binding AnnotateMedia}" Content="Annotate media"/>
+                                    <CheckBox IsChecked="{Binding ShowQuickTaskMenu}" Content="Show quick task menu"/>
                                     <CheckBox IsChecked="{Binding ShowAfterCaptureWindow}" Content="Show after capture window"/>
+                                    <CheckBox IsChecked="{Binding BeautifyImage}" Content="Beautify image"/>
+                                    <CheckBox IsChecked="{Binding ApplyImageEffects}" Content="Add image effects"/>
+                                    <CheckBox IsChecked="{Binding AnnotateMedia}" Content="Annotate media"/>
+                                    <CheckBox IsChecked="{Binding CopyImageToClipboard}" Content="Copy image to clipboard"/>
+                                    <CheckBox IsChecked="{Binding PinToScreen}" Content="Pin to screen"/>
+                                    <CheckBox IsChecked="{Binding SendImageToPrinter}" Content="Print image"/>
+                                    <CheckBox IsChecked="{Binding SaveImageToFile}" Content="Save image to file"/>
+                                    <CheckBox IsChecked="{Binding SaveImageToFileWithDialog}" Content="Save image to file (with dialog)"/>
+                                    <CheckBox IsChecked="{Binding SaveThumbnailImageToFile}" Content="Save thumbnail image to file"
+                                              ToolTip.Tip="Used together with saving or uploading an image. Configure its size and suffix in Image settings."/>
+                                    <CheckBox IsChecked="{Binding PerformActions}" Content="Perform actions"/>
+                                    <CheckBox IsChecked="{Binding CopyFileToClipboard}" Content="Copy file to clipboard"/>
+                                    <CheckBox IsChecked="{Binding CopyFilePathToClipboard}" Content="Copy file path to clipboard"/>
+                                    <CheckBox IsChecked="{Binding CopyFolderPathToClipboard}" Content="Copy folder path to clipboard"/>
+                                    <CheckBox IsChecked="{Binding ShowInExplorer}" Content="Show in file manager"/>
+                                    <CheckBox IsChecked="{Binding ScanQRCode}" Content="Scan QR code"/>
                                     <CheckBox IsChecked="{Binding DoOCR}" Content="OCR text recognition"/>
                                     <CheckBox IsChecked="{Binding CopyOcrTextToClipboard}" Content="Copy OCR text to clipboard"/>
+                                    <CheckBox IsChecked="{Binding ShowBeforeUploadWindow}" Content="Show before-upload window"/>
+                                    <CheckBox IsChecked="{Binding UploadImageToHost}" Content="Upload image to host"/>
+                                    <CheckBox IsChecked="{Binding DeleteFile}" Content="Delete file"
+                                              ToolTip.Tip="Delete the task file at the end, including if an upload fails or is cancelled."/>
+                                    <Button Content="Edit quick task menu..." Command="{Binding EditQuickTaskMenuCommand}"/>
                                 </StackPanel>
                             </Border>
                         </StackPanel>
@@ -202,6 +220,10 @@
             </TabItem>
             <TabItem Header="Video" IsVisible="{Binding ShowMediaSettingsTabs}">
                 <views:TaskVideoSettingsPanel/>
+            </TabItem>
+
+            <TabItem Header="Actions">
+                <views:TaskActionsSettingsPanel/>
             </TabItem>
 
             <!-- Index Folder Tab (Conditional) -->
@@ -345,6 +367,34 @@
                                             </DataTemplate>
                                         </ComboBox.ItemTemplate>
                                     </ComboBox>
+                                    <StackPanel Spacing="8" IsVisible="{Binding ShowAfterUploadShortenerDestination}">
+                                        <TextBlock Text="URL shortener:"/>
+                                        <ComboBox ItemsSource="{Binding UrlShortenerDestinations}"
+                                                  SelectedItem="{Binding SelectedUrlShortenerDestination}"
+                                                  HorizontalAlignment="Stretch"
+                                                  AutomationProperties.Name="Select URL Shortener"
+                                                  ToolTip.Tip="Used by Shorten URL after upload. Configure URL shorteners in Destination Settings.">
+                                            <ComboBox.ItemTemplate>
+                                                <DataTemplate x:DataType="uploaders:UploaderInstance">
+                                                    <TextBlock Text="{Binding DisplayName}"/>
+                                                </DataTemplate>
+                                            </ComboBox.ItemTemplate>
+                                        </ComboBox>
+                                    </StackPanel>
+                                    <StackPanel Spacing="8">
+                                        <TextBlock Text="URL sharing service:"/>
+                                        <ComboBox ItemsSource="{Binding UrlSharingDestinations}"
+                                                  SelectedItem="{Binding SelectedUrlSharingDestination}"
+                                                  HorizontalAlignment="Stretch"
+                                                  AutomationProperties.Name="Select URL Sharing Service"
+                                                  ToolTip.Tip="Used by Share URL. Configure URL sharing services in Destination Settings.">
+                                            <ComboBox.ItemTemplate>
+                                                <DataTemplate x:DataType="uploaders:UploaderInstance">
+                                                    <TextBlock Text="{Binding DisplayName}"/>
+                                                </DataTemplate>
+                                            </ComboBox.ItemTemplate>
+                                        </ComboBox>
+                                    </StackPanel>
                                 </StackPanel>
                             </Border>
                         </StackPanel>
@@ -360,6 +410,8 @@
                                 <StackPanel Spacing="10">
                                     <CheckBox IsChecked="{Binding ClipboardUploadURLContents}" Content="Upload URL contents"/>
                                     <CheckBox IsChecked="{Binding ClipboardUploadShortenURL}" Content="Shorten URL"/>
+                                    <CheckBox IsChecked="{Binding ClipboardUploadShareURL}" Content="Share URL"
+                                              ToolTip.Tip="If the clipboard contains a URL, share it with the URL sharing service. Upload URL contents and Shorten URL take precedence, as in ShareX."/>
                                 </StackPanel>
                             </Border>
                         </StackPanel>
@@ -380,12 +432,16 @@
                                     <CheckBox IsChecked="{Binding ShowAfterUploadWindow}" 
                                               Content="Show after upload window"
                                               AutomationProperties.Name="Show After Upload Window"/>
-                                    <CheckBox IsChecked="{Binding CopyURLToClipboard}" 
-                                              Content="Copy URL to clipboard"/>
                                     <CheckBox IsChecked="{Binding UseURLShortener}" 
-                                              Content="Use URL shortener"/>
-                                    <CheckBox IsChecked="{Binding ShareURL}" 
-                                              Content="Share URL"/>
+                                              Content="Shorten URL"/>
+                                    <CheckBox IsChecked="{Binding ShareURL}" Content="Share URL"
+                                              ToolTip.Tip="Shares the URL with the URL sharing service selected in Destinations."/>
+                                    <CheckBox IsChecked="{Binding CopyURLToClipboard}"
+                                              Content="Copy URL to clipboard"/>
+                                    <CheckBox IsChecked="{Binding OpenURL}"
+                                              Content="Open URL" AutomationProperties.Name="Open URL"/>
+                                    <CheckBox IsChecked="{Binding ShowQRCode}"
+                                              Content="Show QR code" AutomationProperties.Name="Show QR Code"/>
                                 </StackPanel>
                             </Border>
                         </StackPanel>

@@ -23,12 +23,9 @@
 
 #endregion License Information (GPL v3)
 
-using System.Runtime.Versioning;
-
 namespace XerahS.Common
 {
     [Serializable]
-    [SupportedOSPlatform("windows")]
     public class PrintSettings
     {
         public int Margin { get; set; }
@@ -47,7 +44,10 @@ namespace XerahS.Common
             AutoScaleImage = true;
             AllowEnlargeImage = false;
             CenterImage = false;
+            // Only used to print text, which XerahS does not do; XmlFont is Windows-only.
+#pragma warning disable CA1416
             TextFont = new XmlFont("Arial", 10);
+#pragma warning restore CA1416
             ShowPrintDialog = true;
         }
     }

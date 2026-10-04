@@ -32,6 +32,7 @@ public sealed class UploadOutcome
     public string? ThumbnailUrl { get; init; }
     public string? DeletionUrl { get; init; }
     public string? ShortenedUrl { get; init; }
+    public IReadOnlyDictionary<string, string?> Metadata { get; init; } = new Dictionary<string, string?>();
     public string? Response { get; init; }
     public string? Error { get; init; }
     public string? ErrorCode { get; init; }

@@ -283,6 +283,9 @@ namespace XerahS.Core.Tasks
                          }
                     }
 
+                    await Processors.AfterCaptureFileTasks.ProcessAsync(Info, _cancellationTokenSource.Token);
+                    outputPath = Info.FilePath;
+
                     // Reuse upload pipeline for recordings; flag upload when AfterUpload tasks exist.
                     if (taskSettings.AfterUploadJob != AfterUploadTasks.None)
                     {
@@ -356,6 +359,10 @@ namespace XerahS.Core.Tasks
                         DebugHelper.WriteLine("WARNING: Recording completed successfully but history record was not saved.");
                     }
                 }
+            }
+            catch (OperationCanceledException)
+            {
+                throw;
             }
             catch (Exception ex)
             {
@@ -478,6 +485,11 @@ namespace XerahS.Core.Tasks
                 {
                     historyItem.Tags[pair.Key] = pair.Value;
                 }
+            }
+
+            if (!string.IsNullOrWhiteSpace(historyItem.URL))
+            {
+                UploadJobProcessor.ApplyUploadResult(historyItem, info);
             }
 
             return historyItem;

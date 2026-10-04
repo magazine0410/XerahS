@@ -22,8 +22,6 @@
 */
 
 #endregion License Information (GPL v3)
-using Avalonia.Data.Converters;
-using Avalonia.Media.Imaging;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Newtonsoft.Json;
@@ -62,30 +60,6 @@ namespace XerahS.UI.ViewModels
             ".tiff"
         };
 
-        // Converter to load thumbnail from file path (resource-efficient)
-        public static IValueConverter ThumbnailConverter { get; } = new FuncValueConverter<string?, Bitmap?>(
-            filePath =>
-            {
-                if (string.IsNullOrEmpty(filePath) || !File.Exists(filePath))
-                    return null;
-
-                try
-                {
-                    // Check if it's an image file
-                    var ext = Path.GetExtension(filePath).ToLowerInvariant();
-                    if (ext != ".png" && ext != ".jpg" && ext != ".jpeg" && ext != ".gif" && ext != ".bmp" && ext != ".webp")
-                        return null;
-
-                    // Load with decode size for memory efficiency (thumbnail size)
-                    using var stream = File.OpenRead(filePath);
-                    return Bitmap.DecodeToWidth(stream, 180); // Decode to thumbnail width
-                }
-                catch
-                {
-                    return null;
-                }
-            });
-
         [ObservableProperty]
         private ObservableCollection<HistoryItem> _historyItems;
 
@@ -104,6 +78,12 @@ namespace XerahS.UI.ViewModels
 
         private int _searchVersion;
         private int _reloadRequested;
+        private readonly object _databaseLock = new();
+        private bool _disposed;
+        private List<HistoryItem> _filteredHistoryItems = new();
+        // As in ShareX, the history is read once and filter changes work on these rows.
+        private List<HistoryItem>? _allHistoryItems;
+        private bool _readDatabaseRequested;
 
         public ObservableCollection<HistoryItem> SelectedHistoryItems { get; } = new();
 
@@ -176,6 +156,8 @@ namespace XerahS.UI.ViewModels
             _historyManager.CreateBackup = true;
             _historyManager.CreateWeeklyBackup = true;
 
+            InitializeHistoryOptions();
+
             // Start loading history asynchronously WITHOUT blocking UI
             // Use fire-and-forget to let view display immediately
             if (autoLoadHistory)
@@ -186,7 +168,10 @@ namespace XerahS.UI.ViewModels
 
         internal string? CurrentCloudOwnerSubject => _cloudClient?.CurrentOwnerSubject;
 
-        internal HistoryItem? GetHistoryItem(long id) => _historyManager.GetHistoryItem(id);
+        internal HistoryItem? GetHistoryItem(long id)
+        {
+            lock (_databaseLock) return _disposed ? null : _historyManager.GetHistoryItem(id);
+        }
 
         /// <summary>
         /// Starts history loading asynchronously without blocking the UI thread.
@@ -199,9 +184,21 @@ namespace XerahS.UI.ViewModels
             await LoadHistoryAsync();
         }
 
+        /// <summary>Reads the history from the database again, then applies the current filters.</summary>
         [RelayCommand]
-        private async Task LoadHistoryAsync()
+        private Task LoadHistoryAsync()
         {
+            _readDatabaseRequested = true;
+            return FilterHistoryAsync();
+        }
+
+        /// <summary>
+        /// Applies the filters and search to the rows already read. Only Load, Refresh, and adding a
+        /// combined image read the database again; a plain-text search still asks it for matching IDs.
+        /// </summary>
+        private async Task FilterHistoryAsync()
+        {
+            if (_disposed) return;
             if (IsLoading)
             {
                 Interlocked.Exchange(ref _reloadRequested, 1);
@@ -209,70 +206,108 @@ namespace XerahS.UI.ViewModels
             }
 
             IsLoading = true;
+            int version = _searchVersion;
+            HistoryItem[]? cached = _readDatabaseRequested || _allHistoryItems == null ? null : _allHistoryItems.ToArray();
+            _readDatabaseRequested = false;
+            string query = FavoritesOnly && !IsGridView ? string.Empty : SearchText.Trim();
+            var filter = new HistoryFilter
+            {
+                FilterFavorites = FavoritesOnly,
+                FilterDate = FilterDate,
+                FromDate = FromDate?.Date ?? DateTime.Today,
+                ToDate = ToDate?.Date ?? DateTime.Today,
+                FilterType = FilterType,
+                Type = SelectedType ?? string.Empty,
+                FilterHost = FilterHost,
+                Host = HostFilter ?? string.Empty,
+                ImageOnly = IsGridView && ImagesOnly,
+                FilterMissingFiles = IsGridView && HideMissingFiles,
+                RequireFilePath = IsGridView
+            };
+
             try
             {
-                var historyPath = SettingsManager.GetHistoryFilePath();
-                DebugHelper.WriteLine($"History.xml location: {historyPath} (exists={File.Exists(historyPath)})");
-
-                List<HistoryItem> items;
-                string query = SearchText.Trim();
-                if (string.IsNullOrWhiteSpace(query))
+                var result = await Task.Run(() =>
                 {
-                    TotalItems = await _historyManager.GetTotalCountAsync();
-                    TotalPages = (int)Math.Ceiling((double)TotalItems / PageSize);
-                    if (TotalPages == 0) TotalPages = 1; // Ensure at least 1 page even if empty
-
-                    // Adjust CurrentPage if out of bounds (e.g. after deletion)
-                    if (CurrentPage > TotalPages) CurrentPage = TotalPages;
-                    if (CurrentPage < 1) CurrentPage = 1;
-
-                    int offset = (CurrentPage - 1) * PageSize;
-                    items = await _historyManager.GetHistoryItemsAsync(offset, PageSize);
-                }
-                else
-                {
-                    int requestedPage = Math.Max(CurrentPage, 1);
-                    int offset = (requestedPage - 1) * PageSize;
-                    (items, TotalItems) = await SearchHistoryItemsAsync(query, offset, PageSize);
-                    TotalPages = (int)Math.Ceiling((double)TotalItems / PageSize);
-                    if (TotalPages == 0) TotalPages = 1;
-
-                    if (requestedPage > TotalPages)
+                    IReadOnlyList<HistoryItem> all;
+                    HashSet<long>? searchIds = null;
+                    bool wildcardSearch = query.IndexOfAny(['*', '?']) >= 0;
+                    lock (_databaseLock)
                     {
-                        CurrentPage = TotalPages;
-                        offset = (CurrentPage - 1) * PageSize;
-                        (items, TotalItems) = await SearchHistoryItemsAsync(query, offset, PageSize);
+                        if (_disposed) return (Loaded: (List<HistoryItem>?)null, Items: new List<HistoryItem>(), Types: Array.Empty<string>());
+                        all = cached ?? (IReadOnlyList<HistoryItem>)_historyManager.GetHistoryItems(0, int.MaxValue);
+                        // Keep XerahS's existing metadata and OCR search alongside ShareX's filters.
+                        if (query.Length > 0 && !wildcardSearch) searchIds = _historyManager.SearchHistoryItemIds(query);
                     }
-                    if (CurrentPage < 1) CurrentPage = 1;
-                }
 
-                if (!string.Equals(query, SearchText.Trim(), StringComparison.Ordinal))
+                    string[] types = all.Select(item => item.Type).Where(type => !string.IsNullOrWhiteSpace(type))
+                        .Distinct(StringComparer.OrdinalIgnoreCase).OrderBy(type => type).ToArray();
+                    IEnumerable<HistoryItem> matches = filter.ApplyFilter(all);
+                    if (searchIds != null) matches = matches.Where(item => searchIds.Contains(item.Id));
+                    else if (wildcardSearch) matches = new HistoryFilter { Filename = query }.ApplyFilter(matches);
+                    return (Loaded: cached == null ? (List<HistoryItem>)all : null, Items: matches.ToList(), Types: types);
+                });
+
+                if (_disposed) return;
+                if (result.Loaded != null) _allHistoryItems = result.Loaded;
+                if (version != _searchVersion)
                 {
                     Interlocked.Exchange(ref _reloadRequested, 1);
                 }
                 else
                 {
-                    ClearSelectedHistoryItems();
-                    HistoryItems = new ObservableCollection<HistoryItem>(items);
-
-                    DebugHelper.WriteLine($"History loaded: {items.Count} items (Page {CurrentPage}/{TotalPages})");
-
+                    if (!AvailableTypes.SequenceEqual(result.Types))
+                    {
+                        string? selectedType = SelectedType;
+                        _loadingPreferences = true;
+                        AvailableTypes = new ObservableCollection<string>(result.Types);
+                        SelectedType = selectedType;
+                        _loadingPreferences = false;
+                    }
+                    _filteredHistoryItems = result.Items;
+                    TotalItems = result.Items.Count;
+                    TotalPages = Math.Max(1, (int)Math.Ceiling((double)TotalItems / Math.Max(1, PageSize)));
+                    CurrentPage = Math.Clamp(CurrentPage, 1, TotalPages);
+                    ShowCurrentItems();
                 }
+                await SaveHistoryPreferencesAsync();
             }
-
             catch (Exception ex)
             {
                 DebugHelper.WriteException(ex, "Failed to load history");
+                if (!_disposed) await _coreDialogService.ShowErrorAsync("History", "Could not load history. " + ex.Message);
             }
             finally
             {
                 IsLoading = false;
             }
 
-            if (Interlocked.Exchange(ref _reloadRequested, 0) != 0)
+            if (!_disposed && Interlocked.Exchange(ref _reloadRequested, 0) != 0)
             {
-                await LoadHistoryAsync();
+                await FilterHistoryAsync();
             }
+        }
+
+        private void ShowCurrentItems()
+        {
+            ClearSelectedHistoryItems();
+            IEnumerable<HistoryItem> items = IsGridView
+                ? _filteredHistoryItems.Take(ImageBatchSize <= 0 ? int.MaxValue : ImageBatchSize)
+                : _filteredHistoryItems.Skip((CurrentPage - 1) * Math.Max(1, PageSize)).Take(Math.Max(1, PageSize));
+            HistoryItems = new ObservableCollection<HistoryItem>(items);
+            NotifyImageBatchChanged();
+        }
+
+        [RelayCommand]
+        private void LoadMoreItems()
+        {
+            if (!IsGridView || IsLoading || _disposed) return;
+            int count = ImageBatchSize <= 0 ? int.MaxValue : ImageBatchSize;
+            foreach (HistoryItem item in _filteredHistoryItems.Skip(HistoryItems.Count).Take(count))
+            {
+                HistoryItems.Add(item);
+            }
+            NotifyImageBatchChanged();
         }
 
         [RelayCommand]
@@ -280,25 +315,28 @@ namespace XerahS.UI.ViewModels
         {
             Interlocked.Increment(ref _searchVersion);
             CurrentPage = 1;
-            await LoadHistoryAsync();
+            await FilterHistoryAsync();
         }
 
         [RelayCommand]
         private async Task ClearSearchAsync()
         {
-            if (string.IsNullOrWhiteSpace(SearchText))
-            {
-                return;
-            }
-
             SearchText = string.Empty;
             Interlocked.Increment(ref _searchVersion);
             CurrentPage = 1;
-            await LoadHistoryAsync();
+            await FilterHistoryAsync();
         }
 
         partial void OnSearchTextChanged(string value)
         {
+            if (_loadingPreferences) return;
+            StoreSearchPreference();
+            ScheduleHistoryFilter();
+        }
+
+        private void ScheduleHistoryFilter()
+        {
+            if (_loadingPreferences || _disposed) return;
             CurrentPage = 1;
             int version = Interlocked.Increment(ref _searchVersion);
             _ = DebouncedSearchAsync(version);
@@ -307,48 +345,34 @@ namespace XerahS.UI.ViewModels
         private async Task DebouncedSearchAsync(int version)
         {
             await Task.Delay(300);
-            if (version == _searchVersion)
-            {
-                await LoadHistoryAsync();
-            }
-        }
-
-        private Task<(List<HistoryItem> Items, int TotalCount)> SearchHistoryItemsAsync(string query, int offset, int limit)
-        {
-            return Task.Run(() => _historyManager.SearchHistoryItems(query, offset, limit));
+            if (!_disposed && version == _searchVersion) await FilterHistoryAsync();
         }
 
         [RelayCommand]
-        private async Task NextPage()
+        private void NextPage()
         {
-            if (CanGoNext)
+            if (CanGoNext && !IsLoading)
             {
                 CurrentPage++;
-                await LoadHistoryAsync();
+                ShowCurrentItems();
             }
         }
 
         [RelayCommand]
-        private async Task PreviousPage()
+        private void PreviousPage()
         {
-            if (CanGoPrevious)
+            if (CanGoPrevious && !IsLoading)
             {
                 CurrentPage--;
-                await LoadHistoryAsync();
+                ShowCurrentItems();
             }
         }
 
         [RelayCommand]
-        private void ToggleView()
-        {
-            IsGridView = !IsGridView;
-        }
+        private void ToggleView() => IsGridView = !IsGridView;
 
         [RelayCommand]
-        private async Task RefreshHistory()
-        {
-            await LoadHistoryAsync();
-        }
+        private async Task RefreshHistory() => await LoadHistoryAsync();
 
         [RelayCommand]
         private Task CombineHorizontalAsync()
@@ -529,7 +553,7 @@ namespace XerahS.UI.ViewModels
 
             if (item.Id > 0)
             {
-                await Task.Run(() => _historyManager.Edit(item));
+                await PersistHistoryItemAsync(item);
             }
 
             int index = HistoryItems.IndexOf(item);
@@ -541,6 +565,10 @@ namespace XerahS.UI.ViewModels
             bool wasSelected = SelectedHistoryItems.Contains(item);
             var refreshedItem = CloneHistoryItem(item);
             HistoryItems[index] = refreshedItem;
+            int cachedIndex = _filteredHistoryItems.FindIndex(entry => ReferenceEquals(entry, item));
+            if (cachedIndex >= 0) _filteredHistoryItems[cachedIndex] = refreshedItem;
+            int allIndex = _allHistoryItems?.FindIndex(entry => ReferenceEquals(entry, item)) ?? -1;
+            if (allIndex >= 0) _allHistoryItems![allIndex] = refreshedItem;
 
             if (wasSelected)
             {
@@ -922,7 +950,13 @@ namespace XerahS.UI.ViewModels
         }
 
         private Task PersistHistoryItemAsync(HistoryItem item) =>
-            item.Id > 0 ? Task.Run(() => _historyManager.Edit(item)) : Task.CompletedTask;
+            item.Id > 0 ? Task.Run(() =>
+            {
+                lock (_databaseLock)
+                {
+                    if (!_disposed) _historyManager.Edit(item);
+                }
+            }) : Task.CompletedTask;
 
         private static bool IsVideoHistoryItem(HistoryItem item)
         {
@@ -964,9 +998,42 @@ namespace XerahS.UI.ViewModels
             HistoryItems.Remove(item);
 
             // Persist deletion to database
-            _historyManager.Delete(item);
+            lock (_databaseLock) _historyManager.Delete(item);
             new HistoryOcrIndexStore(SettingsManager.GetHistoryFilePath()).Delete(item.Id);
             DebugHelper.WriteLine($"Deleted history item: {item.FileName}");
+            RemoveFromLoadedHistory(item);
+        }
+
+        /// <summary>
+        /// Removes a deleted entry without reading the history again, so the grid keeps its loaded
+        /// batches and scroll position, and a list page is topped up from the next one.
+        /// </summary>
+        private void RemoveFromLoadedHistory(HistoryItem item)
+        {
+            _allHistoryItems?.Remove(item);
+            int filteredIndex = _filteredHistoryItems.IndexOf(item);
+            if (filteredIndex < 0) return;
+            _filteredHistoryItems.RemoveAt(filteredIndex);
+            TotalItems = _filteredHistoryItems.Count;
+            TotalPages = Math.Max(1, (int)Math.Ceiling((double)TotalItems / Math.Max(1, PageSize)));
+
+            if (!IsGridView)
+            {
+                int pageSize = Math.Max(1, PageSize);
+                int pageEnd = CurrentPage * pageSize;
+                if (HistoryItems.Count == 0 && CurrentPage > 1)
+                {
+                    CurrentPage = Math.Min(CurrentPage - 1, TotalPages);
+                    ShowCurrentItems();
+                    return;
+                }
+                if (HistoryItems.Count < pageSize && pageEnd - 1 < _filteredHistoryItems.Count)
+                {
+                    HistoryItems.Add(_filteredHistoryItems[pageEnd - 1]);
+                }
+            }
+
+            NotifyImageBatchChanged();
         }
 
         [RelayCommand]
@@ -1064,7 +1131,9 @@ namespace XerahS.UI.ViewModels
                     return;
                 }
 
-                if (!_historyManager.AppendHistoryItem(combinedHistoryItem))
+                bool appended;
+                lock (_databaseLock) appended = _historyManager.AppendHistoryItem(combinedHistoryItem);
+                if (!appended)
                 {
                     DebugHelper.WriteLine($"HistoryViewModel - Failed to append combined history item: {combinedHistoryItem.FilePath}");
                     ShowHistoryBackupFailureToastIfPresent(_historyManager.LastBackupFailureReason);
@@ -1237,7 +1306,9 @@ namespace XerahS.UI.ViewModels
 
         public void Dispose()
         {
-            _historyManager?.Dispose();
+            _disposed = true;
+            Interlocked.Increment(ref _searchVersion);
+            lock (_databaseLock) _historyManager.Dispose();
         }
     }
 }

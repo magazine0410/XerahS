@@ -121,8 +121,9 @@ namespace XerahS.Platform.Linux
                 clipboardMonitorService: clipboardMonitorService
             );
 
-            // Register OCR service stub (Tesseract integration planned)
+            // OCR with the system's Tesseract library.
             PlatformServices.Ocr = new LinuxOcrService();
+            PlatformServices.Print = new Services.LinuxPrintService();
 
             PlatformServices.ScrollingCapture = new LinuxScrollingCaptureService();
 

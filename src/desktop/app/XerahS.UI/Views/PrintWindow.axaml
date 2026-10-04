@@ -1,0 +1,53 @@
+<ui:SurfaceWindow xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:ui="using:XerahS.UI.Views"
+        xmlns:vm="using:XerahS.UI.ViewModels"
+        xmlns:theming="clr-namespace:ShareX.ImageEditor.Presentation.Theming;assembly=ShareX.ImageEditor"
+        x:Class="XerahS.UI.Views.PrintWindow"
+        x:DataType="vm:PrintOptionsViewModel"
+        Title="XerahS - Print options"
+        Width="470" SizeToContent="Height" CanResize="False"
+        WindowStartupLocation="CenterOwner">
+
+  <!-- Layout and wording follow ShareX's print options window. -->
+  <StackPanel Margin="18,14" Spacing="14" IsEnabled="{Binding !IsBusy}">
+    <Grid ColumnDefinitions="Auto,*" ColumnSpacing="10">
+      <Border Width="40" Height="40" CornerRadius="6" Background="{DynamicResource CardBackgroundFillColorDefaultBrush}">
+        <TextBlock Classes="icon" Text="{x:Static theming:LucideIcons.printer}" FontSize="20"
+                   Foreground="{DynamicResource AccentFillColorDefaultBrush}" HorizontalAlignment="Center"/>
+      </Border>
+      <StackPanel Grid.Column="1" Spacing="1" VerticalAlignment="Center">
+        <TextBlock Text="Print options" FontSize="19" FontWeight="SemiBold"/>
+        <TextBlock Text="Configure image placement and scaling." Foreground="{DynamicResource TextFillColorSecondaryBrush}"/>
+      </StackPanel>
+    </Grid>
+
+    <Border Padding="14,12" CornerRadius="6" BorderThickness="1"
+            Background="{DynamicResource CardBackgroundFillColorDefaultBrush}"
+            BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}">
+      <StackPanel Spacing="6">
+        <Grid ColumnDefinitions="Auto,130,Auto,*" ColumnSpacing="8" Margin="0,0,0,3">
+          <TextBlock Text="Margin:" VerticalAlignment="Center"/>
+          <NumericUpDown Grid.Column="1" Value="{Binding Margin}" Minimum="0" Maximum="1000" Increment="1" FormatString="0"
+                         AutomationProperties.Name="Margin"/>
+          <TextBlock Grid.Column="2" Text="px" VerticalAlignment="Center"/>
+        </Grid>
+        <CheckBox Content="Auto rotate image" IsChecked="{Binding AutoRotateImage}"/>
+        <CheckBox Content="Auto scale image" IsChecked="{Binding AutoScaleImage}"/>
+        <CheckBox Content="Allow image to enlarge" IsChecked="{Binding AllowEnlargeImage}" IsEnabled="{Binding AutoScaleImage}"/>
+        <CheckBox Content="Center image position" IsChecked="{Binding CenterImage}" IsEnabled="{Binding AutoScaleImage}"/>
+      </StackPanel>
+    </Border>
+
+    <Grid ColumnDefinitions="Auto,*,Auto,Auto" ColumnSpacing="8">
+      <Button Content="Preview..." Click="OnPreviewClick" MinWidth="92"/>
+      <Button Grid.Column="2" Content="{Binding PrintButtonText}" Classes="accent" Click="OnPrintClick" IsEnabled="{Binding CanPrint}"
+              IsDefault="True" MinWidth="92"/>
+      <Button Grid.Column="3" Content="Cancel" Click="OnCancelClick" IsCancel="True" MinWidth="92"/>
+    </Grid>
+  </StackPanel>
+
+  <ui:SurfaceWindow.Styles>
+    <StyleInclude Source="avares://XerahS.UI/Themes/ToolWindowStyles.axaml"/>
+  </ui:SurfaceWindow.Styles>
+</ui:SurfaceWindow>

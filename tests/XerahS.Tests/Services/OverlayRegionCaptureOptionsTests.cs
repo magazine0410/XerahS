@@ -67,7 +67,7 @@ public class OverlayRegionCaptureOptionsTests
     [Test]
     public void WorkflowOptions_OverrideDefaults_AndCarryLastRegion()
     {
-        var settings = new TaskSettings();
+        var settings = new TaskSettings { UseDefaultCaptureSettings = false, UseDefaultAdvancedSettings = false };
         var region = settings.CaptureSettings.RegionCaptureOptions;
         region.ActiveMonitorMode = true;
         region.BackgroundDimStrength = 65;
@@ -96,6 +96,28 @@ public class OverlayRegionCaptureOptionsTests
             Assert.That(options.X1ClickAction, Is.EqualTo(OverlayAction.RemoveShape));
             Assert.That(options.X2ClickAction, Is.EqualTo(OverlayAction.CancelCapture));
             Assert.That(options.LastRegion, Is.EqualTo(new XerahS.RegionCapture.Models.PixelRect(-500, 150, 320, 180)));
+        });
+    }
+
+    [Test]
+    public void WorkflowWithoutOverrides_UsesTheDefaultCaptureAndAdvancedSettings_NotItsOwnSavedValues()
+    {
+        // A workflow keeps its own values while "Override capture settings" is off; they must not apply.
+        var settings = new TaskSettings { UseDefaultCaptureSettings = true, UseDefaultAdvancedSettings = true };
+        settings.CaptureSettings.RegionCaptureOptions.ActiveMonitorMode = true;
+        settings.CaptureSettings.RegionCaptureOptions.QuickCrop = false;
+        settings.AdvancedSettings.RegionCaptureDisableAnnotation = true;
+        SettingsManager.WorkflowsConfig.Hotkeys.Add(new WorkflowSettings { Id = "region-defaults-test", TaskSettings = settings });
+        SettingsManager.DefaultTaskSettings.CaptureSettings.RegionCaptureOptions.ActiveMonitorMode = false;
+
+        var options = OverlayRegionCaptureSession.CreateOverlayOptions(
+            new CaptureOptions { WorkflowId = "region-defaults-test" }, null, false, null);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(options.ActiveMonitorMode, Is.False);
+            Assert.That(options.QuickCrop, Is.True);
+            Assert.That(options.EnableAnnotations, Is.True);
         });
     }
 

@@ -25,12 +25,16 @@
 
 using Newtonsoft.Json;
 using System.Collections.Generic;
+using System.ComponentModel;
 using XerahS.Common;
 
 namespace XerahS.History
 {
-    public class HistoryItem
+    public class HistoryItem : INotifyPropertyChanged
     {
+        /// <summary>Raised when <see cref="Favorite"/> changes, so the history views update the star in place.</summary>
+        public event PropertyChangedEventHandler? PropertyChanged;
+
         [JsonIgnore]
         public long Id { get; set; }
         public string FileName { get; set; } = string.Empty;
@@ -147,6 +151,11 @@ namespace XerahS.History
                     Tags = new Dictionary<string, string?>();
                 }
 
+                if (value == Favorite)
+                {
+                    return;
+                }
+
                 if (value)
                 {
                     Tags["Favorite"] = null;
@@ -155,6 +164,8 @@ namespace XerahS.History
                 {
                     Tags.Remove("Favorite");
                 }
+
+                PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(Favorite)));
             }
         }
 

@@ -17,7 +17,7 @@
                   IsChecked="{Binding OverrideImageSettings}"
                   IsVisible="{Binding ShowOverrideSettings}"
                   ToolTip.Tip="When off, this workflow uses the image settings and effects from Settings &gt; Task Settings."/>
-        <TabControl HorizontalAlignment="Stretch" VerticalAlignment="Stretch" VerticalContentAlignment="Stretch">
+        <TabControl HorizontalAlignment="Stretch" VerticalAlignment="Stretch" VerticalContentAlignment="Stretch" SelectedIndex="{Binding SelectedImageTabIndex}">
             <!-- Image Settings Tab -->
             <TabItem Header="Settings">
                 <ScrollViewer IsEnabled="{Binding ImageSettingsEnabled}">

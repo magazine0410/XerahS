@@ -39,4 +39,9 @@ public class InstanceConfiguration
     /// Default instance IDs per category
     /// </summary>
     public Dictionary<UploaderCategory, string> DefaultInstances { get; set; } = new();
+
+    /// <summary>
+    /// Built-in providers whose instances were added automatically once, so removing one keeps it removed.
+    /// </summary>
+    public List<string> AddedBuiltInProviderIds { get; set; } = new();
 }

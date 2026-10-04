@@ -1,0 +1,16 @@
+{
+  "pluginId": "email",
+  "name": "Email",
+  "version": "1.0.0",
+  "author": "ShareX Team",
+  "description": "Share URLs by email over SMTP",
+  "apiVersion": "1.0",
+  "entryPoint": "ShareX.Email.Plugin.EmailProvider",
+  "assemblyFileName": "XerahS.Email.Plugin.dll",
+  "supportedCategories": ["UrlSharing"],
+  "supportsExplorer": false,
+  "supportsCancellation": true,
+  "supportsProgress": false,
+  "configViewId": "email",
+  "dependencies": []
+}

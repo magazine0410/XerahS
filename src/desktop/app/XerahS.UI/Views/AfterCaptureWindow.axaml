@@ -238,6 +238,14 @@
                         IsChecked="{Binding ShareURL}"
                         IsVisible="{Binding ShowUrlOptions}"
                         AutomationProperties.Name="Share URL"/>
+              <CheckBox Content="Open URL"
+                        IsChecked="{Binding OpenURL}"
+                        IsVisible="{Binding ShowUrlOptions}"
+                        AutomationProperties.Name="Open URL"/>
+              <CheckBox Content="Show QR code"
+                        IsChecked="{Binding ShowQRCode}"
+                        IsVisible="{Binding ShowUrlOptions}"
+                        AutomationProperties.Name="Show QR Code"/>
               <CheckBox Content="Show after upload window"
                         IsChecked="{Binding ShowAfterUploadWindow}"
                         IsVisible="{Binding ShowUrlOptions}"

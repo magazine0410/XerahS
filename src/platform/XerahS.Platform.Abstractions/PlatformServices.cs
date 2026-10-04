@@ -238,6 +238,15 @@ namespace XerahS.Platform.Abstractions
             set => _ocrService = value;
         }
 
+        private static IPrintService? _printService;
+
+        /// <summary>Optional print service. Linux prints through the desktop portal or CUPS.</summary>
+        public static IPrintService? Print
+        {
+            get => _printService;
+            set => _printService = value;
+        }
+
         /// <summary>
         /// Initializes platform services with provided implementations
         /// </summary>
@@ -379,6 +388,7 @@ namespace XerahS.Platform.Abstractions
             _themeService = null;
             _scrollingCaptureService = null;
             _ocrService = null;
+            _printService = null;
             _uiService = null;
             _imageEncoderService = null;
             NativeWindowHandleProvider = null;

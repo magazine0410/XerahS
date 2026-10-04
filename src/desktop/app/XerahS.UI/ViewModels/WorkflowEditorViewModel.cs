@@ -75,6 +75,11 @@ public partial class WorkflowEditorViewModel : ViewModelBase
     public string WorkflowId => Model.Id;
 
 
+    // Kept here so the editor reopens on the same tab after a dialog opened from it (such as the
+    // image effect browser) gives the main window's modal slot back.
+    [ObservableProperty]
+    private int _selectedTabIndex;
+
     [ObservableProperty]
     private Key _selectedKey;
 

@@ -26,6 +26,8 @@ BuildRequires:  gzip
 Suggests:       gnome-shell-extension-appindicator
 Recommends:     wl-clipboard
 Recommends:     xclip
+Recommends:     tesseract-libs
+Recommends:     tesseract-langpack-eng
 
 %description
 XerahS is a modern, cross-platform screen capture and sharing tool.

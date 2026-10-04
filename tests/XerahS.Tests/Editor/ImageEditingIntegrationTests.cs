@@ -245,6 +245,7 @@ public class ImageEditingIntegrationTests
     {
         UiViewModelFactoryAccessor.Configure(new FakeUiViewModelFactory());
         var saved = AddWorkflow("effects");
+        saved.UseDefaultImageSettings = false;
         saved.ImageSettings.ImageEffectsPreset = new ImageEffectPreset { Name = "Flip" };
         saved.AfterCaptureJob = AfterCaptureTasks.AddImageEffects | AfterCaptureTasks.CopyImageToClipboard;
         // Left half red, right half blue, so a horizontal flip is visible.
@@ -289,6 +290,36 @@ public class ImageEditingIntegrationTests
         finally
         {
             window.Close();
+            UiViewModelFactoryAccessor.Reset();
+        }
+    }
+
+    [AvaloniaTest]
+    public void ImageEffectsWindow_WithoutOverrideImageSettings_EditsTheDefaultPreset()
+    {
+        UiViewModelFactoryAccessor.Configure(new FakeUiViewModelFactory());
+        var previousImageSettings = SettingsManager.DefaultTaskSettings.ImageSettings;
+        SettingsManager.DefaultTaskSettings.ImageSettings = new TaskSettingsImage { ImageEffectsPreset = new ImageEffectPreset { Name = "Default" } };
+        // The workflow keeps its own preset while "Override image settings" is off; it must not be edited.
+        var saved = AddWorkflow("effects-defaults");
+        saved.ImageSettings.ImageEffectsPreset = new ImageEffectPreset { Name = "Own" };
+        using var image = new SKBitmap(20, 20);
+        var window = ImageEditingToolService.CreateImageEffectsWindow(image, null,
+            new TaskSettings { WorkflowId = "effects-defaults" }, new RecordingTaskManager());
+        try
+        {
+            window.Show();
+            Assert.That(window.ViewModel.TryAddFlipHorizontalEffect(), Is.True);
+            Assert.Multiple(() =>
+            {
+                Assert.That(SettingsManager.DefaultTaskSettings.ImageSettings.ImageEffectsPreset.Effects, Has.Count.EqualTo(1));
+                Assert.That(saved.ImageSettings.ImageEffectsPreset.Effects, Is.Empty);
+            });
+        }
+        finally
+        {
+            window.Close();
+            SettingsManager.DefaultTaskSettings.ImageSettings = previousImageSettings;
             UiViewModelFactoryAccessor.Reset();
         }
     }
@@ -512,7 +543,8 @@ public class ImageEditingIntegrationTests
         using var image = new SKBitmap(10, 10);
         var info = new TaskInfo(executionCopy) { Metadata = new TaskMetadata(image) };
 
-        Assert.That(await new CaptureJobProcessor().ProcessAsync(info, CancellationToken.None), Is.True);
+        // The recording UI stub cancels task-mode sessions; cancellation now stops the workflow.
+        Assert.That(await new CaptureJobProcessor().ProcessAsync(info, CancellationToken.None), Is.False);
         var expected = overrideTools
             ? settings.ToolsSettings.ImageEditorOptions
             : SettingsManager.DefaultTaskSettings.ToolsSettings.ImageEditorOptions;

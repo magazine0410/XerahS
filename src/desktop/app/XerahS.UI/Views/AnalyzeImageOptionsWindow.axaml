@@ -1,0 +1,161 @@
+<ui:SurfaceWindow xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:ui="using:XerahS.UI.Views"
+        xmlns:vm="using:XerahS.UI.ViewModels"
+        xmlns:core="using:XerahS.Core"
+        xmlns:theming="clr-namespace:ShareX.ImageEditor.Presentation.Theming;assembly=ShareX.ImageEditor"
+        x:Class="XerahS.UI.Views.AnalyzeImageOptionsWindow"
+        x:DataType="vm:AnalyzeImageOptionsViewModel"
+        Title="XerahS - Analyze image options"
+        Width="650" Height="590" MinWidth="580" MinHeight="540"
+        WindowStartupLocation="CenterOwner">
+
+  <!-- Layout and wording follow ShareX's Analyze image options window. -->
+  <Grid Margin="16" RowDefinitions="Auto,*,Auto" RowSpacing="12">
+    <Border Classes="analyze-panel">
+      <Grid ColumnDefinitions="100,*,Auto" ColumnSpacing="10">
+        <TextBlock Text="Provider" VerticalAlignment="Center"/>
+        <ComboBox Grid.Column="1" HorizontalAlignment="Stretch" ItemsSource="{Binding Providers}" SelectedItem="{Binding Provider}"
+                  AutomationProperties.Name="Provider">
+          <ComboBox.ItemTemplate>
+            <DataTemplate x:DataType="core:AIProvider">
+              <TextBlock Text="{Binding Converter={x:Static ui:AnalyzeImageOptionsWindow.DisplayNameConverter}}"/>
+            </DataTemplate>
+          </ComboBox.ItemTemplate>
+        </ComboBox>
+        <Button Grid.Column="2" Command="{Binding OpenAPIKeyPageCommand}" ToolTip.Tip="Get API key">
+          <StackPanel Orientation="Horizontal" Spacing="8">
+            <TextBlock Classes="icon" Text="{x:Static theming:LucideIcons.key_round}"/>
+            <TextBlock Text="API key page..."/>
+          </StackPanel>
+        </Button>
+      </Grid>
+    </Border>
+
+    <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+      <StackPanel Spacing="12">
+        <Border Classes="analyze-panel" IsVisible="{Binding IsOpenAI}">
+          <Grid RowDefinitions="Auto,Auto,Auto,Auto,Auto" RowSpacing="10">
+            <TextBlock Text="OpenAI" FontWeight="SemiBold"/>
+            <Grid Grid.Row="1" ColumnDefinitions="130,*" ColumnSpacing="10">
+              <TextBlock Text="API key" VerticalAlignment="Center"/>
+              <TextBox Grid.Column="1" Text="{Binding OpenAIAPIKey}" PasswordChar="●" AutomationProperties.Name="OpenAI API key"/>
+            </Grid>
+            <Grid Grid.Row="2" ColumnDefinitions="130,*,Auto" ColumnSpacing="10">
+              <TextBlock Text="Model" VerticalAlignment="Center"/>
+              <ComboBox Grid.Column="1" HorizontalAlignment="Stretch" IsEditable="True" ItemsSource="{Binding OpenAIModels}"
+                        Text="{Binding OpenAIModel, Mode=TwoWay}" SelectedItem="{Binding OpenAIModel, Mode=TwoWay}" AutomationProperties.Name="OpenAI model"/>
+              <Button Grid.Column="2" Command="{Binding LoadModelsCommand}" IsEnabled="{Binding !IsBusy}">
+                <StackPanel Orientation="Horizontal" Spacing="8">
+                  <TextBlock Classes="icon" Text="{x:Static theming:LucideIcons.refresh_cw}"/>
+                  <TextBlock Text="Load models"/>
+                </StackPanel>
+              </Button>
+            </Grid>
+            <Grid Grid.Row="3" ColumnDefinitions="130,*" ColumnSpacing="10">
+              <TextBlock Text="Custom base URL" VerticalAlignment="Center"/>
+              <TextBox Grid.Column="1" Text="{Binding OpenAICustomURL}" PlaceholderText="https://api.openai.com"
+                       AutomationProperties.Name="Custom base URL"/>
+            </Grid>
+            <Grid Grid.Row="4" ColumnDefinitions="130,*,Auto,*" ColumnSpacing="10">
+              <TextBlock Text="Reasoning" VerticalAlignment="Center"/>
+              <ComboBox Grid.Column="1" HorizontalAlignment="Stretch" ItemsSource="{Binding ReasoningEfforts}"
+                        SelectedItem="{Binding ReasoningEffort}" AutomationProperties.Name="Reasoning effort">
+                <ComboBox.ItemTemplate>
+                  <DataTemplate x:DataType="x:String">
+                    <TextBlock Text="{Binding Converter={x:Static ui:AnalyzeImageOptionsWindow.DisplayNameConverter}}"/>
+                  </DataTemplate>
+                </ComboBox.ItemTemplate>
+              </ComboBox>
+              <TextBlock Grid.Column="2" Text="Verbosity" VerticalAlignment="Center"/>
+              <ComboBox Grid.Column="3" HorizontalAlignment="Stretch" ItemsSource="{Binding VerbosityLevels}"
+                        SelectedItem="{Binding Verbosity}" AutomationProperties.Name="Verbosity">
+                <ComboBox.ItemTemplate>
+                  <DataTemplate x:DataType="x:String">
+                    <TextBlock Text="{Binding Converter={x:Static ui:AnalyzeImageOptionsWindow.DisplayNameConverter}}"/>
+                  </DataTemplate>
+                </ComboBox.ItemTemplate>
+              </ComboBox>
+            </Grid>
+          </Grid>
+        </Border>
+
+        <Border Classes="analyze-panel" IsVisible="{Binding IsGemini}">
+          <Grid RowDefinitions="Auto,Auto,Auto" RowSpacing="10">
+            <TextBlock Text="Google Gemini" FontWeight="SemiBold"/>
+            <Grid Grid.Row="1" ColumnDefinitions="130,*" ColumnSpacing="10">
+              <TextBlock Text="API key" VerticalAlignment="Center"/>
+              <TextBox Grid.Column="1" Text="{Binding GeminiAPIKey}" PasswordChar="●" AutomationProperties.Name="Gemini API key"/>
+            </Grid>
+            <Grid Grid.Row="2" ColumnDefinitions="130,*" ColumnSpacing="10">
+              <TextBlock Text="Model" VerticalAlignment="Center"/>
+              <ComboBox Grid.Column="1" HorizontalAlignment="Stretch" IsEditable="True" ItemsSource="{Binding GeminiModels}"
+                        Text="{Binding GeminiModel, Mode=TwoWay}" SelectedItem="{Binding GeminiModel, Mode=TwoWay}" AutomationProperties.Name="Gemini model"/>
+            </Grid>
+          </Grid>
+        </Border>
+
+        <Border Classes="analyze-panel" IsVisible="{Binding IsOpenRouter}">
+          <Grid RowDefinitions="Auto,Auto,Auto" RowSpacing="10">
+            <TextBlock Text="OpenRouter" FontWeight="SemiBold"/>
+            <Grid Grid.Row="1" ColumnDefinitions="130,*" ColumnSpacing="10">
+              <TextBlock Text="API key" VerticalAlignment="Center"/>
+              <TextBox Grid.Column="1" Text="{Binding OpenRouterAPIKey}" PasswordChar="●" AutomationProperties.Name="OpenRouter API key"/>
+            </Grid>
+            <Grid Grid.Row="2" ColumnDefinitions="130,*" ColumnSpacing="10">
+              <TextBlock Text="Model" VerticalAlignment="Center"/>
+              <ComboBox Grid.Column="1" HorizontalAlignment="Stretch" IsEditable="True" ItemsSource="{Binding OpenRouterModels}"
+                        Text="{Binding OpenRouterModel, Mode=TwoWay}" SelectedItem="{Binding OpenRouterModel, Mode=TwoWay}" AutomationProperties.Name="OpenRouter model"/>
+            </Grid>
+          </Grid>
+        </Border>
+
+        <Border Classes="analyze-panel">
+          <StackPanel Spacing="8">
+            <TextBlock Text="Behavior" FontWeight="SemiBold"/>
+            <Grid ColumnDefinitions="*,Auto" MinHeight="30">
+              <TextBlock Text="Capture a region when opened without an image" VerticalAlignment="Center"/>
+              <ToggleSwitch Grid.Column="1" IsChecked="{Binding AutoStartRegion}" OnContent="" OffContent=""
+                            AutomationProperties.Name="Capture a region when opened without an image"/>
+            </Grid>
+            <Grid ColumnDefinitions="*,Auto" MinHeight="30">
+              <TextBlock Text="Analyze automatically when opened" VerticalAlignment="Center"/>
+              <ToggleSwitch Grid.Column="1" IsChecked="{Binding AutoStartAnalyze}" OnContent="" OffContent=""
+                            AutomationProperties.Name="Analyze automatically when opened"/>
+            </Grid>
+            <Grid ColumnDefinitions="*,Auto" MinHeight="30">
+              <TextBlock Text="Copy result automatically" VerticalAlignment="Center"/>
+              <ToggleSwitch Grid.Column="1" IsChecked="{Binding AutoCopyResult}" OnContent="" OffContent=""
+                            AutomationProperties.Name="Copy result automatically"/>
+            </Grid>
+          </StackPanel>
+        </Border>
+      </StackPanel>
+    </ScrollViewer>
+
+    <Grid Grid.Row="2" ColumnDefinitions="Auto,*,Auto,Auto" ColumnSpacing="8">
+      <Button Command="{Binding TestConnectionCommand}" IsEnabled="{Binding !IsBusy}">
+        <StackPanel Orientation="Horizontal" Spacing="8">
+          <TextBlock Classes="icon" Text="{x:Static theming:LucideIcons.plug_zap}"/>
+          <TextBlock Text="Test connection"/>
+        </StackPanel>
+      </Button>
+      <TextBlock Grid.Column="1" Text="{Binding StatusText}" IsVisible="{Binding HasStatus}" VerticalAlignment="Center"
+                 TextTrimming="CharacterEllipsis" Foreground="{DynamicResource TextFillColorSecondaryBrush}"
+                 ToolTip.Tip="{Binding StatusText}"/>
+      <Button Grid.Column="2" Content="Save" Classes="accent" Command="{Binding SaveCommand}" IsEnabled="{Binding !IsBusy}"/>
+      <Button Grid.Column="3" Content="Cancel" Command="{Binding CancelCommand}" IsEnabled="{Binding !IsBusy}"/>
+    </Grid>
+  </Grid>
+
+  <ui:SurfaceWindow.Styles>
+    <StyleInclude Source="avares://XerahS.UI/Themes/ToolWindowStyles.axaml"/>
+    <Style Selector="Border.analyze-panel">
+      <Setter Property="Padding" Value="12"/>
+      <Setter Property="CornerRadius" Value="6"/>
+      <Setter Property="BorderThickness" Value="1"/>
+      <Setter Property="Background" Value="{DynamicResource CardBackgroundFillColorDefaultBrush}"/>
+      <Setter Property="BorderBrush" Value="{DynamicResource CardStrokeColorDefaultBrush}"/>
+    </Style>
+  </ui:SurfaceWindow.Styles>
+</ui:SurfaceWindow>

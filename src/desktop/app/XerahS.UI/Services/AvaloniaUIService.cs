@@ -193,6 +193,7 @@ namespace XerahS.UI.Services
                 MainViewModelHelper.WireSaveRequested(editorViewModel, getSnapshot, () => editorWindow);
                 MainViewModelHelper.WireSaveAsRequested(editorViewModel, getSnapshot, () => editorWindow);
                 MainViewModelHelper.WirePinRequested(editorViewModel, getSnapshot);
+                MainViewModelHelper.WirePrintRequested(editorViewModel, getSnapshot, () => editorWindow);
 
                 // Set DataContext BEFORE initializing preview so bindings update correctly
                 editorWindow.DataContext = editorViewModel;
@@ -534,6 +535,24 @@ namespace XerahS.UI.Services
             });
         }
 
+        public async Task ShowQrCodeAsync(string text, CancellationToken cancellationToken = default)
+        {
+            await Dispatcher.UIThread.InvokeAsync(() =>
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                var viewModel = UiViewModelFactoryAccessor.GetRequired().CreateQrCodeGeneratorViewModel();
+                try
+                {
+                    new Views.QrCodeGeneratorWindow(viewModel, text).Show();
+                }
+                catch
+                {
+                    viewModel.Dispose();
+                    throw;
+                }
+            });
+        }
+
         public async Task<SendToPromptResult> ShowSendToPromptAsync(SendToSelection selection)
         {
             return await Dispatcher.UIThread.InvokeAsync(async () =>
@@ -812,35 +831,7 @@ namespace XerahS.UI.Services
             }
         }
 
-        public async Task ShowAnalyzerWindowAsync(SKBitmap image)
-        {
-            await Dispatcher.UIThread.InvokeAsync(() =>
-            {
-                var viewModel = new ImageAnalyzerViewModel();
-                viewModel.SetInputImage(image);
-
-                var window = new Views.ImageAnalyzerWindow();
-                window.Initialize(viewModel);
-
-                Window? owner = null;
-                if (Avalonia.Application.Current?.ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
-                {
-                    owner = desktop.MainWindow;
-                }
-
-                bool canUseOwner = owner != null && owner.IsVisible &&
-                                   owner.WindowState != Avalonia.Controls.WindowState.Minimized &&
-                                   owner.ShowInTaskbar;
-
-                if (canUseOwner)
-                {
-                    window.Show(owner!);
-                }
-                else
-                {
-                    window.Show();
-                }
-            });
-        }
+        public Task ShowAnalyzerWindowAsync(SKBitmap image) =>
+            Dispatcher.UIThread.InvokeAsync(() => AnalyzeImageToolService.Show(null, null, null, image)).GetTask();
     }
 }

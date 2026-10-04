@@ -18,7 +18,10 @@
               BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}"
               Background="{DynamicResource CardBackgroundFillColorDefaultBrush}"
               CornerRadius="6">
-        <imageEditorControls:EffectBrowserPanel x:Name="EffectBrowserPanel"/>
+        <!-- The browser uses the image editor's ShareX theme resources, which only resolve under ShareX's theme variants. -->
+        <ThemeVariantScope x:Name="EffectBrowserThemeScope">
+          <imageEditorControls:EffectBrowserPanel x:Name="EffectBrowserPanel"/>
+        </ThemeVariantScope>
       </Border>
 
       <StackPanel Grid.Row="2" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,10,0,0">

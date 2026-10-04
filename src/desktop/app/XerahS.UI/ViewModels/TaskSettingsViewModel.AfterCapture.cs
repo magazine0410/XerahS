@@ -23,6 +23,7 @@
 
 #endregion License Information (GPL v3)
 using XerahS.Core;
+using CommunityToolkit.Mvvm.Input;
 
 namespace XerahS.UI.ViewModels
 {
@@ -134,6 +135,93 @@ namespace XerahS.UI.ViewModels
             }
         }
 
+
+        public bool ShowQuickTaskMenu
+        {
+            get => AfterCaptureSource.AfterCaptureJob.HasFlag(AfterCaptureTasks.ShowQuickTaskMenu);
+            set { UpdateAfterCaptureTask(AfterCaptureTasks.ShowQuickTaskMenu, value); OnPropertyChanged(); }
+        }
+
+        public bool BeautifyImage
+        {
+            get => AfterCaptureSource.AfterCaptureJob.HasFlag(AfterCaptureTasks.BeautifyImage);
+            set { UpdateAfterCaptureTask(AfterCaptureTasks.BeautifyImage, value); OnPropertyChanged(); }
+        }
+
+        public bool SaveImageToFileWithDialog
+        {
+            get => AfterCaptureSource.AfterCaptureJob.HasFlag(AfterCaptureTasks.SaveImageToFileWithDialog);
+            set { UpdateAfterCaptureTask(AfterCaptureTasks.SaveImageToFileWithDialog, value); OnPropertyChanged(); }
+        }
+
+        public bool SaveThumbnailImageToFile
+        {
+            get => AfterCaptureSource.AfterCaptureJob.HasFlag(AfterCaptureTasks.SaveThumbnailImageToFile);
+            set { UpdateAfterCaptureTask(AfterCaptureTasks.SaveThumbnailImageToFile, value); OnPropertyChanged(); }
+        }
+
+        public bool PerformActions
+        {
+            get => AfterCaptureSource.AfterCaptureJob.HasFlag(AfterCaptureTasks.PerformActions);
+            set { UpdateAfterCaptureTask(AfterCaptureTasks.PerformActions, value); OnPropertyChanged(); }
+        }
+
+        public bool CopyFolderPathToClipboard
+        {
+            get => AfterCaptureSource.AfterCaptureJob.HasFlag(AfterCaptureTasks.CopyFolderPathToClipboard);
+            set { UpdateAfterCaptureTask(AfterCaptureTasks.CopyFolderPathToClipboard, value); OnPropertyChanged(); }
+        }
+
+        public bool ShowBeforeUploadWindow
+        {
+            get => AfterCaptureSource.AfterCaptureJob.HasFlag(AfterCaptureTasks.ShowBeforeUploadWindow);
+            set { UpdateAfterCaptureTask(AfterCaptureTasks.ShowBeforeUploadWindow, value); OnPropertyChanged(); }
+        }
+
+        public bool DeleteFile
+        {
+            get => AfterCaptureSource.AfterCaptureJob.HasFlag(AfterCaptureTasks.DeleteFile);
+            set { UpdateAfterCaptureTask(AfterCaptureTasks.DeleteFile, value); OnPropertyChanged(); }
+        }
+
+        public bool CopyFileToClipboard
+        {
+            get => AfterCaptureSource.AfterCaptureJob.HasFlag(AfterCaptureTasks.CopyFileToClipboard);
+            set { UpdateAfterCaptureTask(AfterCaptureTasks.CopyFileToClipboard, value); OnPropertyChanged(); }
+        }
+
+        public bool CopyFilePathToClipboard
+        {
+            get => AfterCaptureSource.AfterCaptureJob.HasFlag(AfterCaptureTasks.CopyFilePathToClipboard);
+            set { UpdateAfterCaptureTask(AfterCaptureTasks.CopyFilePathToClipboard, value); OnPropertyChanged(); }
+        }
+
+        public bool ShowInExplorer
+        {
+            get => AfterCaptureSource.AfterCaptureJob.HasFlag(AfterCaptureTasks.ShowInExplorer);
+            set { UpdateAfterCaptureTask(AfterCaptureTasks.ShowInExplorer, value); OnPropertyChanged(); }
+        }
+
+        public bool SendImageToPrinter
+        {
+            get => AfterCaptureSource.AfterCaptureJob.HasFlag(AfterCaptureTasks.SendImageToPrinter);
+            set { UpdateAfterCaptureTask(AfterCaptureTasks.SendImageToPrinter, value); OnPropertyChanged(); }
+        }
+
+        public bool PinToScreen
+        {
+            get => AfterCaptureSource.AfterCaptureJob.HasFlag(AfterCaptureTasks.PinToScreen);
+            set { UpdateAfterCaptureTask(AfterCaptureTasks.PinToScreen, value); OnPropertyChanged(); }
+        }
+
+        public bool ScanQRCode
+        {
+            get => AfterCaptureSource.AfterCaptureJob.HasFlag(AfterCaptureTasks.ScanQRCode);
+            set { UpdateAfterCaptureTask(AfterCaptureTasks.ScanQRCode, value); OnPropertyChanged(); }
+        }
+
+        [RelayCommand]
+        private void EditQuickTaskMenu() => new Views.QuickTaskMenuEditorWindow().Show();
 
         private void UpdateAfterCaptureTask(AfterCaptureTasks task, bool enabled)
         {

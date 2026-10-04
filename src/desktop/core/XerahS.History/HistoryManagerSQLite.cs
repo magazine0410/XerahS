@@ -166,6 +166,51 @@ CREATE TABLE IF NOT EXISTS History (
             return reader.Read() ? ReadHistoryItem(reader) : null;
         }
 
+        // Tags are matched by value only, as in ShareX: the stored JSON also holds tag names such as
+        // "Favorite" and "UploaderInstanceId", which would otherwise match unrelated searches.
+        private const string SearchPredicate = """
+            instr(lower(coalesce(FileName, '')), lower(@Query)) > 0 OR
+            instr(lower(coalesce(FilePath, '')), lower(@Query)) > 0 OR
+            instr(lower(coalesce(URL, '')), lower(@Query)) > 0 OR
+            instr(lower(coalesce(Host, '')), lower(@Query)) > 0 OR
+            EXISTS (
+                SELECT 1
+                FROM json_each(CASE WHEN json_valid(History.Tags) THEN History.Tags ELSE '{}' END) AS Tag
+                WHERE Tag.type = 'text'
+                  AND instr(lower(Tag.value), lower(@Query)) > 0
+            ) OR
+            EXISTS (
+                SELECT 1
+                FROM HistoryOcrIndex AS Ocr
+                WHERE Ocr.HistoryItemId = History.Id
+                  AND Ocr.Status = 'indexed'
+                  AND Ocr.OcrText IS NOT NULL
+                  AND instr(lower(Ocr.OcrText), lower(@Query)) > 0
+            )
+            """;
+
+        /// <summary>The IDs of every entry the search text matches, without reading the entries.</summary>
+        public HashSet<long> SearchHistoryItemIds(string query)
+        {
+            var ids = new HashSet<long>();
+            if (string.IsNullOrWhiteSpace(query))
+            {
+                return ids;
+            }
+
+            HistoryOcrIndexStore.EnsureDatabase(EnsureConnection());
+            using SqliteCommand command = EnsureConnection().CreateCommand();
+            command.CommandText = $"SELECT Id FROM History WHERE {SearchPredicate};";
+            command.Parameters.AddWithValue("@Query", query.Trim());
+            using SqliteDataReader reader = command.ExecuteReader();
+            while (reader.Read())
+            {
+                ids.Add(reader.GetInt64(0));
+            }
+
+            return ids;
+        }
+
         public (List<HistoryItem> Items, int TotalCount) SearchHistoryItems(string query, int offset, int limit)
         {
             if (string.IsNullOrWhiteSpace(query))
@@ -178,21 +223,7 @@ CREATE TABLE IF NOT EXISTS History (
             int clampedOffset = Math.Max(0, offset);
             int clampedLimit = Math.Max(1, limit);
 
-            const string predicate = """
-                instr(lower(coalesce(FileName, '')), lower(@Query)) > 0 OR
-                instr(lower(coalesce(FilePath, '')), lower(@Query)) > 0 OR
-                instr(lower(coalesce(URL, '')), lower(@Query)) > 0 OR
-                instr(lower(coalesce(Host, '')), lower(@Query)) > 0 OR
-                instr(lower(coalesce(Tags, '')), lower(@Query)) > 0 OR
-                EXISTS (
-                    SELECT 1
-                    FROM HistoryOcrIndex AS Ocr
-                    WHERE Ocr.HistoryItemId = History.Id
-                      AND Ocr.Status = 'indexed'
-                      AND Ocr.OcrText IS NOT NULL
-                      AND instr(lower(Ocr.OcrText), lower(@Query)) > 0
-                )
-                """;
+            const string predicate = SearchPredicate;
 
             int totalCount;
             using (SqliteCommand countCommand = EnsureConnection().CreateCommand())

@@ -1,0 +1,100 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:ShareX.Email.Plugin.ViewModels"
+             x:Class="ShareX.Email.Plugin.Views.EmailConfigView"
+             x:DataType="vm:EmailConfigViewModel">
+
+    <UserControl.Styles>
+        <Style Selector="Border.heroCard">
+            <Setter Property="Background" Value="{DynamicResource LayerFillColorDefaultBrush}"/>
+            <Setter Property="CornerRadius" Value="18"/>
+            <Setter Property="Padding" Value="20"/>
+            <Setter Property="BorderBrush" Value="{DynamicResource AccentFillColorDefaultBrush}"/>
+            <Setter Property="BorderThickness" Value="1"/>
+        </Style>
+
+        <Style Selector="Border.card">
+            <Setter Property="Background" Value="{DynamicResource CardBackgroundFillColorDefaultBrush}"/>
+            <Setter Property="CornerRadius" Value="14"/>
+            <Setter Property="Padding" Value="18"/>
+            <Setter Property="BorderBrush" Value="{DynamicResource CardStrokeColorDefaultBrush}"/>
+            <Setter Property="BorderThickness" Value="1"/>
+        </Style>
+
+        <Style Selector="TextBlock.fieldLabel">
+            <Setter Property="FontWeight" Value="SemiBold"/>
+        </Style>
+
+        <Style Selector="TextBlock.helper">
+            <Setter Property="FontSize" Value="11"/>
+            <Setter Property="TextWrapping" Value="Wrap"/>
+            <Setter Property="Foreground" Value="{DynamicResource TextFillColorSecondaryBrush}"/>
+        </Style>
+    </UserControl.Styles>
+
+    <ScrollViewer HorizontalScrollBarVisibility="Disabled">
+        <StackPanel Spacing="18">
+            <Border Classes="heroCard">
+                <StackPanel Spacing="8">
+                    <TextBlock Text="Email" FontSize="24" FontWeight="Bold"/>
+                    <TextBlock Text="Share URLs by email over SMTP. As in ShareX, the email window opens with the URL as the message, unless automatic sending is on."
+                               TextWrapping="Wrap" Foreground="{DynamicResource TextFillColorSecondaryBrush}" MaxWidth="680"/>
+                </StackPanel>
+            </Border>
+
+            <Border Classes="card">
+                <StackPanel Spacing="15">
+                    <TextBlock Text="SMTP account" FontSize="16" FontWeight="SemiBold"/>
+                    <Grid ColumnDefinitions="*,12,120">
+                        <StackPanel Spacing="6">
+                            <TextBlock Classes="fieldLabel" Text="SMTP server *"/>
+                            <TextBox Text="{Binding SmtpServer, UpdateSourceTrigger=PropertyChanged}" PlaceholderText="smtp.example.com"/>
+                        </StackPanel>
+                        <StackPanel Grid.Column="2" Spacing="6">
+                            <TextBlock Classes="fieldLabel" Text="Port *"/>
+                            <NumericUpDown Value="{Binding SmtpPort}" Minimum="1" Maximum="65535" Increment="1" FormatString="0"/>
+                        </StackPanel>
+                    </Grid>
+                    <TextBlock Classes="helper" Text="The connection uses STARTTLS, usually on port 587. Port 465 (implicit TLS) is not supported, as in ShareX."/>
+                    <StackPanel Spacing="6">
+                        <TextBlock Classes="fieldLabel" Text="From email *"/>
+                        <TextBox Text="{Binding FromEmail, UpdateSourceTrigger=PropertyChanged}" PlaceholderText="name@example.com"/>
+                        <TextBlock Classes="helper" Text="Also used as the SMTP user name."/>
+                    </StackPanel>
+                    <StackPanel Spacing="6">
+                        <TextBlock Classes="fieldLabel" Text="Password *"/>
+                        <TextBox Text="{Binding Password, UpdateSourceTrigger=PropertyChanged}" PasswordChar="*"
+                                 PlaceholderText="Stored in the secret store"/>
+                        <TextBlock Classes="helper" Text="{Binding PasswordSummary}"/>
+                    </StackPanel>
+                    <Button Content="Clear Stored Password" Command="{Binding ClearStoredPasswordCommand}" HorizontalAlignment="Left"/>
+                </StackPanel>
+            </Border>
+
+            <Border Classes="card">
+                <StackPanel Spacing="15">
+                    <TextBlock Text="Sending" FontSize="16" FontWeight="SemiBold"/>
+                    <StackPanel Spacing="6">
+                        <TextBlock Classes="fieldLabel" Text="Default subject"/>
+                        <TextBox Text="{Binding DefaultSubject, UpdateSourceTrigger=PropertyChanged}"/>
+                    </StackPanel>
+                    <CheckBox Content="Remember the last &quot;To&quot; address" IsChecked="{Binding RememberLastTo}"/>
+                    <CheckBox Content="Send automatically, without the email window" IsChecked="{Binding AutomaticSend}"/>
+                    <StackPanel Spacing="6" IsEnabled="{Binding AutomaticSend}">
+                        <TextBlock Classes="fieldLabel" Text="Send automatically to"/>
+                        <TextBox Text="{Binding AutomaticSendTo, UpdateSourceTrigger=PropertyChanged}" PlaceholderText="name@example.com"/>
+                    </StackPanel>
+
+                    <Border Background="{DynamicResource LayerFillColorDefaultBrush}"
+                            BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}"
+                            BorderThickness="1" CornerRadius="10" Padding="12">
+                        <StackPanel Spacing="5">
+                            <TextBlock Text="Status" FontWeight="SemiBold"/>
+                            <TextBlock Text="{Binding StatusMessage}" TextWrapping="Wrap"/>
+                        </StackPanel>
+                    </Border>
+                </StackPanel>
+            </Border>
+        </StackPanel>
+    </ScrollViewer>
+</UserControl>

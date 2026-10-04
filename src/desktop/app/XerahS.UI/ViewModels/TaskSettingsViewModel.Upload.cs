@@ -146,6 +146,19 @@ namespace XerahS.UI.ViewModels
             }
         }
 
+        public bool ClipboardUploadShareURL
+        {
+            get => UploadSource.UploadSettings.ClipboardUploadShareURL;
+            set
+            {
+                if (UploadSource.UploadSettings.ClipboardUploadShareURL != value)
+                {
+                    UploadSource.UploadSettings.ClipboardUploadShareURL = value;
+                    OnPropertyChanged();
+                }
+            }
+        }
+
         #endregion
     }
 }

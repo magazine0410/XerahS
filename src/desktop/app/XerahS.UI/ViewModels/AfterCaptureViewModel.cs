@@ -249,6 +249,26 @@ public partial class AfterCaptureViewModel : ViewModelBase
         }
     }
 
+    public bool OpenURL
+    {
+        get => AfterUploadTasks.HasFlag(AfterUploadTasks.OpenURL);
+        set
+        {
+            SetAfterUploadFlag(AfterUploadTasks.OpenURL, value);
+            OnPropertyChanged();
+        }
+    }
+
+    public bool ShowQRCode
+    {
+        get => AfterUploadTasks.HasFlag(AfterUploadTasks.ShowQRCode);
+        set
+        {
+            SetAfterUploadFlag(AfterUploadTasks.ShowQRCode, value);
+            OnPropertyChanged();
+        }
+    }
+
     [RelayCommand]
     private void Continue()
     {
@@ -310,6 +330,8 @@ public partial class AfterCaptureViewModel : ViewModelBase
         OnPropertyChanged(nameof(ShowAfterUploadWindow));
         OnPropertyChanged(nameof(UseURLShortener));
         OnPropertyChanged(nameof(ShareURL));
+        OnPropertyChanged(nameof(OpenURL));
+        OnPropertyChanged(nameof(ShowQRCode));
     }
 
     private void ApplyGoalFlags()

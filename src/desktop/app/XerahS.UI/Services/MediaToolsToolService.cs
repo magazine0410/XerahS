@@ -42,7 +42,6 @@ public static class MediaToolsToolService
     private static AnimatedGifMakerWindow? _gifMakerWindow;
     private static readonly Dictionary<ImageBatchOperation, ImageBatchToolWindow> _imageBatchWindows = new();
     private static VideoThumbnailerWindow? _videoThumbnailerWindow;
-    private static ImageAnalyzerWindow? _analyzerWindow;
 
     public static Task HandleWorkflowAsync(WorkflowType job, Window? owner)
     {
@@ -124,15 +123,6 @@ public static class MediaToolsToolService
                 }, w => _videoThumbnailerWindow = w, "VideoThumbnailer");
                 break;
 
-            case WorkflowType.AnalyzeImage:
-                ShowWindow(_analyzerWindow, owner, () =>
-                {
-                    var vm = new ImageAnalyzerViewModel();
-                    var w = new ImageAnalyzerWindow();
-                    w.Initialize(vm);
-                    return w;
-                }, w => _analyzerWindow = w, "ImageAnalyzer");
-                break;
         }
 
         return Task.CompletedTask;

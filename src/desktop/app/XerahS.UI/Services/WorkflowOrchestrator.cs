@@ -87,6 +87,9 @@ public sealed class WorkflowOrchestrator : IWorkflowOrchestrator
 
     private void ConfigureWorkerTaskCallbacks()
     {
+        Core.Tasks.Processors.CaptureJobProcessor.ShowQuickTaskMenuCallback = AfterCaptureInteractionService.ShowQuickTaskMenuAsync;
+        Core.Tasks.Processors.CaptureJobProcessor.SaveImageWithDialogCallback = AfterCaptureInteractionService.SaveImageWithDialogAsync;
+        Core.Tasks.Processors.UploadJobProcessor.ShowBeforeUploadCallback = AfterCaptureInteractionService.ShowBeforeUploadAsync;
         Core.Tasks.WorkerTask.ShowWindowSelectorCallback = ShowWindowSelectorAsync;
         Core.Tasks.WorkerTask.ShowOpenFileDialogCallback = ShowOpenFileDialogAsync;
         Core.Tasks.WorkerTask.HandleToolWorkflowCallback = HandleToolWorkflowAsync;
@@ -112,18 +115,12 @@ public sealed class WorkflowOrchestrator : IWorkflowOrchestrator
                 throw;
             }
         };
-        Core.Tasks.Processors.CaptureJobProcessor.ShowAnalyzerCallback = async bitmap =>
-        {
-            await Dispatcher.UIThread.InvokeAsync(() =>
-            {
-                var vm = new ImageAnalyzerViewModel();
-                vm.SetInputImage(bitmap);
-
-                var w = new ImageAnalyzerWindow();
-                w.Initialize(vm);
-                w.Show();
-            });
-        };
+        Core.Tasks.Processors.CaptureJobProcessor.PrintImageCallback = image => ImagePrintService.PrintImageAsync(image);
+        // URL sharing services open share pages through the desktop portal and ask for emails in the compose window.
+        Uploaders.SharingServices.UrlSharingHost.OpenUrl = url => PlatformServices.System.OpenUrl(url);
+        Uploaders.SharingServices.UrlSharingHost.ComposeEmailAsync = Views.EmailComposeWindow.ShowAsync;
+        Core.Tasks.Processors.CaptureJobProcessor.ShowAnalyzeImageCallback = (filePath, taskSettings) =>
+            Dispatcher.UIThread.InvokeAsync(() => AnalyzeImageToolService.Show(null, taskSettings, filePath, null)).GetTask();
 
         Core.Tasks.WorkerTask.OpenMainWindowCallback = () =>
         {
@@ -537,7 +534,7 @@ public sealed class WorkflowOrchestrator : IWorkflowOrchestrator
             {
                 var generalSettings = taskSettings.GeneralSettings;
                 var filePath = task.Info?.FilePath;
-                var url = task.Info?.Result?.URL ?? task.Info?.Result?.ShortenedURL;
+                var url = task.Info?.Result?.ToString();
                 var errorDetails = task.Error?.ToString();
 
                 string? title;
@@ -620,8 +617,10 @@ public sealed class WorkflowOrchestrator : IWorkflowOrchestrator
         });
     }
 
+    // As in ShareX, a successful Share URL job shows no completion notification; failures still do.
     internal static bool ShouldShowCompletionNotification(TaskInfo? info) =>
         info?.SuppressCompletionNotification != true &&
+        info?.Job != TaskJob.ShareURL &&
         info?.TaskSettings?.GeneralSettings?.ShowToastNotificationAfterTaskCompleted == true;
 
     private void OnWorkflowTaskStarted(object? sender, Core.Tasks.WorkerTask task)

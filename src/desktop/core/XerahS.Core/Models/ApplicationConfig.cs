@@ -42,6 +42,7 @@ public class ApplicationConfig : SettingsBase<ApplicationConfig>
     public string FileUploadDefaultDirectory = "";
     public int NameParserAutoIncrementNumber = 0;
     public List<QuickTaskInfo> QuickTaskPresets = QuickTaskInfo.DefaultPresets;
+    public string LastImageSaveDirectory = "";
 
     // Main window
     public bool FirstTimeMinimizeToTray = true;
@@ -233,8 +234,8 @@ public class ApplicationConfig : SettingsBase<ApplicationConfig>
     public bool RecentTasksShowInTrayMenu = true;
     public bool RecentTasksTrayMenuMostRecentFirst = false;
 
-    // TODO: Add HistorySettings when HistoryLib is ported
-    // TODO: Add ImageHistorySettings when HistoryLib is ported
+    public XerahS.History.HistorySettings HistorySettings { get; set; } = new();
+    public XerahS.History.ImageHistorySettings ImageHistorySettings { get; set; } = new();
 
     #endregion Settings - History
 
@@ -242,9 +243,7 @@ public class ApplicationConfig : SettingsBase<ApplicationConfig>
 
     public bool DontShowPrintSettingsDialog = false;
 
-#pragma warning disable CA1416 // Validate platform compatibility
     public PrintSettings PrintSettings = new PrintSettings();
-#pragma warning restore CA1416 // Validate platform compatibility
 
     #endregion Settings - Print
 
@@ -401,6 +400,8 @@ public class ApplicationConfig : SettingsBase<ApplicationConfig>
     #endregion Color Picker Form
 }
 
+public enum QuickTaskMenuResult { Cancel, Continue, Preset }
+
 /// <summary>
 /// Quick task preset information
 /// </summary>
@@ -410,11 +411,32 @@ public class QuickTaskInfo
     public AfterCaptureTasks AfterCapture { get; set; }
     public AfterUploadTasks AfterUpload { get; set; }
 
+    public bool IsValid => AfterCapture != AfterCaptureTasks.None;
+
+    public override string ToString()
+    {
+        if (!string.IsNullOrWhiteSpace(Name)) return Name;
+        if (!IsValid) return "────────";
+        var names = Enum.GetValues<AfterCaptureTasks>().Distinct()
+            .Where(flag => flag != AfterCaptureTasks.None && AfterCapture.HasFlag(flag))
+            .Select(flag => flag == AfterCaptureTasks.AnnotateMedia ? "Annotate media" : flag.GetLocalizedDescription()).ToList();
+        if (AfterCapture.HasFlag(AfterCaptureTasks.UploadImageToHost))
+            names.AddRange(Enum.GetValues<AfterUploadTasks>()
+                .Where(flag => flag != AfterUploadTasks.None && AfterUpload.HasFlag(flag))
+                .Select(flag => flag.GetLocalizedDescription()));
+        return string.Join(", ", names);
+    }
+
     public static List<QuickTaskInfo> DefaultPresets => new List<QuickTaskInfo>
     {
         new QuickTaskInfo { Name = "Save, Upload, Copy URL", AfterCapture = AfterCaptureTasks.SaveImageToFile | AfterCaptureTasks.UploadImageToHost, AfterUpload = AfterUploadTasks.CopyURLToClipboard },
-        new QuickTaskInfo { Name = "Save only", AfterCapture = AfterCaptureTasks.SaveImageToFile, AfterUpload = AfterUploadTasks.None },
-        new QuickTaskInfo { Name = "Copy to clipboard", AfterCapture = AfterCaptureTasks.CopyImageToClipboard, AfterUpload = AfterUploadTasks.None },
+        new QuickTaskInfo { Name = "Save, Copy image", AfterCapture = AfterCaptureTasks.SaveImageToFile | AfterCaptureTasks.CopyImageToClipboard },
+        new QuickTaskInfo { Name = "Save, Copy image file", AfterCapture = AfterCaptureTasks.SaveImageToFile | AfterCaptureTasks.CopyFileToClipboard },
+        new QuickTaskInfo { Name = "Annotate, Save, Upload, Copy URL", AfterCapture = AfterCaptureTasks.AnnotateMedia | AfterCaptureTasks.SaveImageToFile | AfterCaptureTasks.UploadImageToHost, AfterUpload = AfterUploadTasks.CopyURLToClipboard },
+        new QuickTaskInfo(),
+        new QuickTaskInfo { Name = "Upload, Copy URL", AfterCapture = AfterCaptureTasks.UploadImageToHost, AfterUpload = AfterUploadTasks.CopyURLToClipboard },
+        new QuickTaskInfo { Name = "Save", AfterCapture = AfterCaptureTasks.SaveImageToFile },
+        new QuickTaskInfo { Name = "Copy image", AfterCapture = AfterCaptureTasks.CopyImageToClipboard },
         new QuickTaskInfo { Name = "Annotate", AfterCapture = AfterCaptureTasks.AnnotateMedia, AfterUpload = AfterUploadTasks.None },
     };
 }

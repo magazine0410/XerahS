@@ -140,7 +140,7 @@ These features are fully implemented as standalone tool workflows (hotkey-trigge
 | Flag | Existing Service | Location |
 |------|-----------------|----------|
 | `PinToScreen` | `PinToScreenToolService` + `PinToScreenManager` | `XerahS.UI/Services/` |
-| `AnalyzeImage` | `MediaToolsToolService` + `ImageAnalyzerViewModel` | `XerahS.UI/Services/`, `ViewModels/` |
+| `AnalyzeImage` | `AnalyzeImageToolService` + `AnalyzeImageViewModel` (AI analysis, `XerahS.Core/Services/AnalyzeImageService.cs`) | `XerahS.UI/Services/`, `ViewModels/` |
 | `ScanQRCode` | `QrCodeToolService` + `QrCodeDecodeResultsViewModel` | `XerahS.UI/Services/`, `ViewModels/` |
 | `DoOCR` | `OcrToolService` + `OcrViewModel` | `XerahS.UI/Services/`, `ViewModels/` |
 | `DeleteFile` | `FileHelpers.DeleteFile` + toast action | `XerahS.Common/Helpers/`, `ToastViewModel` |

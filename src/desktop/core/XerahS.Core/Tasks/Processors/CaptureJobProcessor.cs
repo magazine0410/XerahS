@@ -44,9 +44,18 @@ namespace XerahS.Core.Tasks.Processors
         public static Func<SKBitmap, object?, PinToScreenOptions, Task>? PinToScreenCallback { get; set; }
 
         /// <summary>
-        /// Callback to show the analyzer window. Set by the UI layer to dispatch to AvaloniaUIService.
+        /// Opens the Analyze image window for an image file with the task's AI options. Set by the UI layer.
         /// </summary>
-        public static Func<SKBitmap, Task>? ShowAnalyzerCallback { get; set; }
+        public static Func<string, TaskSettings, Task>? ShowAnalyzeImageCallback { get; set; }
+
+        /// <summary>
+        /// Prints an image with the print settings, as ShareX's TaskHelpers.PrintImage. Completes when printing is
+        /// done or the print options window is closed. Set by the UI layer.
+        /// </summary>
+        public static Func<SKBitmap, Task>? PrintImageCallback { get; set; }
+
+        public static Func<TaskSettings, CancellationToken, Task<QuickTaskMenuResult>>? ShowQuickTaskMenuCallback { get; set; }
+        public static Func<TaskInfo, CancellationToken, Task<string?>>? SaveImageWithDialogCallback { get; set; }
 
         /// <summary>
         /// Executes after-capture tasks for the current job.
@@ -54,7 +63,11 @@ namespace XerahS.Core.Tasks.Processors
         /// <returns><c>true</c> to continue the pipeline; <c>false</c> if the user cancelled.</returns>
         public async Task<bool> ProcessAsync(TaskInfo info, CancellationToken token)
         {
-            if (info.Metadata?.Image == null) return true;
+            if (info.Metadata?.Image == null)
+            {
+                if (info.Job == TaskJob.Job) await AfterCaptureFileTasks.ProcessAsync(info, token);
+                return true;
+            }
 
             var settings = info.TaskSettings;
             DebugHelper.WriteLine(
@@ -64,366 +77,341 @@ namespace XerahS.Core.Tasks.Processors
             string? annotationSidecarPath = null;
             bool annotationSidecarSaveAttempted = false;
 
-            if (settings.AfterCaptureJob.HasFlag(AfterCaptureTasks.ShowAfterCaptureWindow))
+            try
             {
-                if (!PlatformServices.IsInitialized)
+                token.ThrowIfCancellationRequested();
+                if (settings.AfterCaptureJob.HasFlag(AfterCaptureTasks.ShowQuickTaskMenu))
                 {
-                    DebugHelper.WriteLine("ShowAfterCaptureWindow requested but UI service is not initialized.");
+                    var showMenu = ShowQuickTaskMenuCallback ?? throw new InvalidOperationException("The quick task menu is unavailable in this host.");
+                    var selection = await showMenu(settings, token);
+                    if (selection == QuickTaskMenuResult.Cancel) return false;
+                    if (selection == QuickTaskMenuResult.Preset && info.Job == TaskJob.DataUpload)
+                        info.Job = TaskJob.Job; // A clipboard image preset can choose saving without uploading.
                 }
-                else
+
+                if (settings.AfterCaptureJob.HasFlag(AfterCaptureTasks.ShowAfterCaptureWindow))
                 {
-                    var originalAfterCapture = settings.AfterCaptureJob;
-                    var result = await PlatformServices.UI.ShowAfterCaptureWindowAsync(
-                        info.Metadata.Image,
-                        settings.AfterCaptureJob,
-                        settings.AfterUploadJob);
-                    if (result.Cancel)
+                    if (!PlatformServices.IsInitialized)
                     {
-                        DebugHelper.WriteLine("After capture window cancelled; aborting workflow.");
-                        return false;
+                        DebugHelper.WriteLine("ShowAfterCaptureWindow requested but UI service is not initialized.");
                     }
-
-                    settings.AfterCaptureJob = GetAfterCaptureTasksForRun(result);
-                    settings.AfterUploadJob = result.Upload;
-                    info.SuppressCompletionNotification = result.QuickAction != AfterCaptureQuickAction.None;
-
-                    // Persist "Show after capture window" setting if user unchecked it
-                    if (result.QuickAction == AfterCaptureQuickAction.None &&
-                        originalAfterCapture.HasFlag(AfterCaptureTasks.ShowAfterCaptureWindow) &&
-                        !result.Capture.HasFlag(AfterCaptureTasks.ShowAfterCaptureWindow))
+                    else
                     {
-                        PersistShowAfterCaptureWindowSetting(settings.WorkflowId, false);
-                    }
-                }
-            }
+                        var originalAfterCapture = settings.AfterCaptureJob;
+                        var result = await PlatformServices.UI.ShowAfterCaptureWindowAsync(
+                            info.Metadata.Image,
+                            settings.AfterCaptureJob,
+                            settings.AfterUploadJob);
+                        if (result.Cancel)
+                        {
+                            DebugHelper.WriteLine("After capture window cancelled; aborting workflow.");
+                            return false;
+                        }
 
-            // Annotation should happen BEFORE save, so the saved file includes annotations
-            if (settings.AfterCaptureJob.HasFlag(AfterCaptureTasks.AddImageEffects))
-            {
-                if (info.Metadata?.Image != null)
-                {
-                    var processed = TaskHelpers.ApplyImageEffects(info.Metadata.Image, settings.ImageSettings);
-                    if (processed == null)
-                    {
-                        DebugHelper.WriteLine("Error: Applying image effects resulted in null image.");
-                        return true;
-                    }
+                        if (info.Job == TaskJob.DataUpload) info.Job = TaskJob.Job;
+                        settings.AfterCaptureJob = GetAfterCaptureTasksForRun(result);
+                        settings.AfterUploadJob = result.Upload;
+                        info.SuppressCompletionNotification = result.QuickAction != AfterCaptureQuickAction.None;
 
-                    if (!ReferenceEquals(processed, info.Metadata.Image))
-                    {
-                        info.Metadata.Image.Dispose();
-                    }
-
-                    info.Metadata.Image = processed;
-                }
-            }
-
-            // Annotation should happen BEFORE save, so the saved file includes annotations
-            if (settings.AfterCaptureJob.HasFlag(AfterCaptureTasks.AnnotateMedia))
-            {
-                // OmaSnap editor on Hyprland when selected in settings (XIP0088); otherwise the XerahS editor.
-                var hostedAnnotation = info.Metadata?.Image != null
-                    ? await HostedEditorAndPinService.TryAnnotateAsync(info.Metadata.Image, token)
-                    : (Handled: false, Annotated: null);
-                if (hostedAnnotation.Handled)
-                {
-                    if (hostedAnnotation.Annotated != null)
-                    {
-                        info.Metadata!.Image!.Dispose();
-                        info.Metadata.Image = hostedAnnotation.Annotated;
+                        // Persist "Show after capture window" setting if user unchecked it
+                        if (result.QuickAction == AfterCaptureQuickAction.None &&
+                            originalAfterCapture.HasFlag(AfterCaptureTasks.ShowAfterCaptureWindow) &&
+                            !result.Capture.HasFlag(AfterCaptureTasks.ShowAfterCaptureWindow))
+                        {
+                            PersistShowAfterCaptureWindowSetting(settings.WorkflowId, false);
+                        }
                     }
                 }
-                else if (info.Metadata?.Image != null && PlatformServices.UI != null)
+
+                token.ThrowIfCancellationRequested();
+                if (settings.AfterCaptureJob.HasFlag(AfterCaptureTasks.BeautifyImage))
                 {
-                    editorResult = await PlatformServices.UI.ShowEditorSessionAsync(info.Metadata.Image,
-                        settings.ToolsSettingsReference.ImageEditorOptions ??= new ImageEditorOptions(), taskMode: true);
-                    if (editorResult?.RenderedImage != null)
+                    var beautified = await PlatformServices.UI.ShowEditorSessionAsync(info.Metadata.Image,
+                        settings.ToolsSettingsReference.ImageEditorOptions ??= new ImageEditorOptions(),
+                        taskMode: true, openBackgroundPanel: true);
+                    beautified?.SourceImage?.Dispose();
+                    if (beautified?.RenderedImage == null) return false;
+                    if (!ReferenceEquals(info.Metadata.Image, beautified.RenderedImage)) info.Metadata.Image.Dispose();
+                    info.Metadata.Image = beautified.RenderedImage;
+                }
+
+                // Annotation should happen BEFORE save, so the saved file includes annotations
+                if (settings.AfterCaptureJob.HasFlag(AfterCaptureTasks.AddImageEffects))
+                {
+                    if (info.Metadata?.Image != null)
                     {
-                        if (info.Metadata.Image != editorResult.RenderedImage)
+                        var processed = TaskHelpers.ApplyImageEffects(info.Metadata.Image, settings.ImageSettings);
+                        if (processed == null)
+                        {
+                            DebugHelper.WriteLine("Error: Applying image effects resulted in null image.");
+                            return false;
+                        }
+
+                        if (!ReferenceEquals(processed, info.Metadata.Image))
                         {
                             info.Metadata.Image.Dispose();
                         }
-                        info.Metadata.Image = editorResult.RenderedImage;
+
+                        info.Metadata.Image = processed;
                     }
                 }
-            }
 
-            if (settings.AfterCaptureJob.HasFlag(AfterCaptureTasks.SaveImageToFile))
-            {
-                await SaveImageToFileAsync(info);
-                annotationSidecarPath = await SaveAnnotationSidecarAsync(info, editorResult);
-                annotationSidecarSaveAttempted = true;
-            }
-
-            if (settings.AfterCaptureJob.HasFlag(AfterCaptureTasks.CopyImageToClipboard))
-            {
-                if (PlatformServices.IsInitialized && info.Metadata?.Image != null)
+                // Annotation should happen BEFORE save, so the saved file includes annotations
+                if (settings.AfterCaptureJob.HasFlag(AfterCaptureTasks.AnnotateMedia))
                 {
-                    PlatformServices.Clipboard.SetImage(info.Metadata.Image);
-                    DebugHelper.WriteLine("Image copied to clipboard.");
+                    // OmaSnap editor on Hyprland when selected in settings (XIP0088); otherwise the XerahS editor.
+                    var hostedAnnotation = info.Metadata?.Image != null
+                        ? await HostedEditorAndPinService.TryAnnotateAsync(info.Metadata.Image, token)
+                        : (Handled: false, Annotated: null);
+                    if (hostedAnnotation.Handled)
+                    {
+                        if (hostedAnnotation.Annotated == null) return false;
+                        if (hostedAnnotation.Annotated != null)
+                        {
+                            info.Metadata!.Image!.Dispose();
+                            info.Metadata.Image = hostedAnnotation.Annotated;
+                        }
+                    }
+                    else if (info.Metadata?.Image != null && PlatformServices.UI != null)
+                    {
+                        editorResult = await PlatformServices.UI.ShowEditorSessionAsync(info.Metadata.Image,
+                            settings.ToolsSettingsReference.ImageEditorOptions ??= new ImageEditorOptions(), taskMode: true);
+                        if (editorResult?.RenderedImage == null) return false;
+                        if (editorResult.RenderedImage != null)
+                        {
+                            if (info.Metadata.Image != editorResult.RenderedImage)
+                            {
+                                info.Metadata.Image.Dispose();
+                            }
+                            info.Metadata.Image = editorResult.RenderedImage;
+                        }
+                    }
                 }
-            }
 
-            if (settings.AfterCaptureJob.HasFlag(AfterCaptureTasks.UploadImageToHost))
-            {
-                await UploadImageAsync(info, token);
-                if (!annotationSidecarSaveAttempted)
+                token.ThrowIfCancellationRequested();
+                // As in ShareX, "Analyze image" saves the image too, because the analysis window opens the file.
+                if (settings.AfterCaptureJob.HasFlag(AfterCaptureTasks.SaveImageToFile) ||
+                    settings.AfterCaptureJob.HasFlag(AfterCaptureTasks.AnalyzeImage))
+                {
+                    await SaveImageToFileAsync(info);
+                }
+
+                if (settings.AfterCaptureJob.HasFlag(AfterCaptureTasks.SaveImageToFileWithDialog))
+                {
+                    var saveDialog = SaveImageWithDialogCallback ?? throw new InvalidOperationException("The save image dialog is unavailable in this host.");
+                    string? path = await saveDialog(info, token);
+                    // Like ShareX, cancelling Save As skips that save and continues the remaining tasks.
+                    if (!string.IsNullOrEmpty(path)) info.FilePath = path;
+                }
+
+                if (!string.IsNullOrEmpty(info.FilePath))
                 {
                     annotationSidecarPath = await SaveAnnotationSidecarAsync(info, editorResult);
                     annotationSidecarSaveAttempted = true;
                 }
-            }
-            else
-            {
-                DebugHelper.WriteLine("UploadImageToHost flag not set; skipping upload.");
-            }
 
-            if (settings.AfterCaptureJob.HasFlag(AfterCaptureTasks.DoOCR))
-            {
-                await PerformOCRAsync(info);
-
-                if (settings.AfterCaptureJob.HasFlag(AfterCaptureTasks.CopyOcrTextToClipboard))
+                const AfterCaptureTasks prepareImageTasks = AfterCaptureTasks.SaveImageToFile | AfterCaptureTasks.SaveImageToFileWithDialog |
+                    AfterCaptureTasks.DoOCR | AfterCaptureTasks.UploadImageToHost | AfterCaptureTasks.AnalyzeImage;
+                if (settings.AfterCaptureJob.HasFlag(AfterCaptureTasks.SaveThumbnailImageToFile) && (settings.AfterCaptureJob & prepareImageTasks) != 0)
                 {
-                    TryCopyOcrTextToClipboard(info.Metadata?.OcrText);
+                    EnsureImageFileName(info);
+                    info.ThumbnailFilePath = await AfterCaptureFileTasks.SaveThumbnailAsync(info, token) ?? string.Empty;
                 }
-            }
 
-            // ScanQRCode
-            if (settings.AfterCaptureJob.HasFlag(AfterCaptureTasks.ScanQRCode))
-            {
-                if (info.Metadata?.Image == null)
+                if (settings.AfterCaptureJob.HasFlag(AfterCaptureTasks.CopyImageToClipboard))
                 {
-                    DebugHelper.WriteLine("ScanQRCode skipped: no image in metadata.");
-                }
-                else
-                {
-                    try
+                    if (PlatformServices.IsInitialized && info.Metadata?.Image != null)
                     {
-                        var results = QrCodeService.Decode(info.Metadata.Image, out var error);
-                        if (!string.IsNullOrEmpty(error))
-                        {
-                            DebugHelper.WriteLine($"ScanQRCode error: {error}");
-                        }
-                        else if (results.Count > 0)
-                        {
-                            PlatformServices.Clipboard.SetText(string.Join(Environment.NewLine, results));
-                            DebugHelper.WriteLine($"ScanQRCode decoded {results.Count} code(s) and copied to clipboard.");
-                        }
-                        else
-                        {
-                            DebugHelper.WriteLine("ScanQRCode: no QR codes detected.");
-                        }
-                    }
-                    catch (Exception ex)
-                    {
-                        DebugHelper.WriteException(ex, "ScanQRCode");
+                        PlatformServices.Clipboard.SetImage(info.Metadata.Image);
+                        DebugHelper.WriteLine("Image copied to clipboard.");
                     }
                 }
-            }
 
-            // PinToScreen
-            if (settings.AfterCaptureJob.HasFlag(AfterCaptureTasks.PinToScreen))
-            {
-                if (info.Metadata?.Image == null)
+                if (settings.AfterCaptureJob.HasFlag(AfterCaptureTasks.DoOCR))
                 {
-                    DebugHelper.WriteLine("PinToScreen skipped: no image in metadata.");
-                }
-                else if (PinToScreenCallback == null)
-                {
-                    DebugHelper.WriteLine("PinToScreen skipped: callback not set.");
-                }
-                else
-                {
-                    try
+                    await PerformOCRAsync(info);
+
+                    if (settings.AfterCaptureJob.HasFlag(AfterCaptureTasks.CopyOcrTextToClipboard))
                     {
-                        if (await HostedEditorAndPinService.TryPinAsync(info.Metadata.Image, token))
-                        {
-                            DebugHelper.WriteLine("PinToScreen: image pinned with OmaSnap.");
-                        }
-                        else
-                        {
-                            var options = SettingsManager.DefaultTaskSettings?.ToolsSettings?.PinToScreenOptions ?? new PinToScreenOptions();
-                            await PinToScreenCallback(info.Metadata.Image, null, options);
-                            DebugHelper.WriteLine("PinToScreen: image pinned to desktop.");
-                        }
-                    }
-                    catch (Exception ex)
-                    {
-                        DebugHelper.WriteException(ex, "PinToScreen");
+                        TryCopyOcrTextToClipboard(info.Metadata?.OcrText);
                     }
                 }
-            }
 
-            // CopyFileToClipboard
-            if (settings.AfterCaptureJob.HasFlag(AfterCaptureTasks.CopyFileToClipboard))
-            {
-                if (string.IsNullOrEmpty(info.FilePath))
+                // ScanQRCode
+                if (settings.AfterCaptureJob.HasFlag(AfterCaptureTasks.ScanQRCode))
                 {
-                    DebugHelper.WriteLine("CopyFileToClipboard skipped: no file path.");
-                }
-                else
-                {
-                    try
+                    if (info.Metadata?.Image == null)
                     {
-                        PlatformServices.Clipboard.SetFileDropList(new[] { info.FilePath });
-                        DebugHelper.WriteLine($"CopyFileToClipboard: copied {info.FilePath}");
-                    }
-                    catch (Exception ex)
-                    {
-                        DebugHelper.WriteException(ex, "CopyFileToClipboard");
-                    }
-                }
-            }
-
-            // CopyFilePathToClipboard
-            if (settings.AfterCaptureJob.HasFlag(AfterCaptureTasks.CopyFilePathToClipboard))
-            {
-                if (string.IsNullOrEmpty(info.FilePath))
-                {
-                    DebugHelper.WriteLine("CopyFilePathToClipboard skipped: no file path.");
-                }
-                else
-                {
-                    try
-                    {
-                        PlatformServices.Clipboard.SetText(info.FilePath);
-                        DebugHelper.WriteLine($"CopyFilePathToClipboard: copied path {info.FilePath}");
-                    }
-                    catch (Exception ex)
-                    {
-                        DebugHelper.WriteException(ex, "CopyFilePathToClipboard");
-                    }
-                }
-            }
-
-            // ShowInExplorer
-            if (settings.AfterCaptureJob.HasFlag(AfterCaptureTasks.ShowInExplorer))
-            {
-                if (string.IsNullOrEmpty(info.FilePath))
-                {
-                    DebugHelper.WriteLine("ShowInExplorer skipped: no file path.");
-                }
-                else
-                {
-                    try
-                    {
-                        PlatformServices.System.ShowFileInExplorer(info.FilePath);
-                        DebugHelper.WriteLine($"ShowInExplorer: opened for {info.FilePath}");
-                    }
-                    catch (Exception ex)
-                    {
-                        DebugHelper.WriteException(ex, "ShowInExplorer");
-                    }
-                }
-            }
-
-
-            // AnalyzeImage
-            if (settings.AfterCaptureJob.HasFlag(AfterCaptureTasks.AnalyzeImage))
-            {
-                if (info.Metadata?.Image == null)
-                {
-                    DebugHelper.WriteLine("AnalyzeImage skipped: no image in metadata.");
-                }
-                else if (ShowAnalyzerCallback == null)
-                {
-                    DebugHelper.WriteLine("AnalyzeImage skipped: callback not set.");
-                }
-                else
-                {
-                    try
-                    {
-                        await ShowAnalyzerCallback(info.Metadata.Image);
-                        DebugHelper.WriteLine("AnalyzeImage: analyzer window shown.");
-                    }
-                    catch (Exception ex)
-                    {
-                        DebugHelper.WriteException(ex, "AnalyzeImage");
-                    }
-                }
-            }
-
-            if (!annotationSidecarSaveAttempted)
-            {
-                editorResult?.SourceImage?.Dispose();
-            }
-
-            // TODO: Add other tasks
-
-            // Add to History (after all tasks, including upload, are complete)
-            if (!string.IsNullOrEmpty(info.FilePath))
-            {
-                try
-                {
-                    DebugHelper.WriteLine("Trace: History pipeline - Starting history item creation.");
-
-                    // Use centralized history file path
-                    var historyPath = SettingsManager.GetHistoryFilePath();
-
-                    DebugHelper.WriteLine($"Trace: History pipeline - History file path: {historyPath}");
-
-                    using var historyManager = new HistoryManagerSQLite(historyPath);
-                    var historyItem = new HistoryItem
-                    {
-                        FilePath = info.FilePath,
-                        FileName = Path.GetFileName(info.FilePath),
-                        DateTime = DateTime.Now,
-                        Type = "Image",
-                        URL = info.Metadata?.UploadURL ?? string.Empty
-                    };
-                    historyItem.AnnotationSidecarPath = annotationSidecarPath;
-
-                    var tags = info.GetTags();
-                    if (tags != null)
-                    {
-                        historyItem.Tags = new Dictionary<string, string?>(tags.Count);
-                        foreach (var pair in tags)
-                        {
-                            historyItem.Tags[pair.Key] = pair.Value;
-                        }
-                    }
-
-                    // Screenshots uploaded by this workflow used to lose host, deletion URL and
-                    // upload metadata here; record them like upload jobs do.
-                    if (!string.IsNullOrWhiteSpace(historyItem.URL))
-                    {
-                        UploadJobProcessor.ApplyUploadResult(historyItem, info);
-                    }
-
-                    bool appended = historyManager.AppendHistoryItem(historyItem);
-                    DebugHelper.WriteLine($"Trace: History pipeline - AppendHistoryItem called for: {historyItem.FileName} (URL: {historyItem.URL})");
-                    if (appended)
-                    {
-                        info.HistoryItemId = historyItem.Id;
-                        DebugHelper.WriteLine($"Added to history: {historyItem.FileName}");
-
-                        if (!string.IsNullOrWhiteSpace(info.Metadata?.OcrText))
-                        {
-                            await OcrIndexingService.PersistRecognizedTextAsync(
-                                historyItem,
-                                info.Metadata.OcrText,
-                                "after-capture-ocr",
-                                NormalizeOcrLanguage(info.TaskSettings.CaptureSettings.OCROptions?.Language),
-                                token);
-                        }
-                        else
-                        {
-                            OcrIndexingService.QueueIndexHistoryItem(historyItem);
-                        }
+                        DebugHelper.WriteLine("ScanQRCode skipped: no image in metadata.");
                     }
                     else
                     {
-                        DebugHelper.WriteLine($"Failed to append history item: {historyItem.FileName}");
+                        try
+                        {
+                            var results = QrCodeService.Decode(info.Metadata.Image, out var error);
+                            if (!string.IsNullOrEmpty(error))
+                            {
+                                DebugHelper.WriteLine($"ScanQRCode error: {error}");
+                            }
+                            else if (results.Count > 0)
+                            {
+                                PlatformServices.Clipboard.SetText(string.Join(Environment.NewLine, results));
+                                DebugHelper.WriteLine($"ScanQRCode decoded {results.Count} code(s) and copied to clipboard.");
+                            }
+                            else
+                            {
+                                DebugHelper.WriteLine("ScanQRCode: no QR codes detected.");
+                            }
+                        }
+                        catch (Exception ex)
+                        {
+                            DebugHelper.WriteException(ex, "ScanQRCode");
+                        }
                     }
                 }
-                catch (Exception ex)
-                {
-                    DebugHelper.WriteLine($"Failed to add to history: {ex.Message}");
-                    DebugHelper.WriteException(ex);
-                }
-            }
 
-            return true;
+                // PinToScreen
+                if (settings.AfterCaptureJob.HasFlag(AfterCaptureTasks.PinToScreen))
+                {
+                    if (info.Metadata?.Image == null)
+                    {
+                        DebugHelper.WriteLine("PinToScreen skipped: no image in metadata.");
+                    }
+                    else if (PinToScreenCallback == null)
+                    {
+                        DebugHelper.WriteLine("PinToScreen skipped: callback not set.");
+                    }
+                    else
+                    {
+                        try
+                        {
+                            if (await HostedEditorAndPinService.TryPinAsync(info.Metadata.Image, token))
+                            {
+                                DebugHelper.WriteLine("PinToScreen: image pinned with OmaSnap.");
+                            }
+                            else
+                            {
+                                var options = SettingsManager.DefaultTaskSettings?.ToolsSettings?.PinToScreenOptions ?? new PinToScreenOptions();
+                                await PinToScreenCallback(info.Metadata.Image, null, options);
+                                DebugHelper.WriteLine("PinToScreen: image pinned to desktop.");
+                            }
+                        }
+                        catch (Exception ex)
+                        {
+                            DebugHelper.WriteException(ex, "PinToScreen");
+                        }
+                    }
+                }
+
+                // As in ShareX, print after pinning; cancelling the print dialog does not stop the other tasks.
+                if (settings.AfterCaptureJob.HasFlag(AfterCaptureTasks.SendImageToPrinter) && info.Metadata?.Image != null)
+                {
+                    if (PrintImageCallback == null) DebugHelper.WriteLine("SendImageToPrinter skipped: no UI to print with.");
+                    else await PrintImageCallback(info.Metadata.Image);
+                }
+
+                await AfterCaptureFileTasks.ProcessAsync(info, token);
+
+                if (settings.AfterCaptureJob.HasFlag(AfterCaptureTasks.UploadImageToHost))
+                {
+                    await UploadImageAsync(info, token);
+                    if (!annotationSidecarSaveAttempted)
+                    {
+                        annotationSidecarPath = await SaveAnnotationSidecarAsync(info, editorResult);
+                        annotationSidecarSaveAttempted = true;
+                    }
+                }
+                else
+                {
+                    DebugHelper.WriteLine("UploadImageToHost flag not set; skipping upload.");
+                }
+
+                // Add to History (after all tasks, including upload, are complete)
+                if (!string.IsNullOrEmpty(info.FilePath))
+                {
+                    try
+                    {
+                        DebugHelper.WriteLine("Trace: History pipeline - Starting history item creation.");
+
+                        // Use centralized history file path
+                        var historyPath = SettingsManager.GetHistoryFilePath();
+
+                        DebugHelper.WriteLine($"Trace: History pipeline - History file path: {historyPath}");
+
+                        using var historyManager = new HistoryManagerSQLite(historyPath);
+                        var historyItem = new HistoryItem
+                        {
+                            FilePath = info.FilePath,
+                            FileName = Path.GetFileName(info.FilePath),
+                            DateTime = DateTime.Now,
+                            Type = "Image",
+                            URL = info.Metadata?.UploadURL ?? string.Empty
+                        };
+                        historyItem.AnnotationSidecarPath = annotationSidecarPath;
+
+                        var tags = info.GetTags();
+                        if (tags != null)
+                        {
+                            historyItem.Tags = new Dictionary<string, string?>(tags.Count);
+                            foreach (var pair in tags)
+                            {
+                                historyItem.Tags[pair.Key] = pair.Value;
+                            }
+                        }
+
+                        // Screenshots uploaded by this workflow used to lose host, deletion URL and
+                        // upload metadata here; record them like upload jobs do.
+                        if (!string.IsNullOrWhiteSpace(historyItem.URL))
+                        {
+                            UploadJobProcessor.ApplyUploadResult(historyItem, info);
+                        }
+
+                        bool appended = historyManager.AppendHistoryItem(historyItem);
+                        DebugHelper.WriteLine($"Trace: History pipeline - AppendHistoryItem called for: {historyItem.FileName} (URL: {historyItem.URL})");
+                        if (appended)
+                        {
+                            info.HistoryItemId = historyItem.Id;
+                            DebugHelper.WriteLine($"Added to history: {historyItem.FileName}");
+
+                            if (!string.IsNullOrWhiteSpace(info.Metadata?.OcrText))
+                            {
+                                await OcrIndexingService.PersistRecognizedTextAsync(
+                                    historyItem,
+                                    info.Metadata.OcrText,
+                                    "after-capture-ocr",
+                                    NormalizeOcrLanguage(info.TaskSettings.CaptureSettings.OCROptions?.Language),
+                                    token);
+                            }
+                            else
+                            {
+                                OcrIndexingService.QueueIndexHistoryItem(historyItem);
+                            }
+                        }
+                        else
+                        {
+                            DebugHelper.WriteLine($"Failed to append history item: {historyItem.FileName}");
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        DebugHelper.WriteLine($"Failed to add to history: {ex.Message}");
+                        DebugHelper.WriteException(ex);
+                    }
+                }
+
+                return true;
+            }
+            finally
+            {
+                editorResult?.SourceImage?.Dispose();
+            }
+        }
+
+        public static void EnsureImageFileName(TaskInfo info)
+        {
+            if (string.IsNullOrEmpty(info.FileName))
+                info.SetFileName(TaskHelpers.GetFileName(info.TaskSettings,
+                    EnumExtensions.GetDescription(info.TaskSettings.ImageSettings.ImageFormat), info.Metadata));
         }
 
         private static async Task<string?> SaveAnnotationSidecarAsync(TaskInfo info, ImageEditorSessionResult? editorResult)
@@ -455,10 +443,6 @@ namespace XerahS.Core.Tasks.Processors
                 DebugHelper.WriteException(ex);
                 return null;
             }
-            finally
-            {
-                editorResult.SourceImage?.Dispose();
-            }
         }
 
         private async Task SaveImageToFileAsync(TaskInfo info)
@@ -468,10 +452,7 @@ namespace XerahS.Core.Tasks.Processors
             SkiaSharp.SKBitmap bmp = info.Metadata.Image;
 
             // TaskHelpers contains the logic for folder resolution, naming, and file exists handling.
-            // It runs synchronously (SkiaSharp limitation), so wrap in Task.Run if needed, 
-            // though here we are already on background thread from WorkerTask.
-
-            string? filePath = TaskHelpers.SaveImageAsFile(bmp, info.TaskSettings);
+            string? filePath = await TaskHelpers.SaveImageAsFileAsync(bmp, info.TaskSettings);
             if (!string.IsNullOrEmpty(filePath))
             {
                 var directory = Path.GetDirectoryName(filePath) ?? "";
@@ -490,15 +471,13 @@ namespace XerahS.Core.Tasks.Processors
                 DebugHelper.WriteLine("Failed to save image.");
                 // info.Status = TaskStatus.Failed; // Logic to handle failure
             }
-
-            await Task.CompletedTask;
         }
 
         private async Task UploadImageAsync(TaskInfo info, CancellationToken token)
         {
             if (string.IsNullOrEmpty(info.FilePath) && info.Metadata?.Image != null)
             {
-                info.FilePath = TaskHelpers.SaveImageAsFile(info.Metadata.Image, info.TaskSettings) ?? string.Empty;
+                info.FilePath = await TaskHelpers.SaveImageAsFileAsync(info.Metadata.Image, info.TaskSettings) ?? string.Empty;
             }
 
             if (string.IsNullOrEmpty(info.FilePath))
@@ -513,6 +492,7 @@ namespace XerahS.Core.Tasks.Processors
             {
                 info.DataType = EDataType.Image;
                 var pluginResult = await new UploadJobProcessor().UploadAsync(info, token);
+                if (info.UploadCancelled) return;
                 if (pluginResult == null)
                 {
                     DebugHelper.WriteLine("Plugin upload did not return a result.");
@@ -542,7 +522,11 @@ namespace XerahS.Core.Tasks.Processors
             var ocrService = PlatformServices.Ocr;
             if (ocrService == null || !ocrService.IsSupported)
             {
-                DebugHelper.WriteLine("OCR skipped: OCR is not supported on this platform.");
+                // ShareX reports this as an error instead of skipping the task without a word.
+                string message = ocrService?.UnavailableMessage ?? "OCR is not supported on this platform.";
+                DebugHelper.WriteLine("OCR skipped: " + message);
+                if (PlatformServices.IsToastServiceInitialized)
+                    PlatformServices.Toast.ShowToast(new ToastConfig { Title = "OCR unavailable", Text = message, Duration = 6f, AutoHide = true });
                 return;
             }
 
@@ -568,9 +552,15 @@ namespace XerahS.Core.Tasks.Processors
                     DebugHelper.WriteLine($"OCR completed but no text recognized: {result.ErrorMessage}");
                 }
 
-                // Show OCR window so user can review/adjust the result
-                if (PlatformServices.IsInitialized)
+                if (taskOcrOptions.Silent)
                 {
+                    // As in ShareX: silent OCR copies the text without opening the window, and clears the clipboard when nothing was found.
+                    if (!string.IsNullOrWhiteSpace(info.Metadata.OcrText)) PlatformServices.Clipboard.SetText(info.Metadata.OcrText);
+                    else PlatformServices.Clipboard.Clear();
+                }
+                else if (PlatformServices.IsInitialized)
+                {
+                    // Show OCR window so user can review/adjust the result
                     await PlatformServices.UI.ShowOcrWindowAsync(info.Metadata.Image);
                 }
             }

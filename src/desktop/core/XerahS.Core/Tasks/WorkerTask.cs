@@ -210,6 +210,16 @@ namespace XerahS.Core.Tasks
             }
             finally
             {
+                if (Info.Job == TaskJob.Job)
+                {
+                    try { Processors.AfterCaptureFileTasks.DeleteFile(Info); }
+                    catch (Exception ex)
+                    {
+                        Error = ex;
+                        Status = TaskStatus.Failed;
+                        DebugHelper.WriteException(ex, "Delete file after capture");
+                    }
+                }
                 if (Status != TaskStatus.Failed && Status != TaskStatus.Stopped && Status != TaskStatus.Canceled)
                 {
                     Status = TaskStatus.Completed;

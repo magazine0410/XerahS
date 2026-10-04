@@ -34,6 +34,8 @@ public sealed class AfterUploadWindowInfo
     public string? DeletionUrl { get; init; }
     public string? FilePath { get; init; }
     public string? FileName { get; init; }
+    public string? ThumbnailFilePath { get; init; }
+    public long? UploadTime { get; init; }
     public string? DataType { get; init; }
     public string? UploaderHost { get; init; }
     public string? ClipboardContentFormat { get; init; }

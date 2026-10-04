@@ -35,6 +35,12 @@ public partial class ImageEffectsBrowserDialog : UserControl
     public ImageEffectsBrowserDialog()
     {
         InitializeComponent();
+        var themeScope = this.FindControl<ThemeVariantScope>("EffectBrowserThemeScope");
+        if (themeScope != null)
+        {
+            themeScope.RequestedThemeVariant = ShareX.ImageEditor.Presentation.Theming.ThemeManager.GetCurrentTheme();
+        }
+
         AttachedToVisualTree += (_, _) => WireBrowserEvents();
     }
 

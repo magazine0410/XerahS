@@ -1,0 +1,52 @@
+<views:SurfaceWindow xmlns="https://github.com/avaloniaui" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:views="using:XerahS.UI.Views" xmlns:vm="using:XerahS.UI.ViewModels"
+    x:Class="XerahS.UI.Views.QuickTaskMenuEditorWindow" x:DataType="vm:QuickTaskMenuEditorViewModel"
+    Title="Quick task menu" Width="880" Height="660" MinWidth="720" MinHeight="480" WindowStartupLocation="CenterScreen">
+    <Border Padding="20" Background="{DynamicResource SolidBackgroundFillColorSecondaryBrush}">
+        <Grid RowDefinitions="Auto,*,Auto" RowSpacing="16" ColumnDefinitions="260,*" ColumnSpacing="20">
+            <TextBlock Text="Quick task menu" FontSize="22" FontWeight="SemiBold" Grid.ColumnSpan="2"/>
+            <Grid Grid.Row="1" RowDefinitions="*,Auto" RowSpacing="10">
+                <ListBox ItemsSource="{Binding Presets}" SelectedItem="{Binding SelectedPreset}" AutomationProperties.Name="Quick task presets">
+                    <ListBox.ItemTemplate><DataTemplate x:DataType="vm:QuickTaskPresetViewModel">
+                        <TextBlock Text="{Binding DisplayName}" TextWrapping="Wrap"/>
+                    </DataTemplate></ListBox.ItemTemplate>
+                </ListBox>
+                <WrapPanel Grid.Row="1">
+                    <Button Content="Add" Command="{Binding AddCommand}" Margin="0,0,6,6"/>
+                    <Button Content="Add separator" Command="{Binding AddSeparatorCommand}" Margin="0,0,0,6"/>
+                    <Button Content="Remove" Command="{Binding RemoveCommand}" Margin="0,0,6,0"/>
+                    <Button Content="Up" Command="{Binding MoveUpCommand}" Margin="0,0,6,0"/>
+                    <Button Content="Down" Command="{Binding MoveDownCommand}"/>
+                </WrapPanel>
+            </Grid>
+            <ContentControl Grid.Row="1" Grid.Column="1" Content="{Binding SelectedPreset}" HorizontalContentAlignment="Stretch" VerticalContentAlignment="Stretch">
+                <ContentControl.ContentTemplate><DataTemplate x:DataType="vm:QuickTaskPresetViewModel">
+                    <Grid RowDefinitions="Auto,Auto,*" RowSpacing="8">
+                        <TextBlock Text="Name"/>
+                        <TextBox Grid.Row="1" Text="{Binding Name}" AutomationProperties.Name="Preset name"/>
+                        <TabControl Grid.Row="2">
+                            <TabItem Header="After capture">
+                                <ScrollViewer><ItemsControl ItemsSource="{Binding CaptureOptions}">
+                                    <ItemsControl.ItemTemplate><DataTemplate x:DataType="vm:QuickTaskOption">
+                                        <CheckBox Content="{Binding Name}" IsChecked="{Binding Selected}"/>
+                                    </DataTemplate></ItemsControl.ItemTemplate>
+                                </ItemsControl></ScrollViewer>
+                            </TabItem>
+                            <TabItem Header="After upload">
+                                <ScrollViewer><ItemsControl ItemsSource="{Binding UploadOptions}">
+                                    <ItemsControl.ItemTemplate><DataTemplate x:DataType="vm:QuickTaskOption">
+                                        <CheckBox Content="{Binding Name}" IsChecked="{Binding Selected}"/>
+                                    </DataTemplate></ItemsControl.ItemTemplate>
+                                </ItemsControl></ScrollViewer>
+                            </TabItem>
+                        </TabControl>
+                    </Grid>
+                </DataTemplate></ContentControl.ContentTemplate>
+            </ContentControl>
+            <StackPanel Grid.Row="2" Grid.ColumnSpan="2" Orientation="Horizontal" Spacing="8" HorizontalAlignment="Right">
+                <Button Content="Cancel" IsCancel="True" Click="OnCancel"/>
+                <Button Content="Save" IsDefault="True" Click="OnSave"/>
+            </StackPanel>
+        </Grid>
+    </Border>
+</views:SurfaceWindow>

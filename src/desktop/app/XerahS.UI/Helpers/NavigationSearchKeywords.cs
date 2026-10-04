@@ -57,7 +57,7 @@ internal static class NavigationSearchKeywords
         ["Tools_VideoConverter"] = "video convert ffmpeg transcode",
         ["Tools_VideoTrimmer"] = "video trim cut clip shorten ffmpeg",
         ["Tools_VideoThumbnailer"] = "video thumbnail thumbs",
-        ["Tools_AnalyzeImage"] = "analyze analyse metadata exif",
+        ["Tools_AnalyzeImage"] = "analyze analyse ai describe openai gemini openrouter",
         ["Tools_MonitorTest"] = "monitor display test pattern",
         ["Tools_NetworkMonitor"] = "network monitor internet disconnect connect ping latency uptime",
         ["Upload_FileUpload"] = "upload file",

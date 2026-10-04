@@ -114,7 +114,7 @@ public sealed class XerahSMcpRuntime : IXerahSMcpRuntime
 
         using var image = await PlatformServices.ScreenCapture.CaptureRectAsync(selection, CreateCaptureOptions(settings))
             ?? throw new InvalidOperationException("XerahS failed to capture the selected region.");
-        var savedPath = SaveImageToFile(image, settings);
+        var savedPath = await SaveImageToFileAsync(image, settings);
         _historyService.AppendItem(savedPath, "Image");
 
         return new JsonObject
@@ -144,7 +144,7 @@ public sealed class XerahSMcpRuntime : IXerahSMcpRuntime
 
         using var image = await PlatformServices.ScreenCapture.CaptureWindowAsync(handle, PlatformServices.Window, CreateCaptureOptions(settings))
             ?? throw new InvalidOperationException("XerahS failed to capture the requested window.");
-        var savedPath = SaveImageToFile(image, settings);
+        var savedPath = await SaveImageToFileAsync(image, settings);
         _historyService.AppendItem(savedPath, "Image", null, PlatformServices.Window.GetWindowText(handle), ResolveProcessName(handle));
 
         return new JsonObject
@@ -162,7 +162,7 @@ public sealed class XerahSMcpRuntime : IXerahSMcpRuntime
 
         var settings = CreateCaptureTaskSettings(null, WorkflowType.PrintScreen);
         using var image = await CaptureFullScreenBitmapAsync(monitor, settings);
-        var savedPath = SaveImageToFile(image, settings);
+        var savedPath = await SaveImageToFileAsync(image, settings);
         _historyService.AppendItem(savedPath, "Image");
 
         return new JsonObject
@@ -222,7 +222,7 @@ public sealed class XerahSMcpRuntime : IXerahSMcpRuntime
             cancellationToken: cancellationToken);
 
         using var image = result.Image ?? throw new InvalidOperationException("Scrolling capture did not produce an image.");
-        var savedPath = SaveImageToFile(image, settings);
+        var savedPath = await SaveImageToFileAsync(image, settings);
         _historyService.AppendItem(savedPath, "Image", null, PlatformServices.Window.GetWindowText(handle), ResolveProcessName(handle));
 
         return new JsonObject
@@ -577,9 +577,9 @@ public sealed class XerahSMcpRuntime : IXerahSMcpRuntime
         return JsonConvert.DeserializeObject<TaskSettings>(json, jsonSettings) ?? new TaskSettings();
     }
 
-    private static string SaveImageToFile(SkiaSharp.SKBitmap bitmap, TaskSettings settings)
+    private static async Task<string> SaveImageToFileAsync(SkiaSharp.SKBitmap bitmap, TaskSettings settings)
     {
-        var path = XerahS.Core.TaskHelpers.SaveImageAsFile(bitmap, settings);
+        var path = await XerahS.Core.TaskHelpers.SaveImageAsFileAsync(bitmap, settings);
         if (string.IsNullOrWhiteSpace(path))
         {
             throw new InvalidOperationException("XerahS did not produce a saved file path.");

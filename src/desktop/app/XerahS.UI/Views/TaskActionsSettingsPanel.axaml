@@ -1,0 +1,43 @@
+<UserControl xmlns="https://github.com/avaloniaui" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:XerahS.UI.ViewModels" x:Class="XerahS.UI.Views.TaskActionsSettingsPanel" x:DataType="vm:TaskSettingsViewModel">
+    <Grid Margin="20" RowDefinitions="Auto,Auto,*" RowSpacing="12">
+        <CheckBox Content="Override actions" IsChecked="{Binding OverrideActions}" IsVisible="{Binding ShowOverrideSettings}"/>
+        <TextBlock Grid.Row="1" Text="Active actions run in order when 'Perform actions' is selected. Save the image first to give actions a file to work on." TextWrapping="Wrap"/>
+        <Grid Grid.Row="2" ColumnDefinitions="220,*" ColumnSpacing="16" IsEnabled="{Binding ActionsSettingsEnabled}">
+            <Grid RowDefinitions="*,Auto" RowSpacing="10">
+                <ListBox ItemsSource="{Binding Actions}" SelectedItem="{Binding SelectedAction}" MinHeight="180" AutomationProperties.Name="Actions">
+                    <ListBox.ItemTemplate><DataTemplate x:DataType="vm:ExternalActionViewModel">
+                        <CheckBox Content="{Binding Name}" IsChecked="{Binding IsActive}"/>
+                    </DataTemplate></ListBox.ItemTemplate>
+                </ListBox>
+                <WrapPanel Grid.Row="1">
+                    <Button Content="Add" Command="{Binding AddActionCommand}" Margin="0,0,6,6"/>
+                    <Button Content="Remove" Command="{Binding RemoveActionCommand}" Margin="0,0,6,6"/>
+                    <Button Content="Up" Command="{Binding MoveActionUpCommand}" Margin="0,0,6,0"/>
+                    <Button Content="Down" Command="{Binding MoveActionDownCommand}"/>
+                </WrapPanel>
+            </Grid>
+            <ScrollViewer Grid.Column="1">
+                <ContentControl Content="{Binding SelectedAction}">
+                    <ContentControl.ContentTemplate><DataTemplate x:DataType="vm:ExternalActionViewModel">
+                        <StackPanel Spacing="8">
+                            <TextBlock Text="Name"/>
+                            <TextBox Text="{Binding Name}" AutomationProperties.Name="Action name"/>
+                            <TextBlock Text="File path"/>
+                            <TextBox Text="{Binding Path}" PlaceholderText="/usr/bin/program" AutomationProperties.Name="Action executable path"/>
+                            <TextBlock Text="Arguments"/>
+                            <TextBox Text="{Binding Args}" AutomationProperties.Name="Action arguments"/>
+                            <TextBlock Text="Use $input for the file path and $output for the output path. Wrap each in double quotes when a path may contain spaces." TextWrapping="Wrap"/>
+                            <TextBlock Text="Output extension"/>
+                            <TextBox Text="{Binding OutputExtension}" PlaceholderText="Leave empty to keep the input extension" AutomationProperties.Name="Action output extension"/>
+                            <TextBlock Text="Extensions (separated by spaces or commas)"/>
+                            <TextBox Text="{Binding Extensions}" PlaceholderText="Leave empty to accept all files" AutomationProperties.Name="Action file extensions"/>
+                            <CheckBox Content="Hidden window" IsChecked="{Binding HiddenWindow}"/>
+                            <CheckBox Content="Delete input file after creating the output file" IsChecked="{Binding DeleteInputFile}"/>
+                        </StackPanel>
+                    </DataTemplate></ContentControl.ContentTemplate>
+                </ContentControl>
+            </ScrollViewer>
+        </Grid>
+    </Grid>
+</UserControl>

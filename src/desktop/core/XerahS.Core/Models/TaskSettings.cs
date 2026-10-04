@@ -86,6 +86,9 @@ public class TaskSettings
     public string? DestinationInstanceId { get; set; }
     public string? UrlShortenerDestinationInstanceId { get; set; }
 
+    /// <summary>URL sharing service instance for Share URL; empty uses the default one.</summary>
+    public string? UrlSharingDestinationInstanceId { get; set; }
+
     /// <summary>
     /// When false, UploadJobProcessor must not fall back across uploader categories
     /// (Image↔File↔Text). Default true preserves GUI and xerahscli behaviour.
@@ -151,6 +154,29 @@ public class TaskSettings
 
     public bool UseDefaultAdvancedSettings = true;
     public TaskSettingsAdvanced AdvancedSettings = new TaskSettingsAdvanced();
+
+    /// <summary>
+    /// ShareX's ImageSettingsReference: the image settings this task's workflow saves, which are the
+    /// default task settings' unless the workflow overrides image settings. The Image effects tool edits
+    /// the effect preset in this object, so changes are kept where the workflow reads them.
+    /// </summary>
+    [JsonIgnore]
+    public TaskSettingsImage ImageSettingsReference
+    {
+        get
+        {
+            var settings = TaskSettingsReference
+                ?? SettingsManager.GetWorkflowById(WorkflowId ?? string.Empty)?.TaskSettings
+                ?? this;
+            var defaults = SettingsManager.DefaultTaskSettings;
+            if (settings.UseDefaultImageSettings && defaults != null)
+            {
+                settings = defaults;
+            }
+
+            return settings.ImageSettings ??= new TaskSettingsImage();
+        }
+    }
 
     /// <summary>
     /// ShareX's CaptureSettingsReference: the capture settings this task's workflow saves, which are the
@@ -226,6 +252,7 @@ public class TaskSettings
         {
             DestinationInstanceId = defaults.DestinationInstanceId;
             UrlShortenerDestinationInstanceId = defaults.UrlShortenerDestinationInstanceId;
+            UrlSharingDestinationInstanceId = defaults.UrlSharingDestinationInstanceId;
             OverrideFTP = defaults.OverrideFTP;
             FTPIndex = defaults.FTPIndex;
             OverrideCustomUploader = defaults.OverrideCustomUploader;
@@ -329,7 +356,12 @@ public class TaskSettings
     /// </summary>
     public string? GetDestinationInstanceIdByCategory(UploaderCategory category)
     {
-        return category == UploaderCategory.UrlShortener ? UrlShortenerDestinationInstanceId : DestinationInstanceId;
+        return category switch
+        {
+            UploaderCategory.UrlShortener => UrlShortenerDestinationInstanceId,
+            UploaderCategory.UrlSharing => UrlSharingDestinationInstanceId,
+            _ => DestinationInstanceId
+        };
     }
 
     /// <summary>

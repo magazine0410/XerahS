@@ -152,7 +152,13 @@ public partial class CategoryViewModel : ViewModelBase
 
             if (DefaultInstance == instance)
             {
-                DefaultInstance = null;
+                // URL shorteners always keep a default, so the next one may have become the default.
+                var nextDefault = InstanceManager.Instance.GetDefaultInstance(Category);
+                DefaultInstance = nextDefault == null ? null : Instances.FirstOrDefault(i => i.InstanceId == nextDefault.InstanceId);
+                if (DefaultInstance != null)
+                {
+                    DefaultInstance.IsDefault = true;
+                }
             }
         }
         catch (Exception ex)

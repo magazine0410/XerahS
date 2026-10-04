@@ -161,10 +161,15 @@ public enum ThumbnailLocationType
 
 public enum AIProvider
 {
+    [Description("OpenAI")]
     OpenAI,
+    [Description("Gemini")]
     Gemini,
+    [Description("OpenRouter")]
     OpenRouter,
-    Custom
+    /// <summary>OpenAI's Chat Completions API, also used by OpenAI-compatible servers.</summary>
+    [Description("OpenAI (legacy)")]
+    OpenAILegacy
 }
 
 public enum Orientation

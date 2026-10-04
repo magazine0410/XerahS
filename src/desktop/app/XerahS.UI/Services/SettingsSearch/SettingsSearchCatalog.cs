@@ -44,6 +44,7 @@ public static class SettingsSearchCatalog
             App("app-watch", "Watch Folders", "Watch Folders", ["watch", "daemon", "monitor folder", "mov", "mp4"]),
             App("app-integration", "Integration", "Integration", ["startup", "clipboard", "file association", "assistant", "mcp", "palette"]),
             App("app-history", "History", "History", ["recent", "ocr", "tasks"]),
+            App("app-print", "Print", "Print", ["print", "printer", "paper", "cups"]),
             App("app-proxy", "Proxy", "Proxy", ["proxy", "network", "http", "socks"]),
             App("app-advanced", "Advanced", "Advanced", ["capture", "engine", "linux", "macos", "wayland", "hotkey"]),
 

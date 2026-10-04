@@ -174,9 +174,10 @@ internal static class ImageEditingToolService
         IDesktopTaskManager taskManager)
     {
         var sourceSettings = taskSettings ?? SettingsManager.DefaultTaskSettings;
-        var savedSettings = SettingsManager.GetWorkflowById(sourceSettings.WorkflowId ?? string.Empty)?.TaskSettings ?? sourceSettings;
+        // As in ShareX, the preset is edited in the image settings the workflow saves: the defaults' unless
+        // the workflow overrides image settings.
         var viewModel = UiViewModelFactoryAccessor.GetRequired()
-            .CreateImageEffectsViewModel(savedSettings.ImageSettings ??= new TaskSettingsImage());
+            .CreateImageEffectsViewModel(sourceSettings.ImageSettingsReference);
         return new ImageEffectsToolWindow(viewModel, image, path,
             result => UploadImageEffectsResultAsync(result, sourceSettings, taskManager));
     }
