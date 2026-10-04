@@ -201,7 +201,9 @@ namespace XerahS.Platform.Linux
         {
             if (!environment.IsSandboxed)
             {
-                return new LinuxStartupService();
+                var startupService = new LinuxStartupService();
+                startupService.RefreshEntry();
+                return startupService;
             }
 
             if (environment.IsFlatpak &&

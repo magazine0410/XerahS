@@ -37,12 +37,48 @@ public sealed class LinuxStartupService : IStartupService
     private readonly string _executablePath;
 
     public LinuxStartupService()
+        : this(Path.Combine(LinuxXdgDirectories.Detect().ConfigHome, "autostart"),
+            ResolveExecutablePath(Environment.GetEnvironmentVariable("APPIMAGE"), GetProcessPath()))
     {
-        var autostartFolder = Path.Combine(LinuxXdgDirectories.Detect().ConfigHome, "autostart");
+    }
+
+    internal LinuxStartupService(string autostartFolder, string? executablePath)
+    {
         Directory.CreateDirectory(autostartFolder);
 
         _desktopFilePath = Path.Combine(autostartFolder, $"{AppResources.AppName}.desktop");
-        _executablePath = GetExecutablePath() ?? string.Empty;
+        _executablePath = executablePath ?? string.Empty;
+    }
+
+    /// <summary>
+    /// Rewrites an existing autostart entry that does not match this executable, so entries written by older
+    /// versions (without <c>-silent</c>) or by an AppImage started from another place keep working.
+    /// Returns true when the entry was rewritten.
+    /// </summary>
+    public bool RefreshEntry()
+    {
+        try
+        {
+            if (string.IsNullOrEmpty(_executablePath) || !File.Exists(_desktopFilePath))
+            {
+                return false;
+            }
+
+            string entry = BuildDesktopEntry(_executablePath);
+            if (File.ReadAllText(_desktopFilePath, Encoding.UTF8) == entry)
+            {
+                return false;
+            }
+
+            File.WriteAllText(_desktopFilePath, entry, Encoding.UTF8);
+            DebugHelper.WriteLine("LinuxStartupService: Updated the autostart entry.");
+            return true;
+        }
+        catch (Exception ex)
+        {
+            DebugHelper.WriteException(ex, "LinuxStartupService: Failed to update the autostart entry");
+            return false;
+        }
     }
 
     public bool IsRunAtStartupEnabled()
@@ -88,7 +124,8 @@ public sealed class LinuxStartupService : IStartupService
 
     internal static string BuildDesktopEntry(string executablePath)
     {
-        string exec = $"\"{EscapeQuotedDesktopEntryArgument(executablePath)}\"";
+        // As in ShareX, the startup entry starts XerahS in the tray.
+        string exec = $"\"{EscapeQuotedDesktopEntryArgument(executablePath)}\" {AppContracts.Cli.SilentStartupFlag}";
         var builder = new StringBuilder();
         builder.AppendLine("[Desktop Entry]");
         builder.AppendLine("Type=Application");
@@ -108,7 +145,16 @@ public sealed class LinuxStartupService : IStartupService
         return value.Replace("\\", "\\\\").Replace("\"", "\\\"");
     }
 
-    private static string? GetExecutablePath()
+    /// <summary>
+    /// The AppImage file itself when running from an AppImage: the running executable is inside the AppImage's
+    /// temporary mount folder, which no longer exists after the AppImage exits.
+    /// </summary>
+    internal static string? ResolveExecutablePath(string? appImagePath, string? processPath)
+    {
+        return !string.IsNullOrWhiteSpace(appImagePath) && File.Exists(appImagePath) ? appImagePath : processPath;
+    }
+
+    private static string? GetProcessPath()
     {
         return Environment.ProcessPath ?? Process.GetCurrentProcess().MainModule?.FileName;
     }

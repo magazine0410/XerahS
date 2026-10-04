@@ -184,7 +184,8 @@ public sealed class FlatpakPortalStartupService : IStartupService, IDisposable
 
     internal static string[] BuildAutostartCommandLine(string appId)
     {
-        return ["flatpak", "run", LinuxRuntimeEnvironment.NormalizeAppId(appId, "io.github.ShareX.XerahS")];
+        // As in ShareX, the startup entry starts XerahS in the tray.
+        return ["flatpak", "run", LinuxRuntimeEnvironment.NormalizeAppId(appId, "io.github.ShareX.XerahS"), AppContracts.Cli.SilentStartupFlag];
     }
 
     public void Dispose()

@@ -12,7 +12,7 @@ public class FlatpakPortalServiceTests
     {
         var commandLine = FlatpakPortalStartupService.BuildAutostartCommandLine("io.github.ShareX.XerahS");
 
-        Assert.That(commandLine, Is.EqualTo(new[] { "flatpak", "run", "io.github.ShareX.XerahS" }));
+        Assert.That(commandLine, Is.EqualTo(new[] { "flatpak", "run", "io.github.ShareX.XerahS", "-silent" }));
     }
 
     [Test]
@@ -32,7 +32,7 @@ public class FlatpakPortalServiceTests
     {
         var commandLine = FlatpakPortalStartupService.BuildAutostartCommandLine("  io.github.ShareX.XerahS  ");
 
-        Assert.That(commandLine, Is.EqualTo(new[] { "flatpak", "run", "io.github.ShareX.XerahS" }));
+        Assert.That(commandLine, Is.EqualTo(new[] { "flatpak", "run", "io.github.ShareX.XerahS", "-silent" }));
     }
 
     [Test]
@@ -40,7 +40,7 @@ public class FlatpakPortalServiceTests
     {
         var commandLine = FlatpakPortalStartupService.BuildAutostartCommandLine("   ");
 
-        Assert.That(commandLine, Is.EqualTo(new[] { "flatpak", "run", "io.github.ShareX.XerahS" }));
+        Assert.That(commandLine, Is.EqualTo(new[] { "flatpak", "run", "io.github.ShareX.XerahS", "-silent" }));
     }
 
     [Test]
