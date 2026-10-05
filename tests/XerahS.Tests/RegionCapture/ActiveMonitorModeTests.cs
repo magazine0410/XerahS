@@ -165,6 +165,18 @@ public class ActiveMonitorModeTests
     }
 
     [AvaloniaTest]
+    public void UnknownCursor_PointerEnterChoosesMonitorWithoutMovementOrClick()
+    {
+        using var session = Open();
+        using var pointer = new Pointer(Pointer.GetNextFreeId(), PointerType.Mouse, true);
+        session.Right.RaiseEvent(new PointerEventArgs(InputElement.PointerEnteredEvent, session.Right, pointer,
+            session.Right, new Point(100, 100), 0, new PointerPointProperties(), KeyModifiers.None));
+        Assert.That(session.Coordinator.ActiveOverlay, Is.SameAs(session.Right));
+        Assert.That(session.Left.MonitorState, Is.EqualTo(OverlayMonitorState.Inactive));
+        Assert.That(session.Completion.Task.IsCompleted, Is.False);
+    }
+
+    [AvaloniaTest]
     public void InactiveMonitor_IgnoresPointerAndCaptureKeys()
     {
         using var session = Open(rightIsInitiallyActive: true);
