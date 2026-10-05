@@ -348,6 +348,17 @@ public class FileHostPluginTests
         Assert.That(errors.ToString(), Does.Contain("Error code: 103"));
     }
 
+    [Test]
+    public async Task Sul_MissingKeyMessageReachesTheUploadOutcome()
+    {
+        // The uploader records the message on itself and sends nothing; the adapter must pass it on.
+        using var content = new MemoryStream([1, 2, 3]);
+        var outcome = await UploaderUploadAdapter.UploadAsync(new SulUploader(null),
+            new UploadRequest { Content = content, FileName = "capture.png", Category = UploaderCategory.Image }, CancellationToken.None);
+        Assert.That(outcome.Succeeded, Is.False);
+        Assert.That(outcome.Error, Is.EqualTo(SulProvider.MissingApiKeyMessage));
+    }
+
     // ── Settings and imported secrets ───────────────────────────────────────
 
     [AvaloniaTest]

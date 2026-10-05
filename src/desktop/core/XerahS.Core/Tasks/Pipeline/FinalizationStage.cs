@@ -57,11 +57,11 @@ namespace XerahS.Core.Tasks.Pipeline
             // Cancelling the before-upload window is not an upload failure.
             if (!context.Info.UploadCancelled && ShouldRequireSuccessfulUpload(context.Info) && !IsUploadResultSuccessful(context.Info.Result))
             {
-                string message = !string.IsNullOrWhiteSpace(context.Info.Result?.Response)
-                    ? context.Info.Result.Response!
-                    : context.Info.Result?.Errors.Count > 0
-                        ? context.Info.Result.Errors.ToString()
-                        : context.Info.Job == TaskJob.ShareURL ? "Sharing the URL failed." : "Upload failed.";
+                // The destination's own message, not the HTTP error report that comes before it.
+                var result = context.Info.Result;
+                string message = result != null && (result.Errors.Count > 0 || !string.IsNullOrWhiteSpace(result.Response))
+                    ? UploadJobProcessor.GetUploadErrorText(result)
+                    : context.Info.Job == TaskJob.ShareURL ? "Sharing the URL failed." : "Upload failed.";
 
                 DebugHelper.WriteLine($"Upload failed during task execution: {message}");
                 context.Error = new InvalidOperationException(message);

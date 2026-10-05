@@ -81,7 +81,7 @@ namespace XerahS.Core.Tasks.Processors
             if (info.UploadAttemptedDuringCapture)
             {
                 // The capture job's upload failed. Uploading again would send the file a second time.
-                ShowUploadFailedToast(GetUploadErrorText(info.Result));
+                // As in ShareX, the failure is reported once, by the task's completion notification.
                 return true;
             }
 
@@ -125,7 +125,6 @@ namespace XerahS.Core.Tasks.Processors
                     else
                     {
                         DebugHelper.WriteLine($"Upload failed: {errorMsg}");
-                        ShowUploadFailedToast(GetUploadErrorText(result));
                     }
                     TryAppendHistoryItem(info);
                 }
@@ -147,25 +146,18 @@ namespace XerahS.Core.Tasks.Processors
         /// The uploader's last error, which is its own message when it adds one after the HTTP error, such as
         /// "vgy.me: Anonymous uploads are not allowed."; otherwise the response.
         /// </summary>
-        internal static string GetUploadErrorText(UploadResult? result)
+        public static string GetUploadErrorText(UploadResult? result)
         {
-            string? error = result?.Errors?.Errors?.LastOrDefault(e => !string.IsNullOrWhiteSpace(e.Text))?.Text;
+            string? error = GetLastError(result)?.Text;
             return error ?? (string.IsNullOrWhiteSpace(result?.Response) ? "Unknown error" : result.Response);
         }
 
-        private static void ShowUploadFailedToast(string errorMsg)
-        {
-            if (PlatformServices.IsInitialized && PlatformServices.IsToastServiceInitialized)
-            {
-                PlatformServices.Toast.ShowToast(new Platform.Abstractions.ToastConfig
-                {
-                    Title = "Upload Failed",
-                    Text = errorMsg,
-                    Duration = 4f,
-                    AutoHide = true
-                });
-            }
-        }
+        /// <summary>The title of that error, such as "s-ul error", as ShareX titles a failed task's notification.</summary>
+        public static string? GetUploadErrorTitle(UploadResult? result) =>
+            GetLastError(result)?.Title is { Length: > 0 } title ? title : null;
+
+        private static UploaderErrorInfo? GetLastError(UploadResult? result) =>
+            result?.Errors?.Errors?.LastOrDefault(e => !string.IsNullOrWhiteSpace(e.Text));
 
         internal async Task<UploadResult?> UploadAsync(TaskInfo info, CancellationToken token)
         {
@@ -731,8 +723,16 @@ namespace XerahS.Core.Tasks.Processors
                     Host = ProviderCatalog.GetProviderContext() as IDestinationHost
                 };
 
+                // As in ShareX, the uploader's errors are titled "{service} error".
+                if (uploader is Uploader legacyUploader) legacyUploader.Errors.DefaultTitle = $"{provider.Name} error";
                 UploadOutcome outcome = await UploaderUploadAdapter.UploadAsync(uploader, request, token).ConfigureAwait(false);
                 UploadResult result = outcome.ToUploadResult();
+                if (!outcome.Succeeded && uploader is Uploader failedUploader && failedUploader.Errors.Count > 0)
+                {
+                    // The outcome joined the errors into one message; keep them separate, with their titles.
+                    result.Errors = new UploaderErrorManager();
+                    result.Errors.Add(failedUploader.Errors);
+                }
                 ApplyResolvedUploaderHost(info, instance, result);
                 return result;
             }

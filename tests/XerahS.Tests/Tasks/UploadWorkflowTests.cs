@@ -201,6 +201,41 @@ public class UploadWorkflowTests
     }
 
     [Test]
+    public async Task FailedCaptureUpload_KeepsTheUploadersOwnErrorWithTheDestinationTitle()
+    {
+        var instance = AddInstance(UploaderCategory.Image, "own-error-image");
+        _imageUploads = 0;
+        string path = Path.Combine(_directory, "own-error.png");
+        using var image = new SkiaSharp.SKBitmap(10, 10);
+        using (var data = image.Encode(SkiaSharp.SKEncodedImageFormat.Png, 100))
+        using (var file = File.Create(path)) data.SaveTo(file);
+        var info = new TaskInfo(new TaskSettings
+        {
+            Job = WorkflowType.PrintScreen,
+            AfterCaptureJob = AfterCaptureTasks.UploadImageToHost,
+            AfterUploadJob = AfterUploadTasks.None,
+            DestinationInstanceId = instance.InstanceId,
+            AllowCrossCategoryFallback = false
+        }) { FilePath = path, Metadata = new TaskMetadata(image) };
+
+        await new XerahS.Core.Tasks.Processors.CaptureJobProcessor().ProcessAsync(info, CancellationToken.None);
+        await new XerahS.Core.Tasks.Processors.UploadJobProcessor().ProcessAsync(info, CancellationToken.None);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(_imageUploads, Is.EqualTo(1));
+            Assert.That(XerahS.Core.Tasks.Processors.UploadJobProcessor.GetUploadErrorText(info.Result), Is.EqualTo("Enter your API key."));
+            Assert.That(XerahS.Core.Tasks.Processors.UploadJobProcessor.GetUploadErrorTitle(info.Result), Is.EqualTo("Hotkey upload tests error"));
+            Assert.That(XerahS.UI.Services.WorkflowOrchestrator.GetUploadFailureNotification(info.Result!),
+                Is.EqualTo(("Hotkey upload tests error", "Enter your API key.")));
+        });
+    }
+
+    [Test]
+    public void FailureWithoutErrorTextShowsNoNotification() =>
+        Assert.That(XerahS.UI.Services.WorkflowOrchestrator.GetUploadFailureNotification(new UploadResult()), Is.Null);
+
+    [Test]
     public void UploadErrorText_IsTheUploadersOwnLastMessage()
     {
         var result = new UploadResult { Response = "{\"error\":true}" };
@@ -375,6 +410,7 @@ public class UploadWorkflowTests
             "failed-file" => new TextSink(true),
             "blocking" => Blocking!,
             "failed-image" => new FailingImageUploader(),
+            "own-error-image" => new OwnErrorImageUploader(),
             _ => new Shortener(settingsJson == "fail")
         };
     }
@@ -396,6 +432,17 @@ public class UploadWorkflowTests
         {
             Interlocked.Increment(ref _imageUploads);
             return new UploadResult { IsSuccess = false, Response = "upload rejected" };
+        }
+    }
+
+    /// <summary>Like s-ul without an API key: records its own error and returns an empty result.</summary>
+    private sealed class OwnErrorImageUploader : ImageUploader
+    {
+        public override UploadResult Upload(Stream stream, string fileName)
+        {
+            Interlocked.Increment(ref _imageUploads);
+            Errors.Add("Enter your API key.");
+            return new UploadResult();
         }
     }
 

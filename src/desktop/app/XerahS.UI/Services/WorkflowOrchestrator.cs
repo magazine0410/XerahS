@@ -539,19 +539,26 @@ public sealed class WorkflowOrchestrator : IWorkflowOrchestrator
 
                 string? title;
                 string? text;
+                var failedResult = task.Info?.Result is { IsError: true } errorResult ? errorResult : null;
+                bool uploadFailed = failedResult != null;
 
-                if (task.Info?.Result?.IsError == true)
+                if (failedResult != null)
                 {
-                    title = "Task Failed";
-                    text = task.Info.Result.ToString();
-                    var uploaderErrors = task.Info.Result.ErrorsToString();
+                    if (GetUploadFailureNotification(failedResult) is not { } failure)
+                    {
+                        DebugHelper.WriteLine("Upload failed without an error message; no notification, as in ShareX.");
+                        return;
+                    }
+
+                    (title, text) = failure;
+                    var uploaderErrors = failedResult.ErrorsToString();
                     if (!string.IsNullOrWhiteSpace(uploaderErrors))
                     {
                         errorDetails = uploaderErrors;
                     }
-                    else if (!string.IsNullOrWhiteSpace(task.Info.Result.Response))
+                    else if (!string.IsNullOrWhiteSpace(failedResult.Response))
                     {
-                        errorDetails = task.Info.Result.Response;
+                        errorDetails = failedResult.Response;
                     }
                 }
                 else if (!string.IsNullOrEmpty(url))
@@ -565,8 +572,10 @@ public sealed class WorkflowOrchestrator : IWorkflowOrchestrator
                     text = task.Info?.FileName ?? "Operation completed successfully.";
                 }
 
+                // As in ShareX, a failure notification has only its title and text. With an image, the toast
+                // shows the image instead of the text, so the error would not be visible.
                 string? imagePath = null;
-                if (!string.IsNullOrEmpty(filePath) && File.Exists(filePath) && FileHelpers.IsImageFile(filePath))
+                if (!uploadFailed && !string.IsNullOrEmpty(filePath) && File.Exists(filePath) && FileHelpers.IsImageFile(filePath))
                 {
                     imagePath = filePath;
                 }
@@ -615,6 +624,21 @@ public sealed class WorkflowOrchestrator : IWorkflowOrchestrator
                 DebugHelper.WriteException(ex, "Failed to show workflow notification");
             }
         });
+    }
+
+    /// <summary>
+    /// As in ShareX, a failed upload's notification shows the error, titled with the destination ("s-ul error"),
+    /// and there is none without error text.
+    /// </summary>
+    internal static (string Title, string Text)? GetUploadFailureNotification(XerahS.Uploaders.UploadResult result)
+    {
+        if (!result.Errors.Errors.Any(error => !string.IsNullOrWhiteSpace(error.Text)) && string.IsNullOrWhiteSpace(result.Response))
+        {
+            return null;
+        }
+
+        return (Core.Tasks.Processors.UploadJobProcessor.GetUploadErrorTitle(result) ?? "Task Failed",
+            Core.Tasks.Processors.UploadJobProcessor.GetUploadErrorText(result));
     }
 
     // As in ShareX, a successful Share URL job shows no completion notification; failures still do.

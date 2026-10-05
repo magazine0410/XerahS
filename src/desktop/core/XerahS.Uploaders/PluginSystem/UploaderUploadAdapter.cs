@@ -126,6 +126,12 @@ public static class UploaderUploadAdapter
             UploadResult result = await Task.Run(
                 () => uploader.Upload(request.Content, request.FileName),
                 cancellationToken).ConfigureAwait(false);
+            // As ShareX's WorkerTask does, the result also gets the errors the uploader recorded on itself:
+            // HTTP errors, and the destination's own messages, such as a missing API key.
+            if (uploader.Errors.Count > 0 && !ReferenceEquals(uploader.Errors, result.Errors))
+            {
+                result.Errors.Add(uploader.Errors);
+            }
             return UploadOutcomeMapper.FromUploadResult(result);
         }
         catch (OperationCanceledException)
