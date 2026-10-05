@@ -40,6 +40,13 @@ namespace XerahS.Platform.Linux
             if (!environment.IsSandboxed)
             {
                 AppImageDesktopIntegration.EnsureDesktopEntry();
+
+                // KWin authorizes screenshots from KService's cache. Register the mounted AppImage and run
+                // kbuildsycoca6 in the background now, so the first capture does not wait for it.
+                if (environment.Desktop == "KDE")
+                {
+                    _ = Task.Run(Services.Kde.KdeCaptureAuthorization.EnsureAsync);
+                }
             }
 
             var clipboardService = new LinuxClipboardService();

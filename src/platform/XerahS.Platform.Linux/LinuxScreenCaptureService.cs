@@ -262,6 +262,18 @@ namespace XerahS.Platform.Linux
             return result.Bitmap;
         }
 
+        internal static System.Drawing.Rectangle CreateKdeAreaCaptureRect(SKRect rect, bool alreadyLogical, double x11Scale)
+        {
+            double scale = alreadyLogical || !double.IsFinite(x11Scale) || x11Scale <= 0 ? 1 : x11Scale;
+            double left = Math.Floor(rect.Left / scale), top = Math.Floor(rect.Top / scale);
+            double right = Math.Ceiling(rect.Right / scale), bottom = Math.Ceiling(rect.Bottom / scale);
+            if (!double.IsFinite(left) || !double.IsFinite(top) || !double.IsFinite(right) || !double.IsFinite(bottom) ||
+                left < int.MinValue || top < int.MinValue || right > int.MaxValue || bottom > int.MaxValue ||
+                right <= left || bottom <= top || right - left > int.MaxValue || bottom - top > int.MaxValue)
+                return System.Drawing.Rectangle.Empty;
+            return System.Drawing.Rectangle.FromLTRB((int)left, (int)top, (int)right, (int)bottom);
+        }
+
         private static void LogCaptureDecisionTrace(string captureName, CaptureDecisionTrace trace)
         {
             DebugHelper.WriteLine($"LinuxScreenCaptureService: {captureName} decision trace (final={trace.FinalOutcome}, provider={trace.FinalProviderId ?? "none"})");
@@ -284,6 +296,14 @@ namespace XerahS.Platform.Linux
 
             var context = LinuxRuntimeContextDetector.Detect();
             var fullScreenFallbackOptions = options;
+            if (context.Desktop == "KDE" && !context.IsSandboxed && options?.UseModernCapture != false &&
+                options?.LinuxForceLegacyCapturePath != true)
+            {
+                var area = CreateKdeAreaCaptureRect(rect, options?.VirtualScreenBoundsForCrop != null,
+                    context.IsWayland ? KWinWindowManager.X11Scale : 1);
+                var direct = await KdeDbusScreenCapture.CaptureAreaAsync(area, options).ConfigureAwait(false);
+                if (direct != null) return direct;
+            }
             if (ShouldUseDirectGnomeAreaCapture(options, context))
             {
                 var areaRect = CreateDirectAreaCaptureRect(rect);

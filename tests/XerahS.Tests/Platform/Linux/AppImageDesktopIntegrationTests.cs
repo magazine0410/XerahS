@@ -25,6 +25,7 @@
 
 using NUnit.Framework;
 using XerahS.Platform.Linux.Services;
+using XerahS.Platform.Linux.Services.Kde;
 
 namespace XerahS.Tests.Platform.Linux;
 
@@ -116,6 +117,52 @@ public class AppImageDesktopIntegrationTests
         Assert.That(AppImageDesktopIntegration.EnsureDesktopEntry(null, null, _dataHome, [_systemData]),
             Is.EqualTo(AppImageDesktopEntryAction.None));
         Assert.That(File.Exists(DesktopPath), Is.False);
+    }
+
+    [Test]
+    public void CaptureAuthorizationCoexistsWithPackageAndCleansOnlyItsOwnEntry()
+    {
+        string executable = Path.Combine(_appDir, "XerahS");
+        File.WriteAllText(executable, "");
+        Directory.CreateDirectory(Path.Combine(_dataHome, "applications"));
+        File.WriteAllText(DesktopPath, "user launcher");
+        var registration = KdeCaptureAuthorization.Register(_appImage, _appDir, executable, _dataHome, 123)!;
+        Assert.That(File.ReadAllText(registration.Path), Does.Contain("NoDisplay=true"));
+        Assert.That(File.ReadAllText(registration.Path), Does.Contain($"Exec=\"{executable}\""));
+        Assert.That(File.ReadAllText(DesktopPath), Is.EqualTo("user launcher"));
+        registration.Dispose();
+        Assert.That(File.Exists(registration.Path), Is.False);
+        Assert.That(File.ReadAllText(DesktopPath), Is.EqualTo("user launcher"));
+    }
+
+    [Test]
+    public void CaptureAuthorizationRemovesExpiredMountButKeepsOtherLiveInstances()
+    {
+        string executable = Path.Combine(_appDir, "XerahS");
+        File.WriteAllText(executable, "");
+        using var first = KdeCaptureAuthorization.Register(_appImage, _appDir, executable, _dataHome, 1)!;
+        using var second = KdeCaptureAuthorization.Register(_appImage, _appDir, executable, _dataHome, 2)!;
+        Assert.That(File.Exists(first.Path), Is.True);
+        File.Delete(executable);
+        string remount = Path.Combine(_root, "new-mount");
+        Directory.CreateDirectory(remount);
+        string newExecutable = Path.Combine(remount, "XerahS");
+        File.WriteAllText(newExecutable, "");
+        using var third = KdeCaptureAuthorization.Register(_appImage, remount, newExecutable, _dataHome, 3)!;
+        Assert.That(File.Exists(first.Path), Is.False);
+        Assert.That(File.Exists(second.Path), Is.False);
+        File.WriteAllText(third.Path, "user replacement");
+        third.Dispose();
+        Assert.That(File.ReadAllText(third.Path), Is.EqualTo("user replacement"));
+    }
+
+    [Test]
+    public void CaptureAuthorizationNeverAuthorizesHostOutsideAppImage()
+    {
+        string host = Path.Combine(_root, "dotnet");
+        File.WriteAllText(host, "");
+        Assert.That(KdeCaptureAuthorization.Register(_appImage, _appDir, host, _dataHome, 1), Is.Null);
+        Assert.That(AppImageDesktopIntegration.BuildCaptureAuthorizationEntry("/tmp/100%/XerahS"), Does.Contain("100%%"));
     }
 
     [Test]
