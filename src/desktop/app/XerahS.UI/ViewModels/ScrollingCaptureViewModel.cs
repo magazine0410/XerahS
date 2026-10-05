@@ -51,11 +51,14 @@ public partial class ScrollingCaptureViewModel : ViewModelBase
     public const string FailedText = "Capture failed";
     public const string UnsupportedText = "Scrolling capture is not supported on this platform.";
     public const string InputUnavailableText = "Capture failed: the window system did not allow XerahS to scroll the window.";
+    public const string InputStoppedText = "Capture stopped: the window system ended XerahS's scroll input.";
+    public const string TargetUnavailableText = "Capture stopped: the target window changed or could not be activated.";
 
     private readonly ScrollingCaptureOptions _options;
     private CancellationTokenSource? _captureCts;
     private SKBitmap? _capturedSkBitmap;
     private bool _busy;
+    private bool _closed;
 
     [ObservableProperty]
     private Avalonia.Media.Imaging.Bitmap? _previewImage;
@@ -126,7 +129,7 @@ public partial class ScrollingCaptureViewModel : ViewModelBase
     public bool CanUseResult => HasResult && !IsCapturing;
 
     /// <summary>Lets the user select an area; returns it with the window under it, or null.</summary>
-    public Func<Task<ScrollingCaptureTarget?>>? SelectTargetRequested { get; set; }
+    public Func<CancellationToken, Task<ScrollingCaptureTarget?>>? SelectTargetRequested { get; set; }
 
     /// <summary>Shows the border around the area while capturing; disposing the result hides it.</summary>
     public Func<System.Drawing.Rectangle, IDisposable?>? ShowRegionRequested { get; set; }
@@ -143,12 +146,15 @@ public partial class ScrollingCaptureViewModel : ViewModelBase
     /// <summary>Raised after a capture ends.</summary>
     public event EventHandler? CaptureFinished;
 
+    public Action? PlayCompletionSound { get; set; }
+
     /// <summary>
     /// ShareX's StartStop: stops a running capture, otherwise selects an area and captures it.
     /// The window calls it when it opens, and the Scrolling capture hotkey calls it again.
     /// </summary>
     public async Task StartStopAsync()
     {
+        if (_closed) return;
         if (IsCapturing)
         {
             StopCapture();
@@ -161,12 +167,28 @@ public partial class ScrollingCaptureViewModel : ViewModelBase
         }
 
         _busy = true;
+        using var operation = new CancellationTokenSource();
+        _captureCts = operation;
         try
         {
-            await SelectAndCaptureAsync();
+            await SelectAndCaptureAsync(operation.Token);
+        }
+        catch (OperationCanceledException) when (operation.IsCancellationRequested)
+        {
+            if (!_closed) StatusText = SelectionCancelledText;
+        }
+        catch (Exception ex)
+        {
+            DebugHelper.WriteException(ex, "ScrollingCapture setup");
+            if (!_closed)
+            {
+                Status = ScrollingCaptureStatus.Failed;
+                StatusText = ex.Message;
+            }
         }
         finally
         {
+            _captureCts = null;
             _busy = false;
         }
     }
@@ -174,7 +196,7 @@ public partial class ScrollingCaptureViewModel : ViewModelBase
     [RelayCommand]
     private Task CaptureAsync() => StartStopAsync();
 
-    private async Task SelectAndCaptureAsync()
+    private async Task SelectAndCaptureAsync(CancellationToken cancellationToken)
     {
         if (!PlatformServices.IsInitialized || PlatformServices.ScrollingCapture is not { IsSupported: true } scrollService)
         {
@@ -184,52 +206,57 @@ public partial class ScrollingCaptureViewModel : ViewModelBase
 
         IsOptionsOpen = false;
         SetMinimizedRequested?.Invoke(true);
-        await Task.Delay(250);
-
-        // Start scroll input before the selection: on Wayland this is a remote desktop session, whose
-        // permission dialog and "session started" notification then come before, not during, the capture.
-        if (!await scrollService.BeginAsync())
-        {
-            Status = ScrollingCaptureStatus.Failed;
-            StatusText = InputUnavailableText;
-            SetMinimizedRequested?.Invoke(false);
-            return;
-        }
-
-        ScrollingCaptureTarget? target = null;
+        bool inputStarted = false;
+        bool captureOwnsSession = false;
         try
         {
-            target = SelectTargetRequested == null ? null : await SelectTargetRequested();
-        }
-        catch (Exception ex)
-        {
-            DebugHelper.WriteException(ex, "ScrollingCapture selection");
-        }
+            await Task.Delay(250, cancellationToken);
+            // Request input before selection so portal prompts and notifications cannot obscure frames.
+            inputStarted = await scrollService.BeginAsync(cancellationToken);
+            cancellationToken.ThrowIfCancellationRequested();
+            if (!inputStarted)
+            {
+                Status = ScrollingCaptureStatus.Failed;
+                StatusText = InputUnavailableText;
+                return;
+            }
 
-        if (target is not { } selected || selected.WindowHandle == IntPtr.Zero || selected.Region.IsEmpty)
-        {
-            await scrollService.EndAsync();
-            StatusText = SelectionCancelledText;
-            SetMinimizedRequested?.Invoke(false);
-            return;
-        }
+            var target = SelectTargetRequested == null ? null : await SelectTargetRequested(cancellationToken);
+            cancellationToken.ThrowIfCancellationRequested();
+            if (target is not { } selected || selected.WindowHandle == IntPtr.Zero || selected.Region.IsEmpty)
+            {
+                StatusText = SelectionCancelledText;
+                return;
+            }
 
-        await CaptureTargetAsync(scrollService, selected);
+            captureOwnsSession = true;
+            await CaptureTargetAsync(scrollService, selected, cancellationToken);
+        }
+        finally
+        {
+            if (!captureOwnsSession)
+            {
+                try { if (inputStarted) await scrollService.EndAsync(); }
+                finally { if (!_closed) SetMinimizedRequested?.Invoke(false); }
+            }
+        }
     }
 
-    private async Task CaptureTargetAsync(IScrollingCaptureService scrollService, ScrollingCaptureTarget target)
+    private async Task CaptureTargetAsync(IScrollingCaptureService scrollService, ScrollingCaptureTarget target, CancellationToken cancellationToken)
     {
         IsCapturing = true;
         Status = null;
         StatusText = CapturingText;
         ClearResult();
-        _captureCts = new CancellationTokenSource();
-        IDisposable? regionBorder = _options.ShowRegion ? ShowRegionRequested?.Invoke(target.Region) : null;
+        IDisposable? regionBorder = null;
+        bool managerOwnsSession = false;
 
         try
         {
+            regionBorder = _options.ShowRegion ? ShowRegionRequested?.Invoke(target.Region) : null;
             var manager = new ScrollingCaptureManager(scrollService, PlatformServices.ScreenCapture, PlatformServices.Window);
             var region = target.Region;
+            managerOwnsSession = true;
             var result = await manager.CaptureAsync(
                 target.WindowHandle,
                 new SKRect(region.Left, region.Top, region.Right, region.Bottom),
@@ -239,16 +266,33 @@ public partial class ScrollingCaptureViewModel : ViewModelBase
                 scrollDelayMs: _options.ScrollDelay,
                 autoScrollTop: _options.AutoScrollTop,
                 autoIgnoreBottomEdge: _options.AutoIgnoreBottomEdge,
-                cancellationToken: _captureCts.Token);
+                cancellationToken: cancellationToken);
+
+            if (_closed)
+            {
+                result.Image?.Dispose();
+                return;
+            }
 
             Status = result.Status;
-            StatusText = result.InputUnavailable ? InputUnavailableText : result.Status switch
-            {
-                ScrollingCaptureStatus.Successful => SuccessfulText,
-                ScrollingCaptureStatus.PartiallySuccessful => PartiallySuccessfulText,
-                _ => FailedText
-            };
+            StatusText = result.Error != null ? result.Error.Message
+                : result.InputUnavailable ? (result.Image != null ? InputStoppedText : InputUnavailableText)
+                : result.TargetUnavailable ? TargetUnavailableText
+                : result.Status switch
+                {
+                    ScrollingCaptureStatus.Successful => SuccessfulText,
+                    ScrollingCaptureStatus.PartiallySuccessful => PartiallySuccessfulText,
+                    _ => FailedText
+                };
+            // As in ShareX, an error keeps the frames captured before it, and they are still uploaded.
             SetResult(result.Image);
+            // ShareX plays ActionCompleted when the manager returns a status, before automatic upload,
+            // but not after an error.
+            if (result.Error == null)
+            {
+                try { PlayCompletionSound?.Invoke(); }
+                catch (Exception ex) { DebugHelper.WriteException(ex, "Scrolling capture completion sound"); }
+            }
         }
         catch (Exception ex)
         {
@@ -258,19 +302,22 @@ public partial class ScrollingCaptureViewModel : ViewModelBase
         }
         finally
         {
-            regionBorder?.Dispose();
+            try { regionBorder?.Dispose(); }
+            catch (Exception ex) { DebugHelper.WriteException(ex, "Scrolling capture border cleanup"); }
             IsCapturing = false;
-            _captureCts?.Dispose();
-            _captureCts = null;
-            SetMinimizedRequested?.Invoke(false);
+            try { if (!managerOwnsSession) await scrollService.EndAsync(); }
+            finally { if (!_closed) SetMinimizedRequested?.Invoke(false); }
         }
 
-        if (_options.AutoUpload && _capturedSkBitmap != null)
+        try
         {
-            await UploadAsync();
+            if (!_closed && _options.AutoUpload && _capturedSkBitmap != null)
+                await UploadAsync();
         }
-
-        CaptureFinished?.Invoke(this, EventArgs.Empty);
+        finally
+        {
+            if (!_closed) CaptureFinished?.Invoke(this, EventArgs.Empty);
+        }
     }
 
     /// <summary>Stops a running capture; the frames captured so far are kept, as in ShareX.</summary>
@@ -364,6 +411,7 @@ public partial class ScrollingCaptureViewModel : ViewModelBase
     {
         _capturedSkBitmap?.Dispose();
         _capturedSkBitmap = null;
+        PreviewImage?.Dispose();
         PreviewImage = null;
         ResultSize = "";
         HasResult = false;
@@ -371,10 +419,9 @@ public partial class ScrollingCaptureViewModel : ViewModelBase
 
     public void Cleanup()
     {
+        _closed = true;
         _captureCts?.Cancel();
-        _captureCts?.Dispose();
-        _capturedSkBitmap?.Dispose();
-        _capturedSkBitmap = null;
-        PreviewImage = null;
+        // The operation owns its CTS and session until all asynchronous setup/capture has unwound.
+        ClearResult();
     }
 }

@@ -177,6 +177,26 @@ public class ActiveMonitorModeTests
     }
 
     [AvaloniaTest]
+    public async Task CancelledRegionSelectionClosesEveryOverlay()
+    {
+        using var manager = new OverlayManager(new CoordinateTranslationService([LeftMonitor, RightMonitor]));
+        using var cancellation = new CancellationTokenSource();
+        Task<RegionSelectionResult?> selection = manager.ShowOverlaysAsync(options: new RegionCaptureOptions
+        {
+            EnableAnnotations = false,
+            EnableWindowSnapping = false,
+            UseTransparentOverlay = true
+        }, cancellationToken: cancellation.Token);
+        var overlays = manager.Overlays.ToArray();
+        Assert.That(overlays, Has.Length.EqualTo(2));
+        cancellation.Cancel();
+        try { await selection; Assert.Fail("Selection should be cancelled."); }
+        catch (OperationCanceledException) { }
+        Assert.That(manager.Overlays, Is.Empty);
+        Assert.That(overlays.All(overlay => !overlay.IsVisible), Is.True);
+    }
+
+    [AvaloniaTest]
     public void InactiveMonitor_IgnoresPointerAndCaptureKeys()
     {
         using var session = Open(rightIsInitiallyActive: true);

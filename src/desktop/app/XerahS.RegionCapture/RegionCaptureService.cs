@@ -47,19 +47,19 @@ public sealed class RegionCaptureService
     /// Initiates a region capture operation and returns the selected region in physical pixels.
     /// </summary>
     /// <returns>The captured region, or null if cancelled.</returns>
-    public async Task<RegionSelectionResult?> CaptureRegionAsync(XerahS.Platform.Abstractions.CursorInfo? initialCursor = null)
+    public async Task<RegionSelectionResult?> CaptureRegionAsync(XerahS.Platform.Abstractions.CursorInfo? initialCursor = null, CancellationToken cancellationToken = default)
     {
         using var manager = new OverlayManager();
-        return await manager.ShowOverlaysAsync(null, initialCursor, Options);
+        return await manager.ShowOverlaysAsync(null, initialCursor, Options, cancellationToken);
     }
 
     /// <summary>
     /// Initiates a region capture with a callback for real-time selection updates.
     /// </summary>
-    public async Task<RegionSelectionResult?> CaptureRegionAsync(Action<PixelRect>? onSelectionChanged, XerahS.Platform.Abstractions.CursorInfo? initialCursor = null)
+    public async Task<RegionSelectionResult?> CaptureRegionAsync(Action<PixelRect>? onSelectionChanged, XerahS.Platform.Abstractions.CursorInfo? initialCursor = null, CancellationToken cancellationToken = default)
     {
         using var manager = new OverlayManager();
-        return await manager.ShowOverlaysAsync(onSelectionChanged, initialCursor, Options);
+        return await manager.ShowOverlaysAsync(onSelectionChanged, initialCursor, Options, cancellationToken);
     }
 }
 

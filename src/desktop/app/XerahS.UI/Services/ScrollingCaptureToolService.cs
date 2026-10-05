@@ -94,7 +94,8 @@ public static class ScrollingCaptureToolService
             SelectTargetRequested = SelectTargetAsync,
             ShowRegionRequested = ShowRegionBorder,
             UploadRequested = image => UploadCapturedImageAsync(taskManager, image, settings),
-            SaveOptionsRequested = SettingsManager.SaveWorkflowsConfig
+            SaveOptionsRequested = SettingsManager.SaveWorkflowsConfig,
+            PlayCompletionSound = () => NotificationSoundService.PlayActionCompleted(settings)
         };
         var window = new ScrollingCaptureWindow { DataContext = viewModel };
 
@@ -116,7 +117,7 @@ public static class ScrollingCaptureToolService
     /// ShareX selects the area with region capture and scrolls the window it snapped to, or else the
     /// topmost window under the middle of the area.
     /// </summary>
-    private static async Task<ScrollingCaptureTarget?> SelectTargetAsync()
+    private static async Task<ScrollingCaptureTarget?> SelectTargetAsync(CancellationToken cancellationToken)
     {
         if (!PlatformServices.IsInitialized)
         {
@@ -135,6 +136,7 @@ public static class ScrollingCaptureToolService
 
         try
         {
+            cancellationToken.ThrowIfCancellationRequested();
             var regionCapture = new XerahS.RegionCapture.RegionCaptureService
             {
                 Options = new XerahS.RegionCapture.RegionCaptureOptions
@@ -145,7 +147,7 @@ public static class ScrollingCaptureToolService
                 }
             };
 
-            var selection = await regionCapture.CaptureRegionAsync();
+            var selection = await regionCapture.CaptureRegionAsync(cancellationToken: cancellationToken);
             if (selection is not { } result || result.Region.Width < 1 || result.Region.Height < 1)
             {
                 return null;

@@ -221,7 +221,7 @@ public sealed class XerahSMcpRuntime : IXerahSMcpRuntime
             autoIgnoreBottomEdge: options.AutoIgnoreBottomEdge,
             cancellationToken: cancellationToken);
 
-        using var image = result.Image ?? throw new InvalidOperationException("Scrolling capture did not produce an image.");
+        using var image = result.Image ?? throw new InvalidOperationException(result.Error?.Message ?? "Scrolling capture did not produce an image.");
         var savedPath = await SaveImageToFileAsync(image, settings);
         _historyService.AppendItem(savedPath, "Image", null, PlatformServices.Window.GetWindowText(handle), ResolveProcessName(handle));
 
@@ -231,6 +231,7 @@ public sealed class XerahSMcpRuntime : IXerahSMcpRuntime
             ["url"] = null,
             ["frames_captured"] = result.FramesCaptured,
             ["status"] = result.Status.ToString(),
+            ["error"] = result.Error?.Message,
             ["scroll_direction"] = scrollDirection,
             ["max_frames"] = maxFrames
         };

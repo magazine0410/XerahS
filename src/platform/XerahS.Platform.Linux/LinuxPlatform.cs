@@ -131,6 +131,7 @@ namespace XerahS.Platform.Linux
             // OCR with the system's Tesseract library.
             PlatformServices.Ocr = new LinuxOcrService();
             PlatformServices.Print = new Services.LinuxPrintService();
+            PlatformServices.SoundPlayback = new LinuxSoundPlaybackService();
 
             PlatformServices.ScrollingCapture = new LinuxScrollingCaptureService();
 
