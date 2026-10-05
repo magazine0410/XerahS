@@ -203,6 +203,10 @@ public sealed class LinuxHotkeyService : IHotkeyService
         }
     }
 
+    /// <summary>The registration ends with the process, so a temporary hotkey is an ordinary one, unregistered afterwards.</summary>
+    public Task<IDisposable?> RegisterTemporaryHotkeyAsync(HotkeyInfo hotkeyInfo, Action pressed) =>
+        Task.FromResult(TemporaryHotkeyRegistration.TryRegister(this, hotkeyInfo, pressed));
+
     public bool UnregisterHotkey(HotkeyInfo hotkeyInfo)
     {
         if (_display == IntPtr.Zero || hotkeyInfo.Id == 0)

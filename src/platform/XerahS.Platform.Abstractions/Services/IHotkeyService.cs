@@ -78,6 +78,14 @@ public interface IHotkeyService : IDisposable
     Task<bool> ShowInteractiveConfigurationAsync() => Task.FromResult(false);
 
     /// <summary>
+    /// Binds a hotkey only while an operation runs, such as Escape to stop a scrolling capture, and calls
+    /// <paramref name="pressed"/> when it is pressed, possibly on another thread. Disposing the result
+    /// removes the binding. Returns null where the backend cannot remove the binding afterwards, for
+    /// example when it would stay in the desktop's shortcut settings.
+    /// </summary>
+    Task<IDisposable?> RegisterTemporaryHotkeyAsync(HotkeyInfo hotkeyInfo, Action pressed) => Task.FromResult<IDisposable?>(null);
+
+    /// <summary>
     /// Called by the UI layer once the main window has fully opened and the native window
     /// handle is available via <see cref="PlatformServices.NativeWindowHandleProvider"/>.
     /// Implementations that deferred portal session setup (because the handle was not

@@ -46,6 +46,9 @@ namespace XerahS.Platform.Linux
                 if (environment.Desktop == "KDE")
                 {
                     _ = Task.Run(Services.Kde.KdeCaptureAuthorization.EnsureAsync);
+                    // A temporary key, such as Escape during a scrolling capture, stays bound if XerahS exited
+                    // during the operation. Remove such bindings before a new one is made.
+                    _ = Services.Kde.KdeTemporaryShortcut.EnsureStaleRemovedAsync();
                 }
             }
 

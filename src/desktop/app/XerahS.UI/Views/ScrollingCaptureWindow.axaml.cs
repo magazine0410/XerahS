@@ -38,8 +38,8 @@ namespace XerahS.UI.Views;
 
 public partial class ScrollingCaptureWindow : SurfaceWindow
 {
-    private static readonly HotkeyInfo s_escapeStopHotkey = new(Key.Escape);
-    private bool _escapeHotkeyRegistered;
+    private IDisposable? _escapeStop;
+    private bool _escapeStopWanted;
     private bool _closeRequested;
 
     /// <summary>Shows a scroll method by its description, as ShareX's localized names.</summary>
@@ -139,54 +139,51 @@ public partial class ScrollingCaptureWindow : SurfaceWindow
         }
     }
 
-    private void RegisterEscapeStopHotkey()
+    /// <summary>
+    /// Escape stops a running capture, in addition to the hotkey and activating the window as in ShareX.
+    /// The hotkey service binds it only while capturing; where it cannot (the GlobalShortcuts portal
+    /// outside KDE, macOS), Escape does nothing here.
+    /// </summary>
+    private async void RegisterEscapeStopHotkey()
     {
-        // Windows only: on Wayland a global shortcut goes through the portal, which would bind Escape
-        // for the whole desktop. ShareX stops with the hotkey again or by activating the window.
-        if (_escapeHotkeyRegistered || !PlatformServices.IsInitialized || !OperatingSystem.IsWindows())
+        if (_escapeStopWanted || !PlatformServices.IsInitialized)
         {
             return;
         }
 
+        _escapeStopWanted = true;
         try
         {
-            if (PlatformServices.Hotkey.RegisterHotkey(s_escapeStopHotkey))
+            IDisposable? registration = await PlatformServices.Hotkey.RegisterTemporaryHotkeyAsync(new HotkeyInfo(Key.Escape),
+                () => Dispatcher.UIThread.Post(() => ViewModel?.StopCapture()));
+            if (_escapeStopWanted && _escapeStop == null)
             {
-                _escapeHotkeyRegistered = true;
-                PlatformServices.Hotkey.HotkeyTriggered += OnHotkeyTriggered;
+                _escapeStop = registration;
+            }
+            else
+            {
+                // The capture ended while the key was being bound.
+                registration?.Dispose();
             }
         }
-        catch
+        catch (Exception ex)
         {
-            // Ignore - hotkey may not be supported on this platform
+            DebugHelper.WriteException(ex, "ScrollingCapture: binding Escape");
         }
     }
 
     private void UnregisterEscapeStopHotkey()
     {
-        if (!_escapeHotkeyRegistered || !PlatformServices.IsInitialized)
-        {
-            return;
-        }
-
+        _escapeStopWanted = false;
+        IDisposable? registration = _escapeStop;
+        _escapeStop = null;
         try
         {
-            PlatformServices.Hotkey.HotkeyTriggered -= OnHotkeyTriggered;
-            PlatformServices.Hotkey.UnregisterHotkey(s_escapeStopHotkey);
+            registration?.Dispose();
         }
-        finally
+        catch (Exception ex)
         {
-            _escapeHotkeyRegistered = false;
+            DebugHelper.WriteException(ex, "ScrollingCapture: removing Escape");
         }
-    }
-
-    private void OnHotkeyTriggered(object? sender, HotkeyTriggeredEventArgs e)
-    {
-        if (e.HotkeyInfo.Key != Key.Escape || ViewModel is not { IsCapturing: true } vm)
-        {
-            return;
-        }
-
-        Dispatcher.UIThread.Post(vm.StopCapture);
     }
 }

@@ -122,4 +122,17 @@ public interface IKGlobalAccelRegistry : IDBusObject
     Task setForeignShortcutKeysAsync(string[] actionId, ValueTuple<int[]>[] keys);
 
     Task<bool> unregisterAsync(string componentUnique, string shortcutUnique);
+
+    Task doRegisterAsync(string[] actionId);
+
+    /// <summary>Flags: 1 IsDefault, 2 SetPresent, 4 NoAutoloading. Returns the keys actually assigned.</summary>
+    Task<ValueTuple<int[]>[]> setShortcutKeysAsync(string[] actionId, ValueTuple<int[]>[] keys, uint flags);
+}
+
+[DBusInterface("org.kde.kglobalaccel.Component")]
+public interface IKGlobalAccelComponent : IDBusObject
+{
+    Task<bool> cleanUpAsync();
+
+    Task<IDisposable> WatchglobalShortcutPressedAsync(Action<(string componentUnique, string shortcutUnique, long timestamp)> handler, Action<Exception>? error = null);
 }

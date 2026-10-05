@@ -195,6 +195,13 @@ public sealed class WaylandPortalHotkeyService : IHotkeyService, IDesktopShortcu
     }
 
     /// <summary>
+    /// A portal binding would stay in the desktop's shortcut settings after the operation. On KDE the key
+    /// is bound directly in kglobalaccel instead, for the duration only; elsewhere there is no temporary key.
+    /// </summary>
+    public async Task<IDisposable?> RegisterTemporaryHotkeyAsync(HotkeyInfo hotkeyInfo, Action pressed) =>
+        await Kde.KdeTemporaryShortcut.TryRegisterAsync(Kde.QtKeyMapper.ToQt(hotkeyInfo), hotkeyInfo.ToString(), pressed).ConfigureAwait(false);
+
+    /// <summary>
     /// ConfigureShortcuts was added in version 2 of the GlobalShortcuts portal. An unknown version is
     /// still tried; a portal without the method answers UnknownMethod, which is handled.
     /// </summary>
