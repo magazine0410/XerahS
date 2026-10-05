@@ -80,8 +80,8 @@ internal sealed class RemoteDesktopScrollInput : IScrollInput
 
             // An unreadable property does not stop the capture: persistence is then requested, as it
             // was before these checks, and the granted devices are still checked after Start.
-            uint version = await TryGetUInt32PropertyAsync(_portal, "version").ConfigureAwait(false) ?? 2;
-            if (await TryGetUInt32PropertyAsync(_portal, "AvailableDeviceTypes").ConfigureAwait(false) is { } available &&
+            uint version = await PortalInterfaceChecker.TryGetUInt32PropertyAsync(_portal.GetAsync, "version").ConfigureAwait(false) ?? 2;
+            if (await PortalInterfaceChecker.TryGetUInt32PropertyAsync(_portal.GetAsync, "AvailableDeviceTypes").ConfigureAwait(false) is { } available &&
                 !HasRequiredDevices(available))
             {
                 DebugHelper.WriteLine($"RemoteDesktopScrollInput: The portal offers no keyboard and pointer (AvailableDeviceTypes={available}).");
@@ -153,19 +153,6 @@ internal sealed class RemoteDesktopScrollInput : IScrollInput
     /// </summary>
     internal static bool GrantsRequiredDevices(IDictionary<string, object> startResults) =>
         !startResults.TryGetResult("devices", out uint granted) || HasRequiredDevices(granted);
-
-    private static async Task<uint?> TryGetUInt32PropertyAsync(IRemoteDesktopPortal portal, string name)
-    {
-        try
-        {
-            return Convert.ToUInt32(await portal.GetAsync(name).ConfigureAwait(false));
-        }
-        catch (Exception ex) when (ex is DBusException or InvalidCastException or FormatException or OverflowException)
-        {
-            DebugHelper.WriteLine($"RemoteDesktopScrollInput: Could not read the portal's {name} property: {ex.Message}");
-            return null;
-        }
-    }
 
     internal static Dictionary<string, object> CreateSelectOptions(uint version, string? restoreToken)
     {

@@ -158,8 +158,8 @@ public sealed class WaylandPortalHotkeyService : IHotkeyService, IDesktopShortcu
             return false;
 
         // ConfigureShortcuts requires portal interface version >= 2 (XIP0079 P1 / XIP0044).
-        uint? version = PortalInterfaceChecker.TryGetInterfaceVersion("org.freedesktop.portal.GlobalShortcuts");
-        if (version is < 2)
+        uint? version = await PortalInterfaceChecker.TryGetUInt32PropertyAsync(_portal.GetAsync, "version").ConfigureAwait(false);
+        if (!SupportsConfigureShortcuts(version))
         {
             DebugHelper.WriteLine($"WaylandPortalHotkeyService: ConfigureShortcuts requires GlobalShortcuts portal v2+ (found v{version?.ToString() ?? "unknown"}); use the in-app hotkey recorder.");
             return false;
@@ -193,6 +193,12 @@ public sealed class WaylandPortalHotkeyService : IHotkeyService, IDesktopShortcu
             return false;
         }
     }
+
+    /// <summary>
+    /// ConfigureShortcuts was added in version 2 of the GlobalShortcuts portal. An unknown version is
+    /// still tried; a portal without the method answers UnknownMethod, which is handled.
+    /// </summary>
+    internal static bool SupportsConfigureShortcuts(uint? version) => version is not < 2;
 
     public bool RegisterHotkey(HotkeyInfo hotkeyInfo)
     {
@@ -1151,6 +1157,9 @@ public interface IGlobalShortcuts : IDBusObject
     Task<ObjectPath> ListShortcutsAsync(ObjectPath sessionHandle, IDictionary<string, object> options);
 
     Task<ObjectPath> ConfigureShortcutsAsync(ObjectPath sessionHandle, string parentWindow, IDictionary<string, object> options);
+
+    /// <summary>Reads a property of this interface. Tmds.DBus sends it as org.freedesktop.DBus.Properties.Get.</summary>
+    Task<object> GetAsync(string prop);
 
     Task<IDisposable> WatchActivatedAsync(Action<(ObjectPath sessionHandle, string shortcutId, ulong timestamp, IDictionary<string, object> options)> handler, Action<Exception>? error = null);
 
