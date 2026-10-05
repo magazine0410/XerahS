@@ -40,6 +40,16 @@ namespace XerahS.Platform.Linux
             if (!environment.IsSandboxed)
             {
                 AppImageDesktopIntegration.EnsureDesktopEntry();
+
+                // KWin authorizes screenshots from KService's cache. Register the mounted AppImage and run
+                // kbuildsycoca6 in the background now, so the first capture does not wait for it.
+                if (environment.Desktop == "KDE")
+                {
+                    _ = Task.Run(Services.Kde.KdeCaptureAuthorization.EnsureAsync);
+                    // A temporary key, such as Escape during a scrolling capture, stays bound if XerahS exited
+                    // during the operation. Remove such bindings before a new one is made.
+                    _ = Services.Kde.KdeTemporaryShortcut.EnsureStaleRemovedAsync();
+                }
             }
 
             var clipboardService = new LinuxClipboardService();
@@ -124,6 +134,7 @@ namespace XerahS.Platform.Linux
             // OCR with the system's Tesseract library.
             PlatformServices.Ocr = new LinuxOcrService();
             PlatformServices.Print = new Services.LinuxPrintService();
+            PlatformServices.SoundPlayback = new LinuxSoundPlaybackService();
 
             PlatformServices.ScrollingCapture = new LinuxScrollingCaptureService();
 

@@ -42,7 +42,8 @@ public sealed class LinuxScrollingCaptureService : IScrollingCaptureService
 {
     private static readonly ScrollMethod[] Methods = [ScrollMethod.MouseWheel, ScrollMethod.DownArrow, ScrollMethod.PageDown];
     private readonly Lazy<bool> _isSupported;
-    private readonly Func<bool> _isWayland;
+    private readonly Func<IScrollInput> _createInput;
+    private readonly SemaphoreSlim _sessionGate = new(1, 1);
     private IScrollInput? _input;
 
     public LinuxScrollingCaptureService()
@@ -50,9 +51,11 @@ public sealed class LinuxScrollingCaptureService : IScrollingCaptureService
     {
     }
 
-    internal LinuxScrollingCaptureService(Func<bool> isWayland, Func<bool> hasRemoteDesktopPortal, Func<bool> hasXTest)
+    internal LinuxScrollingCaptureService(Func<bool> isWayland, Func<bool> hasRemoteDesktopPortal, Func<bool> hasXTest, Func<IScrollInput>? createInput = null)
     {
-        _isWayland = isWayland;
+        _createInput = createInput ?? (() => isWayland()
+            ? new RemoteDesktopScrollInput(LoadRestoreToken, SaveRestoreToken)
+            : new XTestScrollInput());
         _isSupported = new Lazy<bool>(() => isWayland() ? hasRemoteDesktopPortal() : hasXTest());
     }
 
@@ -65,31 +68,40 @@ public sealed class LinuxScrollingCaptureService : IScrollingCaptureService
 
     public async Task<bool> BeginAsync(CancellationToken cancellationToken = default)
     {
-        // The scrolling capture window starts the session before the area selection, so the desktop's
-        // "remote control" notification has time to close; the capture then reuses it.
-        if (_input != null)
-            return true;
-        if (!IsSupported)
-            return false;
-
-        IScrollInput input = _isWayland()
-            ? new RemoteDesktopScrollInput(LoadRestoreToken, SaveRestoreToken)
-            : new XTestScrollInput();
-        if (!await input.BeginAsync(cancellationToken).ConfigureAwait(false))
+        // Selection and capture share one session. Serialize startup/teardown so cancellation or
+        // a second invocation cannot leak a session that finishes opening after the window closes.
+        await _sessionGate.WaitAsync(cancellationToken).ConfigureAwait(false);
+        try
         {
-            await input.DisposeAsync().ConfigureAwait(false);
-            return false;
+            if (_input != null) return true;
+            if (!IsSupported) return false;
+            IScrollInput input = _createInput();
+            bool retained = false;
+            try
+            {
+                if (!await input.BeginAsync(cancellationToken).ConfigureAwait(false)) return false;
+                cancellationToken.ThrowIfCancellationRequested();
+                _input = input;
+                retained = true;
+                return true;
+            }
+            finally
+            {
+                if (!retained) await input.DisposeAsync().ConfigureAwait(false);
+            }
         }
-
-        _input = input;
-        return true;
+        finally { _sessionGate.Release(); }
     }
 
     public async Task EndAsync()
     {
-        IScrollInput? input = Interlocked.Exchange(ref _input, null);
-        if (input != null)
-            await input.DisposeAsync().ConfigureAwait(false);
+        await _sessionGate.WaitAsync().ConfigureAwait(false);
+        try
+        {
+            IScrollInput? input = Interlocked.Exchange(ref _input, null);
+            if (input != null) await input.DisposeAsync().ConfigureAwait(false);
+        }
+        finally { _sessionGate.Release(); }
     }
 
     public async Task ScrollWindowAsync(IntPtr windowHandle, ScrollMethod method, int amount, Point? targetPoint = null)

@@ -741,8 +741,19 @@ public class LinuxCaptureOrchestrationTests
         }
     }
 
+    [Test]
+    public async Task KdeProvider_CancellationDoesNotBecomeFallbackFailure()
+    {
+        var provider = new KdeDbusCaptureProvider(new NoOpRuntime { CancelKde = true });
+        var request = new LinuxCaptureRequest(LinuxCaptureKind.Region, new CaptureOptions());
+        var context = new LinuxCaptureContext(true, "KDE", "KWIN", false, true);
+        var result = await provider.TryCaptureAsync(request, context);
+        Assert.That(result.IsCancelled, Is.True);
+    }
+
     private sealed class NoOpRuntime : ILinuxCaptureRuntime
     {
+        public bool CancelKde { get; init; }
         public uint PortalCancelledResponseCode => 1;
 
         public Task<(SKBitmap? bitmap, uint response)> TryPortalCaptureAsync(LinuxCaptureKind kind, CaptureOptions? options)
@@ -752,6 +763,7 @@ public class LinuxCaptureOrchestrationTests
 
         public Task<SKBitmap?> TryKdeDbusCaptureAsync(LinuxCaptureKind kind, CaptureOptions? options)
         {
+            if (CancelKde) throw new OperationCanceledException();
             return Task.FromResult<SKBitmap?>(null);
         }
 

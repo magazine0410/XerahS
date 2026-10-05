@@ -181,6 +181,7 @@ namespace XerahS.Core.Tasks.Pipeline
                 MacOSPlayCaptureSound = captureSettings.MacOSPlayCaptureSound,
                 ShowCursor = captureSettings.ShowCursor,
                 UseTransparentOverlay = useTransparentOverlay,
+                CaptureTransparent = captureSettings.CaptureTransparent,
                 CaptureShadow = captureSettings.CaptureShadow,
                 CaptureClientArea = captureSettings.CaptureClientArea,
                 WorkflowId = taskSettings.WorkflowId,
@@ -335,21 +336,13 @@ namespace XerahS.Core.Tasks.Pipeline
                                 var selectedWindow = await WorkerTask.ShowWindowSelectorCallback();
                                 if (selectedWindow != null)
                                 {
-                                    if (PlatformServices.Window.IsWindowMinimized(selectedWindow.Handle))
-                                    {
-                                        PlatformServices.Window.ShowWindow(selectedWindow.Handle, 9); // SW_RESTORE = 9
-                                        await Task.Delay(WindowActivationDelayMs, token);
-                                    }
-
-                                    PlatformServices.Window.ActivateWindow(selectedWindow.Handle);
-                                    await Task.Delay(WindowActivationDelayMs, token); // Increased delay for activation to settle
-
                                     if (isScreenCaptureDelay && !await _workerTask.ApplyCaptureStartDelayAsync(taskSettings!, workflowCategory, captureDelaySeconds, token))
                                     {
                                         return PipelineStageResult.Stop;
                                     }
 
-                                    image = await PlatformServices.ScreenCapture.CaptureActiveWindowAsync(PlatformServices.Window, captureOptions);
+                                    await PrepareWindowAsync(PlatformServices.Window, selectedWindow.Handle, token);
+                                    image = await PlatformServices.ScreenCapture.CaptureWindowAsync(selectedWindow.Handle, PlatformServices.Window, captureOptions);
                                 }
                                 else
                                 {
@@ -363,24 +356,12 @@ namespace XerahS.Core.Tasks.Pipeline
 
                             if (hWnd != IntPtr.Zero)
                             {
-                                if (PlatformServices.Window.IsWindowMinimized(hWnd))
-                                {
-                                    PlatformServices.Window.ShowWindow(hWnd, 9); // SW_RESTORE = 9
-                                    await Task.Delay(WindowActivationDelayMs, token);
-                                }
-
                                 if (isScreenCaptureDelay && !await _workerTask.ApplyCaptureStartDelayAsync(taskSettings!, workflowCategory, captureDelaySeconds, token))
                                 {
                                     return PipelineStageResult.Stop;
                                 }
 
-                                // As in ShareX, bring the window to the front so the capture of its screen area shows it.
-                                if (PlatformServices.Window.GetForegroundWindow() != hWnd)
-                                {
-                                    PlatformServices.Window.ActivateWindow(hWnd);
-                                    await Task.Delay(100, token);
-                                }
-
+                                await PrepareWindowAsync(PlatformServices.Window, hWnd, token);
                                 image = await PlatformServices.ScreenCapture.CaptureWindowAsync(hWnd, PlatformServices.Window, captureOptions);
                             }
                         }
@@ -492,6 +473,25 @@ namespace XerahS.Core.Tasks.Pipeline
             return FinishCapture(context, image, captureStopwatch);
         }
 
+        /// <summary>
+        /// As in ShareX, restores and activates the window, then captures it even when the window manager
+        /// refused the activation. Only scrolling capture, which sends keys to the window, requires focus.
+        /// </summary>
+        private static async Task PrepareWindowAsync(IWindowService windows, IntPtr handle, CancellationToken token)
+        {
+            if (windows.IsWindowMinimized(handle))
+            {
+                windows.ShowWindow(handle, 9); // SW_RESTORE
+                await Task.Delay(WindowActivationDelayMs, token);
+            }
+
+            if (windows.GetForegroundWindow() != handle)
+            {
+                windows.ActivateWindow(handle);
+                await Task.Delay(WindowActivationDelayMs, token);
+            }
+        }
+
         private static PipelineStageResult FinishCapture(PipelineContext context, SKBitmap? image, Stopwatch captureStopwatch)
         {
             var taskSettings = context.Info.TaskSettings;
@@ -551,6 +551,12 @@ namespace XerahS.Core.Tasks.Pipeline
             {
                 return null;
             }
+
+            // The hosted window picker has no client-area or alpha options. Keep those requests
+            // on the window-service path so the saved workflow settings actually take effect.
+            if (taskSettings.Job == WorkflowType.CustomWindow &&
+                (captureOptions.CaptureTransparent || captureOptions.CaptureClientArea))
+                return null;
 
             Rectangle? lastRegion = LastRegionStore.TryGet(out var last) ? last : null;
             HostedCaptureRequest? request = HostedCaptureWorkflowMapper.Map(

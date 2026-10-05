@@ -77,7 +77,9 @@ public partial class OverlayWindow
     protected override void OnPointerEntered(PointerEventArgs e)
     {
         base.OnPointerEntered(e);
-        if (_monitorState != OverlayMonitorState.Inactive)
+        // Compositors send an enter when the overlay appears under a stationary pointer.
+        // This must choose the monitor even before the first motion or button event.
+        if (!HandleMonitorStatePointerEvent(e))
         {
             _captureControl.UpdateAimFromOverlayPointer(e.GetPosition(_captureControl), e.KeyModifiers);
         }

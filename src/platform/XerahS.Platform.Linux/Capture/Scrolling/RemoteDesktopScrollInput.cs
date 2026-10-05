@@ -26,6 +26,7 @@
 using System.Drawing;
 using Tmds.DBus;
 using XerahS.Common;
+using XerahS.Platform.Abstractions;
 using Point = System.Drawing.Point;
 using XerahS.Platform.Linux.Capture.Detection;
 using XerahS.Platform.Linux.Services;
@@ -58,6 +59,8 @@ internal sealed class RemoteDesktopScrollInput : IScrollInput
     private IRemoteDesktopPortal? _portal;
     private ObjectPath _session;
     private bool _hasSession;
+    private IDisposable? _closedSubscription;
+    private volatile bool _closed;
 
     public RemoteDesktopScrollInput(Func<string?> loadRestoreToken, Action<string?> saveRestoreToken)
     {
@@ -75,6 +78,16 @@ internal sealed class RemoteDesktopScrollInput : IScrollInput
             PortalRequestExtensions.CacheLocalConnectionName(_connection, info);
             _portal = _connection.CreateProxy<IRemoteDesktopPortal>(PortalBusName, PortalObjectPath);
 
+            // An unreadable property does not stop the capture: persistence is then requested, as it
+            // was before these checks, and the granted devices are still checked after Start.
+            uint version = await PortalInterfaceChecker.TryGetUInt32PropertyAsync(_portal.GetAsync, "version").ConfigureAwait(false) ?? 2;
+            if (await PortalInterfaceChecker.TryGetUInt32PropertyAsync(_portal.GetAsync, "AvailableDeviceTypes").ConfigureAwait(false) is { } available &&
+                !HasRequiredDevices(available))
+            {
+                DebugHelper.WriteLine($"RemoteDesktopScrollInput: The portal offers no keyboard and pointer (AvailableDeviceTypes={available}).");
+                return false;
+            }
+
             var createOptions = new Dictionary<string, object> { ["session_handle_token"] = $"xerahs_scroll_{Guid.NewGuid():N}" };
             var (createResponse, createResults) = await _connection.SendPortalRequestAsync(PortalBusName, createOptions,
                 () => _portal.CreateSessionAsync(createOptions), cancellationToken).ConfigureAwait(false);
@@ -86,15 +99,11 @@ internal sealed class RemoteDesktopScrollInput : IScrollInput
 
             _session = new ObjectPath(sessionPath);
             _hasSession = true;
-            var selectOptions = new Dictionary<string, object>
-            {
-                ["types"] = KeyboardDevice | PointerDevice,
-                ["persist_mode"] = PersistUntilRevoked
-            };
-            if (_loadRestoreToken() is { Length: > 0 } restoreToken)
-            {
-                selectOptions["restore_token"] = restoreToken;
-            }
+            _closedSubscription = await _connection.CreateProxy<IPortalSession>(PortalBusName, _session)
+                .WatchClosedAsync(_ => _closed = true).ConfigureAwait(false);
+            string? restoreToken = version >= 2 ? _loadRestoreToken() : null;
+            var selectOptions = CreateSelectOptions(version, restoreToken);
+            if (!string.IsNullOrEmpty(restoreToken)) _saveRestoreToken(null);
 
             var (selectResponse, _) = await _connection.SendPortalRequestAsync(PortalBusName, selectOptions,
                 () => _portal.SelectDevicesAsync(_session, selectOptions), cancellationToken).ConfigureAwait(false);
@@ -110,6 +119,12 @@ internal sealed class RemoteDesktopScrollInput : IScrollInput
             if (startResponse != 0)
             {
                 DebugHelper.WriteLine($"RemoteDesktopScrollInput: Start was refused or cancelled (response={startResponse}).");
+                return false;
+            }
+
+            if (!GrantsRequiredDevices(startResults) || _closed)
+            {
+                DebugHelper.WriteLine("RemoteDesktopScrollInput: The session did not grant both keyboard and pointer access.");
                 return false;
             }
 
@@ -129,8 +144,36 @@ internal sealed class RemoteDesktopScrollInput : IScrollInput
         }
     }
 
+    internal static bool HasRequiredDevices(uint devices) =>
+        (devices & (KeyboardDevice | PointerDevice)) == (KeyboardDevice | PointerDevice);
+
+    /// <summary>
+    /// The specification says Start reports the granted devices. A portal that leaves them out is not
+    /// refused here; if input was not granted, the input calls fail and the capture reports it.
+    /// </summary>
+    internal static bool GrantsRequiredDevices(IDictionary<string, object> startResults) =>
+        !startResults.TryGetResult("devices", out uint granted) || HasRequiredDevices(granted);
+
+    internal static Dictionary<string, object> CreateSelectOptions(uint version, string? restoreToken)
+    {
+        var options = new Dictionary<string, object> { ["types"] = KeyboardDevice | PointerDevice };
+        if (version >= 2)
+        {
+            options["persist_mode"] = PersistUntilRevoked;
+            if (!string.IsNullOrEmpty(restoreToken)) options["restore_token"] = restoreToken;
+        }
+        return options;
+    }
+
+    private void EnsureSessionOpen()
+    {
+        if (_closed || !_hasSession || _portal == null)
+            throw new ScrollInputUnavailableException("The remote desktop input session has closed.");
+    }
+
     public async Task MovePointerAsync(Point target)
     {
+        EnsureSessionOpen();
         // The portal only moves the pointer relative to where it is, so this needs the position, which
         // KWin reports. Elsewhere the wheel turns wherever the pointer is, as in ShareX.
         if (_portal == null || KWinWindowManager.Shared is not { } kwin)
@@ -155,19 +198,37 @@ internal sealed class RemoteDesktopScrollInput : IScrollInput
 
     public async Task ScrollWheelAsync(int notches)
     {
+        EnsureSessionOpen();
         if (_portal != null && notches > 0)
         {
             await _portal.NotifyPointerAxisDiscreteAsync(_session, new Dictionary<string, object>(), VerticalAxis, notches * _wheelStepsPerNotch).ConfigureAwait(false);
         }
     }
 
-    public async Task PressKeyAsync(int keysym)
+    public Task PressKeyAsync(int keysym)
     {
-        if (_portal != null)
+        EnsureSessionOpen();
+        var portal = _portal!;
+        var session = _session;
+        return SendKeyPressAsync(state => portal.NotifyKeyboardKeysymAsync(session, new Dictionary<string, object>(), keysym, state));
+    }
+
+    internal static async Task SendKeyPressAsync(Func<uint, Task> notifyKey)
+    {
+        try
         {
-            await _portal.NotifyKeyboardKeysymAsync(_session, new Dictionary<string, object>(), keysym, Pressed).ConfigureAwait(false);
-            await _portal.NotifyKeyboardKeysymAsync(_session, new Dictionary<string, object>(), keysym, Released).ConfigureAwait(false);
+            await notifyKey(Pressed).ConfigureAwait(false);
         }
+        catch
+        {
+            // The press may have reached the compositor before the error, so the key is still released.
+            // A release failure is only logged: the press's error is the one that explains the problem.
+            try { await notifyKey(Released).ConfigureAwait(false); }
+            catch (Exception releaseError) { DebugHelper.WriteLine($"RemoteDesktopScrollInput: Could not release the key after a failed press: {releaseError.Message}"); }
+            throw;
+        }
+
+        await notifyKey(Released).ConfigureAwait(false);
     }
 
     public async ValueTask DisposeAsync()
@@ -185,6 +246,9 @@ internal sealed class RemoteDesktopScrollInput : IScrollInput
         }
         finally
         {
+            _closed = true;
+            _closedSubscription?.Dispose();
+            _closedSubscription = null;
             _hasSession = false;
             _portal = null;
             _connection?.Dispose();
@@ -202,4 +266,7 @@ public interface IRemoteDesktopPortal : IDBusObject
     Task NotifyPointerMotionAsync(ObjectPath sessionHandle, IDictionary<string, object> options, double dx, double dy);
     Task NotifyPointerAxisDiscreteAsync(ObjectPath sessionHandle, IDictionary<string, object> options, uint axis, int steps);
     Task NotifyKeyboardKeysymAsync(ObjectPath sessionHandle, IDictionary<string, object> options, int keysym, uint state);
+
+    /// <summary>Reads a property of this interface. Tmds.DBus sends it as org.freedesktop.DBus.Properties.Get.</summary>
+    Task<object> GetAsync(string prop);
 }

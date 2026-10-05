@@ -84,27 +84,37 @@ namespace XerahS.RegionCapture
             };
             SKBitmap? stitchedResult = null;
             SKBitmap? previousFrame = null;
+            SKBitmap? currentFrame = null;
             int bestMatchCount = 0;
             int bestMatchIndex = 0;
             int bestIgnoreBottomOffset = 0;
 
-            bool inputStarted = false;
+            // A start that throws, for example when the capture is stopped while it waits, may still hold
+            // a session, so it is ended as well. A refused start holds none.
+            bool endInput = false;
             try
             {
                 System.Drawing.Point preferredScrollPoint = GetPreferredScrollPoint(captureRegion);
 
                 // On Wayland this starts a remote desktop session, which may ask the user for permission.
-                inputStarted = await _scrollService.BeginAsync(cancellationToken);
-                if (!inputStarted)
+                endInput = true;
+                if (!await _scrollService.BeginAsync(cancellationToken))
                 {
+                    endInput = false;
                     result.Status = ScrollingCaptureStatus.Failed;
                     result.InputUnavailable = true;
                     return result;
                 }
 
                 // As in ShareX: activate the window, wait the start delay, then optionally scroll to the top.
-                _windowService.ActivateWindow(windowHandle);
+                uint processId = _windowService.GetWindowProcessId(windowHandle);
+                if (windowHandle == IntPtr.Zero ||
+                    (_windowService.IsWindowMinimized(windowHandle) && !_windowService.ShowWindow(windowHandle, 9)) ||
+                    !_windowService.ActivateWindow(windowHandle))
+                    throw new CaptureTargetUnavailableException();
                 await Task.Delay(startDelayMs, cancellationToken);
+                var windowBounds = _windowService.GetWindowBounds(windowHandle);
+                EnsureTargetAvailable(windowHandle, processId, windowBounds);
 
                 if (autoScrollTop)
                 {
@@ -129,12 +139,19 @@ namespace XerahS.RegionCapture
                 while (frameIndex < maxFrames && !cancellationToken.IsCancellationRequested)
                 {
                     await _scrollService.WaitUntilAreaIsClearAsync(area, cancellationToken);
+                    if (cancellationToken.IsCancellationRequested)
+                    {
+                        break;
+                    }
+
+                    EnsureTargetAvailable(windowHandle, processId, windowBounds);
 
                     // Capture current frame
-                    var currentFrame = await _captureService.CaptureRectAsync(captureRegion, frameOptions);
+                    currentFrame = await _captureService.CaptureRectAsync(captureRegion, frameOptions);
                     if (currentFrame == null)
                     {
                         DebugHelper.WriteLine("ScrollingCapture: Failed to capture frame.");
+                        result.Status = stitchedResult == null ? ScrollingCaptureStatus.Failed : ScrollingCaptureStatus.PartiallySuccessful;
                         break;
                     }
 
@@ -155,7 +172,6 @@ namespace XerahS.RegionCapture
                         if (AreFramesIdentical(previousFrame, currentFrame))
                         {
                             DebugHelper.WriteLine("ScrollingCapture: Identical frames detected - bottom reached.");
-                            currentFrame.Dispose();
                             break;
                         }
 
@@ -166,8 +182,10 @@ namespace XerahS.RegionCapture
                     // As in ShareX, scroll before stitching, so the content moves while this frame is
                     // combined, and count the scroll delay from the scroll. Counting it from before the
                     // capture left almost no time where capturing a frame is slow (the screenshot portal).
-                    if (!scrollAtBottom)
+                    // After a stop, the frame just captured is still stitched below, but nothing scrolls.
+                    if (!scrollAtBottom && !cancellationToken.IsCancellationRequested)
                     {
+                        EnsureTargetAvailable(windowHandle, processId, windowBounds);
                         await _scrollService.ScrollWindowAsync(windowHandle, scrollMethod, scrollAmount, preferredScrollPoint);
                         await _scrollService.MovePointerOutsideAsync(area);
                     }
@@ -179,6 +197,7 @@ namespace XerahS.RegionCapture
                         // First frame - use as initial result
                         stitchedResult = currentFrame.Copy();
                         previousFrame = currentFrame;
+                        currentFrame = null;
                         lastResultHeight = stitchedResult.Height;
                     }
                     else
@@ -195,7 +214,6 @@ namespace XerahS.RegionCapture
                         if (stitchResult.NewImage == null)
                         {
                             result.Status = stitchResult.Status;
-                            currentFrame.Dispose();
                             break;
                         }
 
@@ -233,12 +251,19 @@ namespace XerahS.RegionCapture
 
                         previousFrame.Dispose();
                         previousFrame = currentFrame;
+                        currentFrame = null;
 
                         if (scrollAtBottom)
                         {
                             DebugHelper.WriteLine("ScrollingCapture: Scroll bar at bottom - stopping.");
                             break;
                         }
+                    }
+
+                    // As in ShareX, a stop takes effect after the frame has been stitched.
+                    if (cancellationToken.IsCancellationRequested)
+                    {
+                        break;
                     }
 
                     // Wait what remains of the scroll delay after stitching.
@@ -249,29 +274,68 @@ namespace XerahS.RegionCapture
                     }
                 }
 
-                if (result.Status != ScrollingCaptureStatus.Failed &&
-                    result.Status != ScrollingCaptureStatus.PartiallySuccessful)
-                {
-                    result.Status = ScrollingCaptureStatus.Successful;
-                }
-
+                result.Status = GetCompletedStatus(result.Status, stitchedResult);
                 result.Image = stitchedResult;
             }
-            catch (OperationCanceledException)
+            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
             {
+                // Stopped while waiting: keep the stitched frames with their status, as ShareX does.
+                result.Status = GetCompletedStatus(result.Status, stitchedResult);
+                result.Image = stitchedResult;
+            }
+            catch (CaptureTargetUnavailableException)
+            {
+                result.Status = stitchedResult == null ? ScrollingCaptureStatus.Failed : ScrollingCaptureStatus.PartiallySuccessful;
+                result.TargetUnavailable = true;
+                result.Image = stitchedResult;
+            }
+            catch (ScrollInputUnavailableException ex)
+            {
+                DebugHelper.WriteLine($"ScrollingCapture: {ex.Message}");
+                result.Status = stitchedResult == null ? ScrollingCaptureStatus.Failed : ScrollingCaptureStatus.PartiallySuccessful;
+                result.InputUnavailable = true;
+                result.Image = stitchedResult;
+            }
+            catch (Exception ex)
+            {
+                // As in ShareX, an error fails the capture but keeps the frames stitched before it.
+                DebugHelper.WriteException(ex, "ScrollingCapture");
                 result.Status = ScrollingCaptureStatus.Failed;
+                result.Error = ex;
                 result.Image = stitchedResult;
             }
             finally
             {
+                currentFrame?.Dispose();
                 previousFrame?.Dispose();
-                if (inputStarted)
+                if (!ReferenceEquals(result.Image, stitchedResult)) stitchedResult?.Dispose();
+                if (endInput)
                 {
-                    await _scrollService.EndAsync();
+                    // Failing to close the input session must not discard a capture.
+                    try { await _scrollService.EndAsync(); }
+                    catch (Exception ex) { DebugHelper.WriteException(ex, "ScrollingCapture: ending the scroll input session"); }
                 }
             }
 
             return result;
+        }
+
+        /// <summary>The status of a capture that ended or was stopped: the stitching result, as in ShareX.</summary>
+        private static ScrollingCaptureStatus GetCompletedStatus(ScrollingCaptureStatus status, SKBitmap? stitchedResult) =>
+            stitchedResult == null ? ScrollingCaptureStatus.Failed :
+            status is ScrollingCaptureStatus.Failed or ScrollingCaptureStatus.PartiallySuccessful ? status :
+            ScrollingCaptureStatus.Successful;
+
+        private sealed class CaptureTargetUnavailableException : Exception;
+
+        private void EnsureTargetAvailable(IntPtr handle, uint processId, System.Drawing.Rectangle originalBounds)
+        {
+            // Keys must never reach another application after focus changes or a native handle is reused.
+            if (originalBounds.Width <= 0 || originalBounds.Height <= 0 ||
+                _windowService.GetForegroundWindow() != handle || !_windowService.IsWindowVisible(handle) ||
+                _windowService.IsWindowMinimized(handle) || _windowService.GetWindowBounds(handle) != originalBounds ||
+                (processId != 0 && _windowService.GetWindowProcessId(handle) != processId))
+                throw new CaptureTargetUnavailableException();
         }
 
         private static System.Drawing.Point GetPreferredScrollPoint(SKRect captureRegion)

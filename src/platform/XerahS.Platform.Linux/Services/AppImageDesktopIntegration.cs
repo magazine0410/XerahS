@@ -131,6 +131,12 @@ internal static class AppImageDesktopIntegration
         return sb.ToString();
     }
 
+    internal static string BuildCaptureAuthorizationEntry(string executablePath) =>
+        "[Desktop Entry]\nType=Application\nName=XerahS capture authorization\nNoDisplay=true\n" +
+        "Exec=" + EscapeValue(QuoteExecArgument(executablePath)) + "\n" +
+        "X-KDE-DBUS-Restricted-Interfaces=org.kde.KWin.ScreenShot2\n" +
+        "X-XerahS-Capture-Authorization=true\n";
+
     internal static IReadOnlyList<string> GetDataDirs(string? xdgDataDirs)
     {
         string value = string.IsNullOrWhiteSpace(xdgDataDirs) ? "/usr/local/share:/usr/share" : xdgDataDirs;
@@ -145,7 +151,7 @@ internal static class AppImageDesktopIntegration
         {
             if (c is '"' or '`' or '$' or '\\')
                 sb.Append('\\');
-            sb.Append(c);
+            sb.Append(c == '%' ? "%%" : c.ToString());
         }
         return sb.Append('"').ToString();
     }

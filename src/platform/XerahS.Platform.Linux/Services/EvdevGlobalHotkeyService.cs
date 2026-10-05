@@ -298,6 +298,10 @@ public sealed class EvdevGlobalHotkeyService : IHotkeyService
         return true;
     }
 
+    /// <summary>The registration ends with the process, so a temporary hotkey is an ordinary one, unregistered afterwards.</summary>
+    public Task<IDisposable?> RegisterTemporaryHotkeyAsync(HotkeyInfo hotkeyInfo, Action pressed) =>
+        Task.FromResult(TemporaryHotkeyRegistration.TryRegister(this, hotkeyInfo, pressed));
+
     public bool UnregisterHotkey(HotkeyInfo hotkeyInfo)
     {
         if (hotkeyInfo.Id == 0)

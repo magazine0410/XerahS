@@ -214,6 +214,9 @@ namespace XerahS.Platform.Abstractions
         /// </summary>
         public static INotificationService? GetNotificationIfAvailable() => _notificationService;
 
+        /// <summary>Optional platform notification sound playback.</summary>
+        public static ISoundPlaybackService? SoundPlayback { get; set; }
+
         private static IScrollingCaptureService? _scrollingCaptureService;
 
         /// <summary>
@@ -361,6 +364,7 @@ namespace XerahS.Platform.Abstractions
         /// </summary>
         public static void Reset()
         {
+            SoundPlayback = null;
             lock (InitializedCallbacksLock)
             {
                 _initializedCallbacks = new List<Action>();

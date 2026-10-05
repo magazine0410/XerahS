@@ -57,12 +57,19 @@ internal sealed class KdeDbusCaptureProvider : ILinuxCaptureProvider
         ILinuxCaptureContext context,
         CancellationToken cancellationToken = default)
     {
-        var bitmap = await _runtime.TryKdeDbusCaptureAsync(request.Kind, request.Options).ConfigureAwait(false);
-        if (bitmap != null)
+        try
         {
-            return LinuxCaptureResult.Success(ProviderId, bitmap);
-        }
+            var bitmap = await _runtime.TryKdeDbusCaptureAsync(request.Kind, request.Options).ConfigureAwait(false);
+            if (bitmap != null)
+            {
+                return LinuxCaptureResult.Success(ProviderId, bitmap);
+            }
 
-        return LinuxCaptureResult.Failure(ProviderId);
+            return LinuxCaptureResult.Failure(ProviderId);
+        }
+        catch (OperationCanceledException)
+        {
+            return LinuxCaptureResult.Cancelled(ProviderId);
+        }
     }
 }

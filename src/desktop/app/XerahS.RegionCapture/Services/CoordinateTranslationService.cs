@@ -38,6 +38,10 @@ public sealed class CoordinateTranslationService
 {
     private IReadOnlyList<MonitorInfo>? _monitors;
 
+    public CoordinateTranslationService() { }
+
+    internal CoordinateTranslationService(IReadOnlyList<MonitorInfo> monitors) => _monitors = monitors;
+
     /// <summary>
     /// Gets the cached list of monitors, refreshing if needed.
     /// </summary>

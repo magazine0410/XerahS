@@ -25,6 +25,7 @@
 
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.Drawing;
 using System.Runtime.InteropServices;
 using System.Threading.Tasks;
 using Microsoft.Win32.SafeHandles;
@@ -33,25 +34,28 @@ using Tmds.DBus;
 using XerahS.Common;
 using XerahS.Platform.Abstractions;
 using XerahS.Platform.Linux.Capture.Contracts;
+using XerahS.Platform.Linux.Services.Kde;
 
 namespace XerahS.Platform.Linux.Capture.Kde;
 
 /// <summary>
 /// KWin's ScreenShot2 interface. KWin allows it only for a process whose executable matches the Exec
 /// path of a desktop entry with X-KDE-DBUS-Restricted-Interfaces=org.kde.KWin.ScreenShot2. An AppImage
-/// runs from a temporary mount, which no desktop entry names, so KWin refuses it there.
+/// registers a hidden entry for its mounted executable before requesting a capture.
 /// </summary>
 internal static class KdeDbusScreenCapture
 {
     private const string KdeScreenShotBusName = "org.kde.KWin.ScreenShot2";
     private static readonly ObjectPath KdeScreenShotObjectPath = new("/org/kde/KWin/ScreenShot2");
+    private static readonly KdeAuthorizationRetry AuthorizationRetry = new();
 
-    private enum KdeCaptureKind
+    internal enum KdeCaptureKind
     {
         InteractiveRegion,
         ActiveWindow,
         Window,
-        Workspace
+        Workspace,
+        Area
     }
 
     private enum KdeInteractiveKind : uint
@@ -86,12 +90,19 @@ internal static class KdeDbusScreenCapture
     public static Task<SKBitmap?> CaptureWindowAsync(string windowId, CaptureOptions? options) =>
         CaptureWithKdeScreenShot2Async(KdeCaptureKind.Window, options, windowId);
 
-    private static async Task<SKBitmap?> CaptureWithKdeScreenShot2Async(KdeCaptureKind captureKind, CaptureOptions? options, string? windowId = null)
+    public static Task<SKBitmap?> CaptureAreaAsync(Rectangle rectangle, CaptureOptions? options) =>
+        rectangle.Width > 0 && rectangle.Height > 0
+            ? CaptureWithKdeScreenShot2Async(KdeCaptureKind.Area, options, area: rectangle)
+            : Task.FromResult<SKBitmap?>(null);
+
+    private static async Task<SKBitmap?> CaptureWithKdeScreenShot2Async(KdeCaptureKind captureKind, CaptureOptions? options,
+        string? windowId = null, Rectangle area = default, int authorizationAttempt = 0)
     {
         var tempFile = Path.Combine(Path.GetTempPath(), $"sharex_kwin_raw_{Guid.NewGuid():N}.bin");
 
         try
         {
+            await KdeCaptureAuthorization.EnsureAsync().ConfigureAwait(false);
             using var connection = new Connection(Address.Session);
             await connection.ConnectAsync().ConfigureAwait(false);
 
@@ -99,17 +110,21 @@ internal static class KdeDbusScreenCapture
             var kdeOptions = BuildKdeScreenShotOptions(captureKind, options);
 
             IDictionary<string, object> results;
-            using (var stream = new FileStream(tempFile, FileMode.Create, FileAccess.ReadWrite, FileShare.ReadWrite))
+            var fileOptions = new FileStreamOptions { Mode = FileMode.CreateNew, Access = FileAccess.ReadWrite, Share = FileShare.ReadWrite };
+            if (OperatingSystem.IsLinux()) fileOptions.UnixCreateMode = UnixFileMode.UserRead | UnixFileMode.UserWrite;
+            using (var stream = new FileStream(tempFile, fileOptions))
             {
                 results = captureKind switch
                 {
                     KdeCaptureKind.InteractiveRegion => await proxy.CaptureInteractiveAsync((uint)KdeInteractiveKind.Screen, kdeOptions, stream.SafeFileHandle).ConfigureAwait(false),
                     KdeCaptureKind.ActiveWindow => await proxy.CaptureActiveWindowAsync(kdeOptions, stream.SafeFileHandle).ConfigureAwait(false),
                     KdeCaptureKind.Window => await proxy.CaptureWindowAsync(windowId!, kdeOptions, stream.SafeFileHandle).ConfigureAwait(false),
+                    KdeCaptureKind.Area => await proxy.CaptureAreaAsync(area.X, area.Y, (uint)area.Width, (uint)area.Height, kdeOptions, stream.SafeFileHandle).ConfigureAwait(false),
                     KdeCaptureKind.Workspace => await proxy.CaptureWorkspaceAsync(kdeOptions, stream.SafeFileHandle).ConfigureAwait(false),
                     _ => new Dictionary<string, object>()
                 };
             }
+            AuthorizationRetry.ReportAuthorized();
 
             if (!TryGetStringResult(results, "type", out var type) ||
                 !string.Equals(type, "raw", StringComparison.OrdinalIgnoreCase))
@@ -128,7 +143,8 @@ internal static class KdeDbusScreenCapture
             }
 
             long expectedBytes = (long)stride * height;
-            if (expectedBytes <= 0)
+            if (width > int.MaxValue / 4 || height > int.MaxValue || stride > int.MaxValue ||
+                stride < (long)width * 4 || expectedBytes <= 0 || expectedBytes > int.MaxValue)
             {
                 return null;
             }
@@ -150,9 +166,18 @@ internal static class KdeDbusScreenCapture
         }
         catch (DBusException ex)
         {
+            if (ex.ErrorName == "org.kde.KWin.ScreenShot2.Error.NoAuthorized" &&
+                AuthorizationRetry.ShouldRetry(KdeCaptureAuthorization.HasRegistration, authorizationAttempt))
+            {
+                // KService cache invalidation reaches KWin asynchronously, even after kbuildsycoca exits.
+                await Task.Delay(KdeAuthorizationRetry.GetDelay(authorizationAttempt)).ConfigureAwait(false);
+                return await CaptureWithKdeScreenShot2Async(captureKind, options, windowId, area, authorizationAttempt + 1).ConfigureAwait(false);
+            }
             if (string.Equals(ex.ErrorName, "org.kde.KWin.ScreenShot2.Error.Cancelled", StringComparison.Ordinal))
             {
-                DebugHelper.WriteLine("LinuxScreenCaptureService: KDE ScreenShot2 capture cancelled by user.");
+                DebugHelper.WriteLine("LinuxScreenCaptureService: KDE ScreenShot2 capture was cancelled.");
+                if (captureKind == KdeCaptureKind.InteractiveRegion)
+                    throw new OperationCanceledException("KDE screen capture was cancelled.", ex);
                 return null;
             }
             DebugHelper.WriteLine($"LinuxScreenCaptureService: KDE ScreenShot2 D-Bus capture failed: {ex.ErrorName} ({ex.ErrorMessage})");
@@ -172,7 +197,7 @@ internal static class KdeDbusScreenCapture
         }
     }
 
-    private static IDictionary<string, object> BuildKdeScreenShotOptions(KdeCaptureKind captureKind, CaptureOptions? options)
+    internal static IDictionary<string, object> BuildKdeScreenShotOptions(KdeCaptureKind captureKind, CaptureOptions? options)
     {
         var includeCursor = options?.ShowCursor == true;
         var dbusOptions = new Dictionary<string, object>
@@ -180,11 +205,14 @@ internal static class KdeDbusScreenCapture
             ["include-cursor"] = includeCursor,
             ["native-resolution"] = true
         };
+        // Area callers have already hidden their overlays. Capturing XerahS's own window should
+        // still show its pixels, instead of KWin silently replacing it with the desktop behind it.
+        if (captureKind == KdeCaptureKind.Area) dbusOptions["hide-caller-windows"] = false;
         if (captureKind is KdeCaptureKind.ActiveWindow or KdeCaptureKind.Window)
         {
             // As in ShareX, the shadow is only part of a transparent capture.
             dbusOptions["include-decoration"] = options?.CaptureClientArea != true;
-            dbusOptions["include-shadow"] = options?.CaptureTransparent == true && options.CaptureShadow;
+            dbusOptions["include-shadow"] = options?.CaptureTransparent == true && options.CaptureShadow && !options.CaptureClientArea;
         }
         return dbusOptions;
     }
@@ -211,9 +239,9 @@ internal static class KdeDbusScreenCapture
         return false;
     }
 
-    private static SKBitmap? DecodeKdeRawBitmap(byte[] rawData, int width, int height, int stride, uint format)
+    internal static SKBitmap? DecodeKdeRawBitmap(byte[] rawData, int width, int height, int stride, uint format)
     {
-        if (width <= 0 || height <= 0 || stride <= 0)
+        if (width <= 0 || height <= 0 || width > int.MaxValue / 4 || stride < (long)width * 4)
         {
             return null;
         }
@@ -363,5 +391,6 @@ public interface IKdeScreenShot2 : IDBusObject
     Task<IDictionary<string, object>> CaptureInteractiveAsync(uint kind, IDictionary<string, object> options, SafeFileHandle pipe);
     Task<IDictionary<string, object>> CaptureActiveWindowAsync(IDictionary<string, object> options, SafeFileHandle pipe);
     Task<IDictionary<string, object>> CaptureWindowAsync(string handle, IDictionary<string, object> options, SafeFileHandle pipe);
+    Task<IDictionary<string, object>> CaptureAreaAsync(int x, int y, uint width, uint height, IDictionary<string, object> options, SafeFileHandle pipe);
     Task<IDictionary<string, object>> CaptureWorkspaceAsync(IDictionary<string, object> options, SafeFileHandle pipe);
 }

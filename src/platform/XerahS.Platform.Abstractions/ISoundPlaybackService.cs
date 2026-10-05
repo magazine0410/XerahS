@@ -23,14 +23,10 @@
 
 #endregion License Information (GPL v3)
 
-using System.Threading.Tasks;
-using Tmds.DBus;
+namespace XerahS.Platform.Abstractions;
 
-namespace XerahS.Platform.Linux.Services;
-
-[DBusInterface("org.freedesktop.portal.Session")]
-public interface IPortalSession : IDBusObject
+/// <summary>Plays notification audio without owning the caller's data or blocking the UI thread.</summary>
+public interface ISoundPlaybackService
 {
-    Task CloseAsync();
-    Task<IDisposable> WatchClosedAsync(Action<IDictionary<string, object>> handler);
+    Task PlayAsync(ReadOnlyMemory<byte> audio, CancellationToken cancellationToken = default);
 }

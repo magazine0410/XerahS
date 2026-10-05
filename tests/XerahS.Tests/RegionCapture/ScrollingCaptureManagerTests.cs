@@ -195,7 +195,7 @@ public class ScrollingCaptureManagerTests
             new StubWindowService());
 
         return await manager.CaptureAsync(
-            windowHandle: IntPtr.Zero,
+            windowHandle: (nint)42,
             captureRegion: new SKRect(0, 0, FrameWidth, FrameHeight),
             scrollMethod: ScrollMethod.MouseWheel,
             scrollAmount: 1,
@@ -213,7 +213,7 @@ public class ScrollingCaptureManagerTests
         var capture = new StubScreenCaptureService([frame]);
         var manager = new ScrollingCaptureManager(scroll, capture, new StubWindowService());
 
-        ScrollingCaptureResult result = await manager.CaptureAsync(IntPtr.Zero, new SKRect(0, 0, FrameWidth, FrameHeight), ScrollMethod.MouseWheel,
+        ScrollingCaptureResult result = await manager.CaptureAsync((nint)42, new SKRect(0, 0, FrameWidth, FrameHeight), ScrollMethod.MouseWheel,
             startDelayMs: 0, scrollDelayMs: 0, autoScrollTop: true);
 
         Assert.Multiple(() =>
@@ -272,13 +272,182 @@ public class ScrollingCaptureManagerTests
         var capture = new StubScreenCaptureService([first, second, second], captureDelayMs: 150, clock);
         var manager = new ScrollingCaptureManager(scroll, capture, new StubWindowService());
 
-        ScrollingCaptureResult result = await manager.CaptureAsync(IntPtr.Zero, new SKRect(0, 0, FrameWidth, FrameHeight), ScrollMethod.MouseWheel,
+        ScrollingCaptureResult result = await manager.CaptureAsync((nint)42, new SKRect(0, 0, FrameWidth, FrameHeight), ScrollMethod.MouseWheel,
             startDelayMs: 0, scrollDelayMs: 300, autoIgnoreBottomEdge: false);
         result.Image?.Dispose();
 
         // Before, the delay also counted the slow capture, which left the page no time to settle.
         Assert.That(capture.CaptureStartTimes[1] - scroll.ScrollTimes[0], Is.GreaterThanOrEqualTo(280),
             "The next frame is taken a full scroll delay after the scroll.");
+    }
+
+    [TestCase(false, 42), TestCase(true, 7)]
+    public async Task CaptureAsync_RefusedOrUnconfirmedActivationNeverInjectsInput(bool allowActivation, int foreground)
+    {
+        using var frame = CreateFrame(0);
+        var scroll = new SessionScrollingCaptureService(true);
+        var capture = new StubScreenCaptureService([frame]);
+        var windows = new StubWindowService { AllowActivation = allowActivation, Foreground = (nint)foreground };
+        var manager = new ScrollingCaptureManager(scroll, capture, windows);
+        var result = await manager.CaptureAsync((nint)42, new SKRect(0, 0, FrameWidth, FrameHeight), ScrollMethod.DownArrow,
+            startDelayMs: 0, scrollDelayMs: 0, autoScrollTop: true);
+        Assert.Multiple(() =>
+        {
+            Assert.That(result.TargetUnavailable, Is.True);
+            Assert.That(result.Status, Is.EqualTo(ScrollingCaptureStatus.Failed));
+            Assert.That(capture.CaptureStartTimes, Is.Empty);
+            Assert.That(scroll.Calls, Is.EqualTo(new[] { "Begin", "End" }));
+        });
+    }
+
+    [TestCase(false), TestCase(true)]
+    public async Task CaptureAsync_ClosedOrReusedWindowStopsWithPartialImage(bool reused)
+    {
+        using var frame = CreateFrame(0);
+        var scroll = new SessionScrollingCaptureService(true);
+        var capture = new StubScreenCaptureService([frame]);
+        var windows = new StubWindowService();
+        int waits = 0;
+        scroll.OnWait = () =>
+        {
+            if (++waits == 2)
+            {
+                if (reused) windows.ProcessId++;
+                else windows.Visible = false;
+            }
+        };
+        var manager = new ScrollingCaptureManager(scroll, capture, windows);
+        var result = await manager.CaptureAsync((nint)42, new SKRect(0, 0, FrameWidth, FrameHeight), ScrollMethod.MouseWheel,
+            startDelayMs: 0, scrollDelayMs: 0);
+        using var image = result.Image;
+        Assert.Multiple(() =>
+        {
+            Assert.That(result.TargetUnavailable, Is.True);
+            Assert.That(result.Status, Is.EqualTo(ScrollingCaptureStatus.PartiallySuccessful));
+            Assert.That(image, Is.Not.Null);
+            Assert.That(result.FramesCaptured, Is.EqualTo(1));
+            Assert.That(scroll.Calls.Count(call => call == "Scroll"), Is.EqualTo(1));
+            Assert.That(scroll.Calls.Last(), Is.EqualTo("End"));
+            Assert.That(capture.ReturnedFrames.All(bitmap => bitmap.Handle == IntPtr.Zero), Is.True);
+        });
+    }
+
+    [Test]
+    public async Task CaptureAsync_StopAfterAFrameStitchesItWithoutScrollingAgain()
+    {
+        using var first = CreateFrame(0);
+        using var second = CreateFrame(ScrollStep);
+        using var third = CreateFrame(ScrollStep * 2);
+        using var stop = new CancellationTokenSource();
+        var scroll = new SessionScrollingCaptureService(true);
+        var capture = new StubScreenCaptureService([first, second, third]) { OnCaptured = count => { if (count == 2) stop.Cancel(); } };
+        var manager = new ScrollingCaptureManager(scroll, capture, new StubWindowService());
+        var result = await manager.CaptureAsync((nint)42, new SKRect(0, 0, FrameWidth, FrameHeight), ScrollMethod.MouseWheel,
+            startDelayMs: 0, scrollDelayMs: 0, autoIgnoreBottomEdge: false, cancellationToken: stop.Token);
+        using var image = result.Image;
+        Assert.Multiple(() =>
+        {
+            Assert.That(result.Status, Is.EqualTo(ScrollingCaptureStatus.Successful), "As in ShareX, a stop keeps the stitching status.");
+            Assert.That(result.FramesCaptured, Is.EqualTo(2));
+            Assert.That(image?.Height, Is.EqualTo(FrameHeight + ScrollStep), "The frame captured before the stop is kept.");
+            Assert.That(scroll.Calls.Count(call => call == "Scroll"), Is.EqualTo(1), "Nothing scrolls after the stop.");
+            Assert.That(scroll.Calls.Last(), Is.EqualTo("End"));
+        });
+    }
+
+    [Test]
+    public async Task CaptureAsync_StopWhileWaitingKeepsTheStitchingStatus()
+    {
+        using var first = CreateFrame(0);
+        using var second = CreateFrame(ScrollStep);
+        using var stop = new CancellationTokenSource();
+        var scroll = new SessionScrollingCaptureService(true);
+        int waits = 0;
+        scroll.OnWait = () =>
+        {
+            if (++waits < 3) return;
+            stop.Cancel();
+            stop.Token.ThrowIfCancellationRequested();
+        };
+        var capture = new StubScreenCaptureService([first, second]);
+        var manager = new ScrollingCaptureManager(scroll, capture, new StubWindowService());
+        var result = await manager.CaptureAsync((nint)42, new SKRect(0, 0, FrameWidth, FrameHeight), ScrollMethod.MouseWheel,
+            startDelayMs: 0, scrollDelayMs: 0, autoIgnoreBottomEdge: false, cancellationToken: stop.Token);
+        using var image = result.Image;
+        Assert.Multiple(() =>
+        {
+            Assert.That(result.Status, Is.EqualTo(ScrollingCaptureStatus.Successful));
+            Assert.That(result.Error, Is.Null);
+            Assert.That(image?.Height, Is.EqualTo(FrameHeight + ScrollStep));
+            Assert.That(scroll.Calls.Last(), Is.EqualTo("End"));
+        });
+    }
+
+    [Test]
+    public async Task CaptureAsync_StartThatThrowsStillEndsTheSession()
+    {
+        using var frame = CreateFrame(0);
+        using var stop = new CancellationTokenSource();
+        stop.Cancel();
+        var scroll = new SessionScrollingCaptureService(true) { BeginError = new OperationCanceledException(stop.Token) };
+        var manager = new ScrollingCaptureManager(scroll, new StubScreenCaptureService([frame]), new StubWindowService());
+        var result = await manager.CaptureAsync((nint)42, new SKRect(0, 0, FrameWidth, FrameHeight), ScrollMethod.MouseWheel,
+            startDelayMs: 0, scrollDelayMs: 0, cancellationToken: stop.Token);
+        Assert.Multiple(() =>
+        {
+            Assert.That(result.Status, Is.EqualTo(ScrollingCaptureStatus.Failed));
+            Assert.That(result.Image, Is.Null);
+            Assert.That(scroll.Calls, Is.EqualTo(new[] { "Begin", "End" }));
+        });
+    }
+
+    [TestCase(true), TestCase(false)]
+    public async Task CaptureAsync_InputFailureKeepsTheFramesStitchedBeforeIt(bool sessionClosed)
+    {
+        using var first = CreateFrame(0);
+        using var second = CreateFrame(ScrollStep);
+        int scrolls = 0;
+        var scroll = new SessionScrollingCaptureService(true)
+        {
+            OnScroll = () =>
+            {
+                if (++scrolls < 2) return;
+                throw sessionClosed ? new ScrollInputUnavailableException("Session closed") : new IOException("Portal disconnected");
+            }
+        };
+        var capture = new StubScreenCaptureService([first, second]);
+        var manager = new ScrollingCaptureManager(scroll, capture, new StubWindowService());
+        var result = await manager.CaptureAsync((nint)42, new SKRect(0, 0, FrameWidth, FrameHeight), ScrollMethod.MouseWheel,
+            startDelayMs: 0, scrollDelayMs: 0, autoIgnoreBottomEdge: false);
+        using var image = result.Image;
+        Assert.Multiple(() =>
+        {
+            Assert.That(result.Status, Is.EqualTo(sessionClosed ? ScrollingCaptureStatus.PartiallySuccessful : ScrollingCaptureStatus.Failed));
+            Assert.That(result.InputUnavailable, Is.EqualTo(sessionClosed));
+            Assert.That(result.Error, sessionClosed ? Is.Null : Is.TypeOf<IOException>());
+            Assert.That(image?.Height, Is.EqualTo(FrameHeight), "The first frame was stitched before the failure.");
+            Assert.That(scroll.Calls.Last(), Is.EqualTo("End"));
+            Assert.That(capture.ReturnedFrames.All(bitmap => bitmap.Handle == IntPtr.Zero), Is.True);
+        });
+    }
+
+    [Test]
+    public async Task CaptureAsync_SessionEndFailureKeepsTheCapture()
+    {
+        using var first = CreateFrame(0);
+        using var second = CreateFrame(ScrollStep);
+        var scroll = new SessionScrollingCaptureService(true) { EndError = new IOException("Bus closed") };
+        var manager = new ScrollingCaptureManager(scroll, new StubScreenCaptureService([first, second, second]), new StubWindowService());
+        var result = await manager.CaptureAsync((nint)42, new SKRect(0, 0, FrameWidth, FrameHeight), ScrollMethod.MouseWheel,
+            startDelayMs: 0, scrollDelayMs: 0, autoIgnoreBottomEdge: false);
+        using var image = result.Image;
+        Assert.Multiple(() =>
+        {
+            Assert.That(result.Status, Is.EqualTo(ScrollingCaptureStatus.Successful));
+            Assert.That(result.Error, Is.Null);
+            Assert.That(image?.Height, Is.EqualTo(FrameHeight + ScrollStep));
+            Assert.That(scroll.Calls.Last(), Is.EqualTo("End"));
+        });
     }
 
     private static SKBitmap CreateFrame(int contentStartIndex, int fixedTopRows = 0, int fixedBottomRows = 0)
@@ -392,6 +561,10 @@ public class ScrollingCaptureManagerTests
     {
         public List<string> Calls { get; } = [];
         public List<long> ScrollTimes { get; } = [];
+        public Action? OnWait { get; set; }
+        public Action? OnScroll { get; init; }
+        public Exception? BeginError { get; init; }
+        public Exception? EndError { get; init; }
 
         public Task MovePointerOutsideAsync(Rectangle area)
         {
@@ -402,6 +575,7 @@ public class ScrollingCaptureManagerTests
         public Task WaitUntilAreaIsClearAsync(Rectangle area, CancellationToken cancellationToken = default)
         {
             Calls.Add("Wait");
+            OnWait?.Invoke();
             return Task.CompletedTask;
         }
 
@@ -410,13 +584,13 @@ public class ScrollingCaptureManagerTests
         public Task<bool> BeginAsync(CancellationToken cancellationToken = default)
         {
             Calls.Add("Begin");
-            return Task.FromResult(begins);
+            return BeginError == null ? Task.FromResult(begins) : Task.FromException<bool>(BeginError);
         }
 
         public Task EndAsync()
         {
             Calls.Add("End");
-            return Task.CompletedTask;
+            return EndError == null ? Task.CompletedTask : Task.FromException(EndError);
         }
 
         public ScrollBarInfo? GetScrollBarInfo(IntPtr windowHandle) => null;
@@ -424,6 +598,7 @@ public class ScrollingCaptureManagerTests
         public Task ScrollWindowAsync(IntPtr windowHandle, ScrollMethod method, int amount, Point? targetPoint = null)
         {
             Calls.Add("Scroll");
+            OnScroll?.Invoke();
             ScrollTimes.Add(clock?.ElapsedMilliseconds ?? 0);
             return Task.CompletedTask;
         }
@@ -438,11 +613,11 @@ public class ScrollingCaptureManagerTests
     private sealed class ActivationTrackingWindowService(List<string> calls) : IWindowService
     {
         private readonly StubWindowService _inner = new();
-        public IntPtr GetForegroundWindow() => IntPtr.Zero;
+        public IntPtr GetForegroundWindow() => (nint)42;
         public bool SetForegroundWindow(IntPtr handle) => true;
         public string GetWindowText(IntPtr handle) => string.Empty;
         public string GetWindowClassName(IntPtr handle) => string.Empty;
-        public Rectangle GetWindowBounds(IntPtr handle) => Rectangle.Empty;
+        public Rectangle GetWindowBounds(IntPtr handle) => new(0, 0, 600, 500);
         public Rectangle GetWindowClientBounds(IntPtr handle) => Rectangle.Empty;
         public bool IsWindowVisible(IntPtr handle) => true;
         public bool IsWindowMaximized(IntPtr handle) => false;
@@ -464,6 +639,8 @@ public class ScrollingCaptureManagerTests
     private sealed class StubScreenCaptureService(IReadOnlyList<SKBitmap> frames, int captureDelayMs = 0, Stopwatch? clock = null) : IScreenCaptureService
     {
         public List<long> CaptureStartTimes { get; } = [];
+        public List<SKBitmap> ReturnedFrames { get; } = [];
+        public Action<int>? OnCaptured { get; init; }
 
         private readonly IReadOnlyList<SKBitmap> _frames = frames;
         private int _captureIndex;
@@ -491,7 +668,10 @@ public class ScrollingCaptureManagerTests
 
             int index = Math.Min(_captureIndex, _frames.Count - 1);
             _captureIndex++;
-            return _frames[index].Copy();
+            var bitmap = _frames[index].Copy();
+            ReturnedFrames.Add(bitmap);
+            OnCaptured?.Invoke(_captureIndex);
+            return bitmap;
         }
 
         public Task<SKBitmap?> CaptureFullScreenAsync(CaptureOptions? options = null)
@@ -517,7 +697,11 @@ public class ScrollingCaptureManagerTests
 
     private sealed class StubWindowService : IWindowService
     {
-        public IntPtr GetForegroundWindow() => IntPtr.Zero;
+        public bool AllowActivation = true;
+        public nint Foreground = 42;
+        public bool Visible = true;
+        public uint ProcessId = 100;
+        public IntPtr GetForegroundWindow() => Foreground;
 
         public bool SetForegroundWindow(IntPtr handle) => true;
 
@@ -525,11 +709,11 @@ public class ScrollingCaptureManagerTests
 
         public string GetWindowClassName(IntPtr handle) => string.Empty;
 
-        public Rectangle GetWindowBounds(IntPtr handle) => Rectangle.Empty;
+        public Rectangle GetWindowBounds(IntPtr handle) => new(0, 0, 600, 500);
 
         public Rectangle GetWindowClientBounds(IntPtr handle) => Rectangle.Empty;
 
-        public bool IsWindowVisible(IntPtr handle) => true;
+        public bool IsWindowVisible(IntPtr handle) => Visible;
 
         public bool IsWindowMaximized(IntPtr handle) => false;
 
@@ -541,11 +725,11 @@ public class ScrollingCaptureManagerTests
 
         public WindowInfo[] GetAllWindows() => [];
 
-        public uint GetWindowProcessId(IntPtr handle) => 0;
+        public uint GetWindowProcessId(IntPtr handle) => ProcessId;
 
         public IntPtr SearchWindow(string windowTitle) => IntPtr.Zero;
 
-        public bool ActivateWindow(IntPtr handle) => true;
+        public bool ActivateWindow(IntPtr handle) => AllowActivation;
 
         public bool SetWindowClickThrough(IntPtr handle) => true;
     }

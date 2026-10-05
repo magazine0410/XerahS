@@ -25,6 +25,7 @@
 using System.ComponentModel;
 using Avalonia.Controls;
 using Avalonia.Controls.ApplicationLifetimes;
+using Avalonia.Threading;
 using XerahS.RegionCapture.Models;
 using XerahS.RegionCapture;
 using XerahS.RegionCapture.UI;
@@ -48,10 +49,12 @@ public sealed class OverlayManager : IDisposable
     private Action? _disconnectPointerPresence;
     private bool _disposed;
 
-    public OverlayManager()
+    public OverlayManager() : this(new CoordinateTranslationService()) { }
+
+    internal OverlayManager(CoordinateTranslationService coordinateService)
     {
         _completionSource = new TaskCompletionSource<RegionSelectionResult?>();
-        _coordinateService = new CoordinateTranslationService();
+        _coordinateService = coordinateService;
         _annotationToolCoordinator = new RegionCaptureAnnotationToolCoordinator();
     }
 
@@ -74,9 +77,13 @@ public sealed class OverlayManager : IDisposable
     public async Task<RegionSelectionResult?> ShowOverlaysAsync(
         Action<PixelRect>? onSelectionChanged = null,
         XerahS.Platform.Abstractions.CursorInfo? initialCursor = null,
-        RegionCaptureOptions? options = null)
+        RegionCaptureOptions? options = null,
+        CancellationToken cancellationToken = default)
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
+        cancellationToken.ThrowIfCancellationRequested();
+        using var cancellation = cancellationToken.Register(() =>
+            Dispatcher.UIThread.Post(() => _completionSource.TrySetCanceled(cancellationToken)));
 
         options ??= new RegionCaptureOptions();
         var monitors = _coordinateService.Monitors;

@@ -133,9 +133,21 @@ namespace XerahS.Platform.Abstractions
         public ScrollingCaptureStatus Status { get; set; }
         public int FramesCaptured { get; set; }
 
-        /// <summary>True when the platform could not send scroll input, for example because the user refused it.</summary>
+        /// <summary>
+        /// True when the platform could not send scroll input, for example because the user refused it,
+        /// or because the window system ended the input session during the capture.
+        /// </summary>
         public bool InputUnavailable { get; set; }
+
+        /// <summary>The target closed, moved, changed identity, or could not retain keyboard focus.</summary>
+        public bool TargetUnavailable { get; set; }
+
+        /// <summary>The error that ended the capture. <see cref="Image"/> still holds the frames stitched before it.</summary>
+        public Exception? Error { get; set; }
     }
+
+    /// <summary>Thrown by scroll input when the window system has ended the input session.</summary>
+    public sealed class ScrollInputUnavailableException(string message) : Exception(message);
 
     /// <summary>
     /// Progress data reported during a scrolling capture operation.

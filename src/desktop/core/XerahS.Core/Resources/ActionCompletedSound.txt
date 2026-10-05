@@ -1,0 +1,1 @@
+ActionCompletedSound.wav is copied without modification from ShareX/Resources/ActionCompletedSound.wav at ShareX commit cf5a6fe57. It is the default ShareX action-completed notification sound. See the repository LICENSE for the ShareX GPL license.
