@@ -36,11 +36,13 @@
         <Grid Grid.Column="1" RowDefinitions="Auto, *" Margin="24">
             
             <!-- Header -->
-            <Grid Grid.Row="0" ColumnDefinitions="*, 16, Auto" Margin="0,0,0,24">
-                <TextBlock Grid.Column="0" Text="{Binding SelectedCategory.Name}" 
+            <!-- The title keeps its width; the buttons wrap onto another line when the window is narrow. -->
+            <Grid Grid.Row="0" ColumnDefinitions="Auto, 16, *" Margin="0,0,0,24">
+                <TextBlock Grid.Column="0" Text="{Binding SelectedCategory.Name}"
                            FontSize="26" FontWeight="SemiBold" VerticalAlignment="Center"/>
-                
-                <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="8">
+
+                <WrapPanel Grid.Column="2" Orientation="Horizontal" ItemSpacing="8" LineSpacing="8" ItemsAlignment="End"
+                           HorizontalAlignment="Right" VerticalAlignment="Center">
                     <Button Content="Import ShareX Config"
                             Command="{Binding ImportShareXConfigCommand}"
                             ToolTip.Tip="Import legacy ShareX UploadersConfig.json and export custom uploaders to Plugins as .sxcu files"
@@ -61,7 +63,7 @@
                             Command="{Binding SelectedCategory.AddFromCatalogCommand}"
                             Classes="accent"
                             AutomationProperties.Name="Add Destination from Catalog"/>
-                </StackPanel>
+                </WrapPanel>
             </Grid>
 
             <!-- Content Area -->
