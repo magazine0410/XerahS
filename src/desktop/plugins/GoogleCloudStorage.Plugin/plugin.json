@@ -1,0 +1,19 @@
+{
+  "pluginId": "googlecloudstorage",
+  "name": "Google Cloud Storage",
+  "version": "1.0.0",
+  "author": "ShareX Team",
+  "description": "Upload files to a Google Cloud Storage bucket",
+  "apiVersion": "1.0",
+  "entryPoint": "ShareX.GoogleCloudStorage.Plugin.GoogleCloudStorageProvider",
+  "assemblyFileName": "XerahS.GoogleCloudStorage.Plugin.dll",
+  "supportedCategories": [
+    "Image",
+    "Text",
+    "File"
+  ],
+  "supportsExplorer": false,
+  "configViewId": "googlecloudstorage",
+  "dependencies": [],
+  "homepageUrl": "https://cloud.google.com/storage"
+}

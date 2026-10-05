@@ -161,6 +161,15 @@ public partial class UploaderInstanceViewModel : ViewModelBase
 
         // Subscribe to file type changes
         PropertyChanged += OnPropertyChanged;
+        SelectedFileExtensions.CollectionChanged += OnSelectedFileExtensionsChanged;
+    }
+
+    // Ticking a single file type changes the collection, not the property.
+    private void OnSelectedFileExtensionsChanged(object? sender, System.Collections.Specialized.NotifyCollectionChangedEventArgs e)
+    {
+        UpdateFileTypeScope();
+        UpdateFileTypeScopeDisplay();
+        ValidateConfiguration();
     }
 
     private void VerifyPluginConfiguration()
@@ -344,6 +353,7 @@ public partial class UploaderInstanceViewModel : ViewModelBase
 
         LoadAvailableFileTypes();
         UpdateFileTypeScopeDisplay();
+        ValidateConfiguration();
     }
 
     private void LoadAvailableFileTypes()

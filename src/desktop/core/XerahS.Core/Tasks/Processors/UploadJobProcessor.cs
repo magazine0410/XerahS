@@ -78,6 +78,13 @@ namespace XerahS.Core.Tasks.Processors
                 return true;
             }
 
+            if (info.UploadAttemptedDuringCapture)
+            {
+                // The capture job's upload failed. Uploading again would send the file a second time.
+                ShowUploadFailedToast(GetUploadErrorText(info.Result));
+                return true;
+            }
+
             UploadResult? result = null;
 
             token.ThrowIfCancellationRequested();
@@ -118,17 +125,7 @@ namespace XerahS.Core.Tasks.Processors
                     else
                     {
                         DebugHelper.WriteLine($"Upload failed: {errorMsg}");
-                    
-                        if (PlatformServices.IsInitialized && PlatformServices.IsToastServiceInitialized)
-                        {
-                            PlatformServices.Toast.ShowToast(new Platform.Abstractions.ToastConfig
-                            {
-                                Title = "Upload Failed",
-                                Text = errorMsg,
-                                Duration = 4f,
-                                AutoHide = true
-                            });
-                        }
+                        ShowUploadFailedToast(GetUploadErrorText(result));
                     }
                     TryAppendHistoryItem(info);
                 }
@@ -144,6 +141,30 @@ namespace XerahS.Core.Tasks.Processors
             }
 
             return true;
+        }
+
+        /// <summary>
+        /// The uploader's last error, which is its own message when it adds one after the HTTP error, such as
+        /// "vgy.me: Anonymous uploads are not allowed."; otherwise the response.
+        /// </summary>
+        internal static string GetUploadErrorText(UploadResult? result)
+        {
+            string? error = result?.Errors?.Errors?.LastOrDefault(e => !string.IsNullOrWhiteSpace(e.Text))?.Text;
+            return error ?? (string.IsNullOrWhiteSpace(result?.Response) ? "Unknown error" : result.Response);
+        }
+
+        private static void ShowUploadFailedToast(string errorMsg)
+        {
+            if (PlatformServices.IsInitialized && PlatformServices.IsToastServiceInitialized)
+            {
+                PlatformServices.Toast.ShowToast(new Platform.Abstractions.ToastConfig
+                {
+                    Title = "Upload Failed",
+                    Text = errorMsg,
+                    Duration = 4f,
+                    AutoHide = true
+                });
+            }
         }
 
         internal async Task<UploadResult?> UploadAsync(TaskInfo info, CancellationToken token)
@@ -383,7 +404,8 @@ namespace XerahS.Core.Tasks.Processors
                 token,
                 attemptedInstanceIds).ConfigureAwait(false);
 
-            return IsSuccessfulUploadResult(fallbackResult) ? fallbackResult : fallbackResult ?? primaryResult;
+            // When the fallbacks fail too, keep the configured destination's own error.
+            return IsSuccessfulUploadResult(fallbackResult) ? fallbackResult : primaryResult ?? fallbackResult;
         }
 
         internal static UploaderInstance? ResolveRequestedInstance(

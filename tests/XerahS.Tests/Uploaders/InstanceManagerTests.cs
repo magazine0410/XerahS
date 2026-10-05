@@ -408,6 +408,82 @@ public class InstanceManagerTests
     }
 
     [Test]
+    public void AllFileTypes_IsAllowedNextToInstancesWithSpecificOrNoFileTypes()
+    {
+        InstanceManager.Instance.AddInstance(NewImageInstance("png-only", "PNG Only", false, "png"));
+        InstanceManager.Instance.AddInstance(NewImageInstance("no-types", "No Types", false));
+        var catchAll = NewImageInstance("catch-all", "Catch All", true);
+        InstanceManager.Instance.AddInstance(catchAll);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(InstanceManager.Instance.ValidateFileTypeConfiguration(catchAll), Is.Null);
+            Assert.That(InstanceManager.Instance.CanSetAllFileTypes(UploaderCategory.Image, catchAll.InstanceId), Is.True);
+            // The specific file type wins over the instance that handles all file types.
+            Assert.That(InstanceManager.Instance.GetDestinationForFile(UploaderCategory.Image, "png")?.InstanceId, Is.EqualTo("png-only"));
+            Assert.That(InstanceManager.Instance.GetDestinationForFile(UploaderCategory.Image, "jpg")?.InstanceId, Is.EqualTo("catch-all"));
+        });
+    }
+
+    [Test]
+    public void SpecificFileTypes_AreAllowedNextToAnAllFileTypesInstance_ButNotTwice()
+    {
+        InstanceManager.Instance.AddInstance(NewImageInstance("catch-all", "Catch All", true));
+        InstanceManager.Instance.AddInstance(NewImageInstance("png-only", "PNG Only", false, "png"));
+        var candidate = NewImageInstance("candidate", "Candidate", false, "jpg");
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(InstanceManager.Instance.ValidateFileTypeConfiguration(candidate), Is.Null);
+            Assert.That(InstanceManager.Instance.CanAddFileType(UploaderCategory.Image, "candidate", "jpg"), Is.True);
+            Assert.That(InstanceManager.Instance.CanAddFileType(UploaderCategory.Image, "candidate", "png"), Is.False);
+        });
+        candidate.FileTypeRouting.FileExtensions.Add("png");
+        Assert.That(InstanceManager.Instance.ValidateFileTypeConfiguration(candidate), Is.EqualTo("File type 'png' is already handled by 'PNG Only'"));
+    }
+
+    [Test]
+    public void AllFileTypes_IsRefusedWhenAnotherInstanceHandlesAllFileTypes()
+    {
+        InstanceManager.Instance.AddInstance(NewImageInstance("first", "First", true));
+        var second = NewImageInstance("second", "Second", true);
+
+        Assert.That(InstanceManager.Instance.ValidateFileTypeConfiguration(second),
+            Is.EqualTo("Cannot set 'All File Types' - 'First' already handles all file types in Image"));
+        Assert.That(InstanceManager.Instance.CanSetAllFileTypes(UploaderCategory.Image, "second"), Is.False);
+    }
+
+    [Test]
+    public void SettingsPage_SavesSingleFileTypeChanges_AndShowsConflictsWhenOpened()
+    {
+        InstanceManager.Instance.AddInstance(NewImageInstance("png-only", "PNG Only", false, "png"));
+        var instance = NewImageInstance("candidate", "Candidate", false);
+        InstanceManager.Instance.AddInstance(instance);
+
+        var page = new XerahS.UI.ViewModels.UploaderInstanceViewModel(instance);
+        page.SelectedFileExtensions.Add("jpg");
+        Assert.Multiple(() =>
+        {
+            Assert.That(InstanceManager.Instance.GetInstance("candidate")!.FileTypeRouting.FileExtensions, Is.EqualTo(new[] { "jpg" }));
+            Assert.That(page.FileTypeScopeDisplay, Is.EqualTo("jpg"));
+        });
+
+        page.SelectedFileExtensions.Add("png");
+        var reopened = new XerahS.UI.ViewModels.UploaderInstanceViewModel(InstanceManager.Instance.GetInstance("candidate")!);
+        Assert.That(reopened.ConflictWarning.Message, Is.EqualTo("File type 'png' is already handled by 'PNG Only'"), "The conflict is shown again when the page is opened.");
+    }
+
+    private static UploaderInstance NewImageInstance(string id, string name, bool allFileTypes, params string[] extensions) => new()
+    {
+        InstanceId = id,
+        ProviderId = "test-provider",
+        Category = UploaderCategory.Image,
+        DisplayName = name,
+        SettingsJson = "{}",
+        FileTypeRouting = new FileTypeScope { AllFileTypes = allFileTypes, FileExtensions = extensions.ToList() }
+    };
+
+    [Test]
     public void ResolveAutoInstance_SkipsUnavailableDefaultAndReturnsAvailableAlternative()
     {
         var unavailableDefault = new UploaderInstance

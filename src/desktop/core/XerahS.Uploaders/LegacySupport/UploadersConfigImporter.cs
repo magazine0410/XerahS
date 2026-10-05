@@ -24,6 +24,7 @@
 #endregion License Information (GPL v3)
 
 using Newtonsoft.Json;
+using Newtonsoft.Json.Linq;
 using XerahS.Common;
 
 namespace XerahS.Uploaders
@@ -34,6 +35,9 @@ namespace XerahS.Uploaders
     public static class UploadersConfigImporter
     {
         private const string LogPrefix = "[UploadersConfigImporter]";
+
+        /// <summary>ShareX's prefix for a [JsonEncrypt] value, followed by its Windows DPAPI data.</summary>
+        internal const string EncryptedTag = "$DPAPIEncrypted$";
 
         /// <summary>
         /// Default ShareX configuration directory.
@@ -65,6 +69,52 @@ namespace XerahS.Uploaders
         }
 
         /// <summary>
+        /// Replaces ShareX's encrypted values with their text, as ShareX reads them. Windows DPAPI data can only be
+        /// decrypted on Windows, by the account that saved it; values that cannot be decrypted are cleared and listed
+        /// in the result, so that they are not imported as the encrypted text.
+        /// </summary>
+        internal static string DecryptProtectedValues(string json, ImportResult result)
+        {
+            JToken root = JToken.Parse(json);
+            IEnumerable<JToken> tokens = root is JContainer container ? container.DescendantsAndSelf() : [root];
+            var encryptedValues = tokens.OfType<JValue>()
+                .Where(value => value.Type == JTokenType.String && value.Value is string text && text.StartsWith(EncryptedTag, StringComparison.Ordinal))
+                .ToList();
+            if (encryptedValues.Count == 0) return json;
+
+            foreach (JValue value in encryptedValues)
+            {
+                string? text = TryDecrypt(((string)value.Value!)[EncryptedTag.Length..]);
+                if (text == null)
+                {
+                    result.UndecryptableValues.Add(value.Path);
+                    value.Value = string.Empty;
+                }
+                else
+                {
+                    value.Value = text;
+                }
+            }
+
+            return root.ToString(Formatting.None);
+        }
+
+        private static string? TryDecrypt(string encryptedData)
+        {
+            if (!OperatingSystem.IsWindows()) return null;
+
+            try
+            {
+                return DPAPI.Decrypt(encryptedData);
+            }
+            catch (Exception ex)
+            {
+                DebugHelper.WriteLine($"{LogPrefix} Could not decrypt a value: {ex.Message}");
+                return null;
+            }
+        }
+
+        /// <summary>
         /// Import UploadersConfig from ShareX file.
         /// </summary>
         /// <param name="sourceFilePath">Path to ShareX UploadersConfig.json.</param>
@@ -79,7 +129,8 @@ namespace XerahS.Uploaders
 
             try
             {
-                string json = File.ReadAllText(sourceFilePath);
+                var result = new ImportResult();
+                string json = DecryptProtectedValues(File.ReadAllText(sourceFilePath), result);
                 var sourceConfig = JsonConvert.DeserializeObject<UploadersConfig>(json);
 
                 if (sourceConfig == null)
@@ -87,7 +138,6 @@ namespace XerahS.Uploaders
                     throw new InvalidDataException("Failed to deserialize UploadersConfig.json");
                 }
 
-                var result = new ImportResult();
                 ImportImageUploaders(sourceConfig, targetConfig, result);
                 ImportTextUploaders(sourceConfig, targetConfig, result);
                 ImportFileUploaders(sourceConfig, targetConfig, result);
@@ -136,6 +186,13 @@ namespace XerahS.Uploaders
                 target.PhotobucketOAuthInfo = source.PhotobucketOAuthInfo;
                 target.PhotobucketAccountInfo = source.PhotobucketAccountInfo;
                 result.AddImported("Photobucket");
+            }
+
+            if (!string.IsNullOrEmpty(source.CheveretoUploader?.UploadURL))
+            {
+                target.CheveretoUploader = source.CheveretoUploader;
+                target.CheveretoDirectURL = source.CheveretoDirectURL;
+                result.AddImported("Chevereto");
             }
 
             if (!string.IsNullOrEmpty(source.VgymeUserKey))
@@ -262,6 +319,18 @@ namespace XerahS.Uploaders
                 result.AddImported("Backblaze B2");
             }
 
+            if (!string.IsNullOrEmpty(source.SulAPIKey))
+            {
+                target.SulAPIKey = source.SulAPIKey;
+                result.AddImported("s-ul");
+            }
+
+            if (!string.IsNullOrEmpty(source.PushbulletSettings?.UserAPIKey))
+            {
+                target.PushbulletSettings = source.PushbulletSettings;
+                result.AddImported("Pushbullet");
+            }
+
             if (source.CustomUploadersList != null && source.CustomUploadersList.Count > 0)
             {
                 target.CustomUploadersList = source.CustomUploadersList;
@@ -328,6 +397,9 @@ namespace XerahS.Uploaders
         public List<string> ImportedUploaders { get; } = new List<string>();
         public List<CustomUploaderItem> ImportedCustomUploaders { get; } = new List<CustomUploaderItem>();
 
+        /// <summary>The settings (as JSON paths, such as "SulAPIKey") whose encrypted values could not be decrypted.</summary>
+        public List<string> UndecryptableValues { get; } = new List<string>();
+
         public int TotalImported => ImportedUploaders.Count;
         public int TotalImportedCustomUploaders => ImportedCustomUploaders.Count;
 
@@ -347,13 +419,19 @@ namespace XerahS.Uploaders
 
         public string GetSummary()
         {
-            if (TotalImported == 0)
-            {
-                return "No uploader settings found to import.";
-            }
+            string summary = TotalImported == 0
+                ? "No uploader settings found to import."
+                : $"Successfully imported {TotalImported} uploader(s):{Environment.NewLine}" +
+                  string.Join(Environment.NewLine, ImportedUploaders.Select(u => $"- {u}"));
 
-            return $"Successfully imported {TotalImported} uploader(s):{Environment.NewLine}" +
-                   string.Join(Environment.NewLine, ImportedUploaders.Select(u => $"- {u}"));
+            if (UndecryptableValues.Count == 0) return summary;
+
+            string reason = OperatingSystem.IsWindows()
+                ? "They were encrypted by another Windows account or computer."
+                : "ShareX encrypts them with Windows DPAPI, which only the Windows account that saved them can decrypt.";
+            return summary + Environment.NewLine + Environment.NewLine +
+                $"These encrypted settings could not be read and were left empty. {reason} Enter them again in the destination settings:{Environment.NewLine}" +
+                string.Join(Environment.NewLine, UndecryptableValues.Select(path => $"- {path}"));
         }
     }
 }

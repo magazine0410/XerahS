@@ -25,6 +25,22 @@
 
 using NUnit.Framework;
 using ShareX.AmazonS3.Plugin;
+using ShareX.Chevereto.Plugin;
+using ShareX.Flickr.Plugin;
+using ShareX.ImageChest.Plugin;
+using ShareX.ImgBB.Plugin;
+using ShareX.Upaste.Plugin;
+using ShareX.ImgFish.Plugin;
+using ShareX.Sul.Plugin;
+using ShareX.Pushbullet.Plugin;
+using ShareX.BackblazeB2.Plugin;
+using ShareX.Mega.Plugin;
+using ShareX.GoogleDrive.Plugin;
+using ShareX.GoogleCloudStorage.Plugin;
+using ShareX.YouTube.Plugin;
+using ShareX.OneDrive.Plugin;
+using ShareX.Box.Plugin;
+using ShareX.Vgyme.Plugin;
 using ShareX.Dropbox.Plugin;
 using ShareX.GitHubGist.Plugin;
 using ShareX.Imgur.Plugin;
@@ -113,6 +129,22 @@ public class InstanceSecretBackupProviderTests
         yield return Case(new NextcloudProvider(), "nextcloud", "appPassword", "sharePassword");
         yield return Case(new ImmichProvider(), "immich", "apiKey", "apiToken", "sharePassword");
         yield return Case(new XBackBoneProvider(), "xbackbone", "apiToken");
+        yield return Case(new VgymeProvider(), "vgyme", "userKey");
+        yield return Case(new UpasteProvider(), "upaste", "userKey");
+        yield return Case(new ImgFishProvider(), "imgfish", "apiKey");
+        yield return Case(new SulProvider(), "sul", "apiKey");
+        yield return Case(new PushbulletProvider(), "pushbullet", "accessToken");
+        yield return Case(new BackblazeB2Provider(), "backblazeb2", "applicationKeyId", "applicationKey");
+        yield return Case(new MegaProvider(), "mega", "sessionId", "masterKey");
+        yield return Case(new GoogleDriveProvider(), "googledrive", "clientId", "clientSecret", "oauthToken");
+        yield return Case(new GoogleCloudStorageProvider(), "googlecloudstorage", "clientId", "clientSecret", "oauthToken");
+        yield return Case(new YouTubeProvider(), "youtube", "clientId", "clientSecret", "oauthToken");
+        yield return Case(new OneDriveProvider(), "onedrive", "clientId", "clientSecret", "oauthToken");
+        yield return Case(new BoxProvider(), "box", "clientId", "clientSecret", "oauthToken");
+        yield return Case(new CheveretoProvider(), "chevereto", "apiKey");
+        yield return Case(new FlickrProvider(), "flickr", "consumerSecret", "userToken", "userSecret");
+        yield return Case(new ImgBBProvider(), "imgbb", "apiKey");
+        yield return Case(new ImageChestProvider(), "imagechest", "accessToken");
     }
 
     private static IEnumerable<IInstanceSecretBackupProvider> AllProviders()
@@ -124,6 +156,22 @@ public class InstanceSecretBackupProviderTests
         yield return new NextcloudProvider();
         yield return new ImmichProvider();
         yield return new XBackBoneProvider();
+        yield return new VgymeProvider();
+        yield return new UpasteProvider();
+        yield return new ImgFishProvider();
+        yield return new SulProvider();
+        yield return new PushbulletProvider();
+        yield return new BackblazeB2Provider();
+        yield return new MegaProvider();
+        yield return new GoogleDriveProvider();
+        yield return new GoogleCloudStorageProvider();
+        yield return new YouTubeProvider();
+        yield return new OneDriveProvider();
+        yield return new BoxProvider();
+        yield return new CheveretoProvider();
+        yield return new FlickrProvider();
+        yield return new ImgBBProvider();
+        yield return new ImageChestProvider();
     }
 
     private static TestCaseData Case(

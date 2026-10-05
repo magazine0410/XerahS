@@ -234,6 +234,13 @@ namespace XerahS.Uploaders
 
         #endregion Photobucket
 
+        #region Chevereto
+
+        public CheveretoUploaderSettings CheveretoUploader { get; set; } = new CheveretoUploaderSettings();
+        public bool CheveretoDirectURL { get; set; } = true;
+
+        #endregion Chevereto
+
         #region vgy.me
 
         [JsonEncrypt]

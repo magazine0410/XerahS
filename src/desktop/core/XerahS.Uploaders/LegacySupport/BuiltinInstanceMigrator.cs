@@ -25,6 +25,7 @@
 
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
+using ShareX.UploadersLib.ImageUploaders;
 using XerahS.Common;
 using XerahS.Uploaders.PluginSystem;
 
@@ -103,6 +104,13 @@ public static class BuiltinInstanceMigrator
         MigrateFtp(source, result);
         MigratePastebin(source, result);
         MigrateImgur(source, result);
+        MigrateFlickr(source, result);
+        MigrateChevereto(source, result);
+        MigrateVgyme(source, result);
+        MigrateUpaste(source, result);
+        MigrateBackblazeB2(source, result);
+        MigrateSul(source, result);
+        MigratePushbullet(source, result);
         CollectSkippedProviders(source, result);
 
         return result;
@@ -386,21 +394,155 @@ public static class BuiltinInstanceMigrator
         DebugHelper.WriteLine($"{LogPrefix} Imgur: partial migration (preferences copied, OAuth re-auth needed).");
     }
 
+    // ── Flickr, Chevereto, vgy.me, uPaste ─────────────────────────────────────
+    // Plaintext secrets are written into SettingsJson; each provider's IInstanceSecretMigrator moves them into the
+    // secret store, as for Pastebin.
+
+    private static void MigrateFlickr(UploadersConfig source, BuiltinMigrationResult result)
+    {
+        if (source.FlickrOAuthInfo == null)
+            return;
+
+        // ShareX's tokens belong to ShareX's own Flickr app key, so they cannot be used with the user's app key.
+        var settings = source.FlickrSettings ?? new FlickrSettings();
+        var json = new JObject
+        {
+            ["DirectLink"] = settings.DirectLink,
+            ["Title"] = settings.Title,
+            ["Description"] = settings.Description,
+            ["Tags"] = settings.Tags,
+            ["IsPublic"] = settings.IsPublic,
+            ["IsFriend"] = settings.IsFriend,
+            ["IsFamily"] = settings.IsFamily,
+            ["SafetyLevel"] = settings.SafetyLevel,
+            ["ContentType"] = settings.ContentType,
+            ["Hidden"] = settings.Hidden
+        };
+
+        UpsertInstance(UploaderCategory.Image, "flickr", "Flickr", json, result, "Flickr");
+        result.PartialMigrations.Add("Flickr: preferences migrated — enter your Flickr app key and secret, then authorize your account in settings.");
+        DebugHelper.WriteLine($"{LogPrefix} Flickr: partial migration (preferences copied, app key and authorization needed).");
+    }
+
+    private static void MigrateChevereto(UploadersConfig source, BuiltinMigrationResult result)
+    {
+        var settings = source.CheveretoUploader;
+        if (settings == null || string.IsNullOrEmpty(settings.UploadURL))
+            return;
+
+        var json = new JObject
+        {
+            ["UploadURL"] = settings.UploadURL,
+            ["DirectURL"] = source.CheveretoDirectURL,
+            ["APIKey"] = settings.APIKey
+        };
+
+        UpsertInstance(UploaderCategory.Image, "chevereto", "Chevereto", json, result, "Chevereto");
+    }
+
+    private static void MigrateVgyme(UploadersConfig source, BuiltinMigrationResult result)
+    {
+        if (string.IsNullOrEmpty(source.VgymeUserKey))
+            return;
+
+        UpsertInstance(UploaderCategory.Image, "vgyme", "vgy.me", new JObject { ["UserKey"] = source.VgymeUserKey }, result, "vgy.me");
+    }
+
+    private static void MigrateUpaste(UploadersConfig source, BuiltinMigrationResult result)
+    {
+        if (string.IsNullOrEmpty(source.UpasteUserKey))
+            return;
+
+        var json = new JObject { ["UserKey"] = source.UpasteUserKey, ["IsPublic"] = source.UpasteIsPublic };
+        UpsertInstance(UploaderCategory.Text, "upaste", "uPaste", json, result, "uPaste");
+    }
+
+    // ── Backblaze B2, s-ul, Pushbullet (file destinations) ───────────────────
+
+    private static void MigrateBackblazeB2(UploadersConfig source, BuiltinMigrationResult result)
+    {
+        if (string.IsNullOrEmpty(source.B2ApplicationKeyId))
+            return;
+
+        var json = new JObject
+        {
+            ["ApplicationKeyId"] = source.B2ApplicationKeyId,
+            ["ApplicationKey"] = source.B2ApplicationKey,
+            ["BucketName"] = source.B2BucketName,
+            ["UploadPath"] = source.B2UploadPath,
+            ["UseCustomUrl"] = source.B2UseCustomUrl,
+            ["CustomUrl"] = source.B2CustomUrl
+        };
+
+        UpsertInstance(UploaderCategory.File, "backblazeb2", "Backblaze B2", json, result, "Backblaze B2");
+    }
+
+    private static void MigrateSul(UploadersConfig source, BuiltinMigrationResult result)
+    {
+        if (string.IsNullOrEmpty(source.SulAPIKey))
+            return;
+
+        UpsertInstance(UploaderCategory.File, "sul", "s-ul", new JObject { ["APIKey"] = source.SulAPIKey }, result, "s-ul");
+    }
+
+    private static void MigratePushbullet(UploadersConfig source, BuiltinMigrationResult result)
+    {
+        var settings = source.PushbulletSettings;
+        if (string.IsNullOrEmpty(settings?.UserAPIKey))
+            return;
+
+        var devices = settings.DeviceList ?? [];
+        string selectedDeviceKey = settings.SelectedDevice >= 0 && settings.SelectedDevice < devices.Count ? devices[settings.SelectedDevice].Key : string.Empty;
+        var json = new JObject
+        {
+            ["UserAPIKey"] = settings.UserAPIKey,
+            ["DeviceList"] = JArray.FromObject(devices.Select(device => new { device.Key, device.Name })),
+            ["SelectedDeviceKey"] = selectedDeviceKey
+        };
+
+        UpsertInstance(UploaderCategory.File, "pushbullet", "Pushbullet", json, result, "Pushbullet");
+    }
+
+    /// <summary>Creates the provider's instance in the category, or updates it while keeping its SecretKey (and stored secrets).</summary>
+    private static void UpsertInstance(UploaderCategory category, string providerId, string displayName, JObject json, BuiltinMigrationResult result, string label)
+    {
+        var existing = InstanceManager.Instance.GetInstancesByCategory(category)
+            .FirstOrDefault(i => i.ProviderId == providerId);
+
+        json["SecretKey"] = ExtractSecretKey(existing?.SettingsJson) is { Length: > 0 } secretKey ? secretKey : Guid.NewGuid().ToString("N");
+        string settingsJson = json.ToString(Formatting.Indented);
+
+        if (existing != null)
+        {
+            existing.SettingsJson = settingsJson;
+            existing.DisplayName = displayName;
+            InstanceManager.Instance.UpdateInstance(existing);
+            result.InstancesUpdated.Add($"{label} [{category}]");
+        }
+        else
+        {
+            InstanceManager.Instance.AddInstance(new UploaderInstance
+            {
+                ProviderId = providerId,
+                Category = category,
+                DisplayName = displayName,
+                SettingsJson = settingsJson,
+                FileTypeRouting = new FileTypeScope { AllFileTypes = true }
+            });
+            result.InstancesCreated.Add($"{label} [{category}]");
+        }
+    }
+
     // ── Skipped providers (no XerahS plugin available) ────────────────────────
 
     private static void CollectSkippedProviders(UploadersConfig source, BuiltinMigrationResult result)
     {
+        // ImageShack's login now needs a reCAPTCHA answer, so XerahS has no ImageShack destination.
         if (!string.IsNullOrEmpty(source.ImageShackSettings?.Auth_token))
             result.SkippedProviders.Add("ImageShack");
 
-        if (source.FlickrOAuthInfo != null)
-            result.SkippedProviders.Add("Flickr");
-
         if (source.PhotobucketOAuthInfo != null)
             result.SkippedProviders.Add("Photobucket");
-
-        if (!string.IsNullOrEmpty(source.VgymeUserKey))
-            result.SkippedProviders.Add("vgy.me");
 
         if (source.GistOAuth2Info != null)
             result.SkippedProviders.Add("GitHub Gist");
@@ -425,11 +567,18 @@ public static class BuiltinInstanceMigrator
         if (source.GoogleDriveOAuth2Info != null)
             result.SkippedProviders.Add("Google Drive");
 
+        if (source.BoxOAuth2Info != null)
+            result.SkippedProviders.Add("Box");
+
+        if (source.YouTubeOAuth2Info != null)
+            result.SkippedProviders.Add("YouTube");
+
+        // The MEGA login ShareX stored (MegaAuthInfos) cannot be turned into the session XerahS uses; log in again.
+        if (source.MegaAuthInfos != null)
+            result.SkippedProviders.Add("MEGA");
+
         if (!string.IsNullOrEmpty(source.AzureStorageAccountName))
             result.SkippedProviders.Add("Azure Storage");
-
-        if (!string.IsNullOrEmpty(source.B2ApplicationKeyId))
-            result.SkippedProviders.Add("Backblaze B2");
 
         if (source.BitlyOAuth2Info != null)
             result.SkippedProviders.Add("bit.ly");
@@ -445,9 +594,6 @@ public static class BuiltinInstanceMigrator
 
         if (source.KuttSettings != null && !string.IsNullOrEmpty(source.KuttSettings.APIKey))
             result.SkippedProviders.Add("Kutt");
-
-        if (!string.IsNullOrEmpty(source.UpasteUserKey))
-            result.SkippedProviders.Add("uPaste");
     }
 
     // ── Helpers ───────────────────────────────────────────────────────────────

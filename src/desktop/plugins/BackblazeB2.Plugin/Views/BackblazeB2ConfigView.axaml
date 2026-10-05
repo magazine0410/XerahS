@@ -1,0 +1,87 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:ShareX.BackblazeB2.Plugin.ViewModels"
+             x:Class="ShareX.BackblazeB2.Plugin.Views.BackblazeB2ConfigView"
+             x:DataType="vm:BackblazeB2ConfigViewModel">
+
+    <UserControl.Styles>
+        <Style Selector="Border.heroCard">
+            <Setter Property="Background" Value="{DynamicResource LayerFillColorDefaultBrush}"/>
+            <Setter Property="CornerRadius" Value="18"/>
+            <Setter Property="Padding" Value="20"/>
+            <Setter Property="BorderBrush" Value="{DynamicResource AccentFillColorDefaultBrush}"/>
+            <Setter Property="BorderThickness" Value="1"/>
+        </Style>
+        <Style Selector="Border.card">
+            <Setter Property="Background" Value="{DynamicResource CardBackgroundFillColorDefaultBrush}"/>
+            <Setter Property="CornerRadius" Value="14"/>
+            <Setter Property="Padding" Value="18"/>
+            <Setter Property="BorderBrush" Value="{DynamicResource CardStrokeColorDefaultBrush}"/>
+            <Setter Property="BorderThickness" Value="1"/>
+        </Style>
+        <Style Selector="TextBlock.fieldLabel">
+            <Setter Property="FontWeight" Value="SemiBold"/>
+        </Style>
+        <Style Selector="TextBlock.helper">
+            <Setter Property="FontSize" Value="11"/>
+            <Setter Property="TextWrapping" Value="Wrap"/>
+            <Setter Property="Foreground" Value="{DynamicResource TextFillColorSecondaryBrush}"/>
+        </Style>
+    </UserControl.Styles>
+
+    <ScrollViewer HorizontalScrollBarVisibility="Disabled">
+        <StackPanel Spacing="18">
+            <Border Classes="heroCard">
+                <StackPanel Spacing="8">
+                    <TextBlock Text="Backblaze B2" FontSize="24" FontWeight="Bold"/>
+                    <TextBlock Text="Upload files to a Backblaze B2 bucket, as in ShareX. Create an application key in your Backblaze account; a key limited to one bucket needs no bucket name."
+                               TextWrapping="Wrap" Foreground="{DynamicResource TextFillColorSecondaryBrush}" MaxWidth="680"/>
+                </StackPanel>
+            </Border>
+
+            <Border Classes="card">
+                <StackPanel Spacing="15">
+                    <TextBlock Text="Application key" FontSize="16" FontWeight="SemiBold"/>
+                    <StackPanel Spacing="6">
+                        <TextBlock Classes="fieldLabel" Text="Application key ID"/>
+                        <TextBox Text="{Binding ApplicationKeyId, UpdateSourceTrigger=PropertyChanged}" PlaceholderText="Required; stored in the secret store"/>
+                    </StackPanel>
+                    <StackPanel Spacing="6">
+                        <TextBlock Classes="fieldLabel" Text="Application key"/>
+                        <TextBox Text="{Binding ApplicationKey, UpdateSourceTrigger=PropertyChanged}" PasswordChar="*" PlaceholderText="Required; stored in the secret store"/>
+                    </StackPanel>
+                    <Button Content="Open Application Keys" Command="{Binding OpenApplicationKeysCommand}" HorizontalAlignment="Left"/>
+                </StackPanel>
+            </Border>
+
+            <Border Classes="card">
+                <StackPanel Spacing="15">
+                    <TextBlock Text="Upload" FontSize="16" FontWeight="SemiBold"/>
+                    <StackPanel Spacing="6">
+                        <TextBlock Classes="fieldLabel" Text="Bucket name"/>
+                        <TextBox Text="{Binding BucketName, UpdateSourceTrigger=PropertyChanged}"/>
+                    </StackPanel>
+                    <StackPanel Spacing="6">
+                        <TextBlock Classes="fieldLabel" Text="Upload path"/>
+                        <TextBox Text="{Binding UploadPath, UpdateSourceTrigger=PropertyChanged}"/>
+                        <TextBlock Classes="helper" Text="The folder in the bucket; name patterns such as %y and %mo are replaced."/>
+                    </StackPanel>
+                    <CheckBox Content="Use custom URL" IsChecked="{Binding UseCustomUrl}"/>
+                    <TextBox Text="{Binding CustomUrl, UpdateSourceTrigger=PropertyChanged}" IsEnabled="{Binding UseCustomUrl}"/>
+                    <StackPanel Spacing="6">
+                        <TextBlock Classes="fieldLabel" Text="URL preview"/>
+                        <SelectableTextBlock Text="{Binding PreviewUrl}" TextWrapping="Wrap"/>
+                        <TextBlock Classes="helper" Text="Without a custom URL, the host comes from your account's download URL."/>
+                    </StackPanel>
+                </StackPanel>
+            </Border>
+
+            <Border Background="{DynamicResource LayerFillColorDefaultBrush}"
+                    BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}"
+                    BorderThickness="1" CornerRadius="10" Padding="12"
+                    IsVisible="{Binding StatusMessage, Converter={x:Static StringConverters.IsNotNullOrEmpty}}">
+                <TextBlock Text="{Binding StatusMessage}" TextWrapping="Wrap"/>
+            </Border>
+        </StackPanel>
+    </ScrollViewer>
+</UserControl>

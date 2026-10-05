@@ -505,7 +505,8 @@ public class InstanceManager
 
     /// <summary>
     /// Check if a specific file type can be added to an instance in a category.
-    /// Returns false if type is already handled by another instance or if any instance has "All File Types".
+    /// Returns false if the type is already handled by another instance. An "All File Types" instance does not
+    /// block it: a specific file type is chosen before the "All File Types" instance (see GetDestinationForFile).
     /// </summary>
     /// <param name="category">Upload category</param>
     /// <param name="excludeInstanceId">Instance ID to exclude from check (when editing existing instance)</param>
@@ -523,19 +524,16 @@ public class InstanceManager
             var otherInstances = _configuration.Instances
                 .Where(i => i.Category == category && i.IsAvailable && !InstanceIdsEqual(i.InstanceId, excludeInstanceId));
 
-            // Cannot add if any available other instance has "All File Types"
-            if (otherInstances.Any(i => GetFileTypeRouting(i).AllFileTypes))
-                return false;
-
             // Cannot add if file type is already handled by another instance
             return !otherInstances.Any(i =>
+                !GetFileTypeRouting(i).AllFileTypes &&
                 GetFileTypeRouting(i).FileExtensions.Any(e => e.Equals(ext, StringComparison.OrdinalIgnoreCase)));
         }
     }
 
     /// <summary>
     /// Check if an instance can set "All File Types" for its category.
-    /// Returns false if other instances exist in the same category.
+    /// Returns false if another available instance in the category already handles all file types.
     /// </summary>
     /// <param name="category">Upload category</param>
     /// <param name="currentInstanceId">Instance ID requesting "All File Types"</param>
@@ -546,8 +544,7 @@ public class InstanceManager
             var otherInstances = _configuration.Instances
                 .Where(i => i.Category == category && i.IsAvailable && !InstanceIdsEqual(i.InstanceId, currentInstanceId));
 
-            // Can only set "All File Types" if no other available instances exist in this category
-            return !otherInstances.Any();
+            return !otherInstances.Any(i => GetFileTypeRouting(i).AllFileTypes);
         }
     }
 
@@ -600,26 +597,23 @@ public class InstanceManager
 
             var instanceRouting = GetFileTypeRouting(instance);
 
+            // One instance per category may handle all file types; instances with specific file types are chosen
+            // before it for those types (see GetDestinationForFile).
             if (instanceRouting.AllFileTypes)
             {
-                if (otherInstances.Any())
+                var allTypesInstance = otherInstances.FirstOrDefault(i => GetFileTypeRouting(i).AllFileTypes);
+                if (allTypesInstance != null)
                 {
-                    return $"Cannot set 'All File Types' - {otherInstances.Count()} other instance(s) exist in {instance.Category} category";
+                    return $"Cannot set 'All File Types' - '{allTypesInstance.DisplayName}' already handles all file types in {instance.Category}";
                 }
             }
             else
             {
-                // Check for "All File Types" conflicts
-                var allTypesInstance = otherInstances.FirstOrDefault(i => GetFileTypeRouting(i).AllFileTypes);
-                if (allTypesInstance != null)
-                {
-                    return $"Cannot add file types - '{allTypesInstance.DisplayName}' handles all file types in {instance.Category}";
-                }
-
                 // Check for specific file type conflicts
                 foreach (var ext in instanceRouting.FileExtensions)
                 {
                     var conflictingInstance = otherInstances.FirstOrDefault(i =>
+                        !GetFileTypeRouting(i).AllFileTypes &&
                         GetFileTypeRouting(i).FileExtensions.Any(e => e.Equals(ext, StringComparison.OrdinalIgnoreCase)));
 
                     if (conflictingInstance != null)

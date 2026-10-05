@@ -1,0 +1,15 @@
+{
+  "pluginId": "imagechest",
+  "name": "Image Chest",
+  "version": "1.0.0",
+  "author": "ShareX Team",
+  "description": "Upload images to Image Chest",
+  "apiVersion": "1.0",
+  "entryPoint": "ShareX.ImageChest.Plugin.ImageChestProvider",
+  "assemblyFileName": "XerahS.ImageChest.Plugin.dll",
+  "supportedCategories": ["Image"],
+  "supportsExplorer": false,
+  "configViewId": "imagechest",
+  "dependencies": [],
+  "homepageUrl": "https://imgchest.com/"
+}

@@ -1,0 +1,75 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:ShareX.Pushbullet.Plugin.ViewModels"
+             x:Class="ShareX.Pushbullet.Plugin.Views.PushbulletConfigView"
+             x:DataType="vm:PushbulletConfigViewModel">
+
+    <UserControl.Styles>
+        <Style Selector="Border.heroCard">
+            <Setter Property="Background" Value="{DynamicResource LayerFillColorDefaultBrush}"/>
+            <Setter Property="CornerRadius" Value="18"/>
+            <Setter Property="Padding" Value="20"/>
+            <Setter Property="BorderBrush" Value="{DynamicResource AccentFillColorDefaultBrush}"/>
+            <Setter Property="BorderThickness" Value="1"/>
+        </Style>
+        <Style Selector="Border.card">
+            <Setter Property="Background" Value="{DynamicResource CardBackgroundFillColorDefaultBrush}"/>
+            <Setter Property="CornerRadius" Value="14"/>
+            <Setter Property="Padding" Value="18"/>
+            <Setter Property="BorderBrush" Value="{DynamicResource CardStrokeColorDefaultBrush}"/>
+            <Setter Property="BorderThickness" Value="1"/>
+        </Style>
+        <Style Selector="TextBlock.fieldLabel">
+            <Setter Property="FontWeight" Value="SemiBold"/>
+        </Style>
+        <Style Selector="TextBlock.helper">
+            <Setter Property="FontSize" Value="11"/>
+            <Setter Property="TextWrapping" Value="Wrap"/>
+            <Setter Property="Foreground" Value="{DynamicResource TextFillColorSecondaryBrush}"/>
+        </Style>
+    </UserControl.Styles>
+
+    <ScrollViewer HorizontalScrollBarVisibility="Disabled">
+        <StackPanel Spacing="18">
+            <Border Classes="heroCard">
+                <StackPanel Spacing="8">
+                    <TextBlock Text="Pushbullet" FontSize="24" FontWeight="Bold"/>
+                    <TextBlock Text="Push files to one of your Pushbullet devices, as in ShareX. The result is the link to the push."
+                               TextWrapping="Wrap" Foreground="{DynamicResource TextFillColorSecondaryBrush}" MaxWidth="680"/>
+                </StackPanel>
+            </Border>
+
+            <Border Classes="card">
+                <StackPanel Spacing="15">
+                    <TextBlock Text="Account" FontSize="16" FontWeight="SemiBold"/>
+                    <StackPanel Spacing="6">
+                        <TextBlock Classes="fieldLabel" Text="Access token"/>
+                        <TextBox Text="{Binding AccessToken, UpdateSourceTrigger=PropertyChanged}" PasswordChar="*"
+                                 PlaceholderText="Required; stored in the secret store"/>
+                        <TextBlock Classes="helper" Text="Create an access token in your Pushbullet account settings."/>
+                    </StackPanel>
+                    <Button Content="Open Account Settings" Command="{Binding OpenAccountSettingsCommand}" HorizontalAlignment="Left"/>
+                </StackPanel>
+            </Border>
+
+            <Border Classes="card">
+                <StackPanel Spacing="15">
+                    <TextBlock Text="Device" FontSize="16" FontWeight="SemiBold"/>
+                    <StackPanel Orientation="Horizontal" Spacing="10">
+                        <ComboBox ItemsSource="{Binding Devices}" SelectedItem="{Binding SelectedDevice}" MinWidth="260"
+                                  PlaceholderText="No device chosen"/>
+                        <Button Content="Load Devices" Command="{Binding LoadDevicesCommand}" IsEnabled="{Binding !IsBusy}"/>
+                    </StackPanel>
+                    <TextBlock Classes="helper" Text="Files are pushed to this device. Devices without a name are not listed, as in ShareX."/>
+                </StackPanel>
+            </Border>
+
+            <Border Background="{DynamicResource LayerFillColorDefaultBrush}"
+                    BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}"
+                    BorderThickness="1" CornerRadius="10" Padding="12"
+                    IsVisible="{Binding StatusMessage, Converter={x:Static StringConverters.IsNotNullOrEmpty}}">
+                <TextBlock Text="{Binding StatusMessage}" TextWrapping="Wrap"/>
+            </Border>
+        </StackPanel>
+    </ScrollViewer>
+</UserControl>

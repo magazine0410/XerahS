@@ -1,0 +1,79 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:ShareX.ImageChest.Plugin.ViewModels"
+             x:Class="ShareX.ImageChest.Plugin.Views.ImageChestConfigView"
+             x:DataType="vm:ImageChestConfigViewModel">
+
+    <UserControl.Styles>
+        <Style Selector="Border.heroCard">
+            <Setter Property="Background" Value="{DynamicResource LayerFillColorDefaultBrush}"/>
+            <Setter Property="CornerRadius" Value="18"/>
+            <Setter Property="Padding" Value="20"/>
+            <Setter Property="BorderBrush" Value="{DynamicResource AccentFillColorDefaultBrush}"/>
+            <Setter Property="BorderThickness" Value="1"/>
+        </Style>
+        <Style Selector="Border.card">
+            <Setter Property="Background" Value="{DynamicResource CardBackgroundFillColorDefaultBrush}"/>
+            <Setter Property="CornerRadius" Value="14"/>
+            <Setter Property="Padding" Value="18"/>
+            <Setter Property="BorderBrush" Value="{DynamicResource CardStrokeColorDefaultBrush}"/>
+            <Setter Property="BorderThickness" Value="1"/>
+        </Style>
+        <Style Selector="TextBlock.fieldLabel">
+            <Setter Property="FontWeight" Value="SemiBold"/>
+        </Style>
+        <Style Selector="TextBlock.helper">
+            <Setter Property="FontSize" Value="11"/>
+            <Setter Property="TextWrapping" Value="Wrap"/>
+            <Setter Property="Foreground" Value="{DynamicResource TextFillColorSecondaryBrush}"/>
+        </Style>
+    </UserControl.Styles>
+
+    <ScrollViewer HorizontalScrollBarVisibility="Disabled">
+        <StackPanel Spacing="18">
+            <Border Classes="heroCard">
+                <StackPanel Spacing="8">
+                    <TextBlock Text="Image Chest" FontSize="24" FontWeight="Bold"/>
+                    <TextBlock Text="Upload images to Image Chest. Each upload creates a post with the image; the result gives the image link (or the post page) and a deletion link."
+                               TextWrapping="Wrap" Foreground="{DynamicResource TextFillColorSecondaryBrush}" MaxWidth="680"/>
+                </StackPanel>
+            </Border>
+
+            <Border Classes="card">
+                <StackPanel Spacing="15">
+                    <TextBlock Text="Account" FontSize="16" FontWeight="SemiBold"/>
+                    <StackPanel Spacing="6">
+                        <TextBlock Classes="fieldLabel" Text="Access token *"/>
+                        <TextBox Text="{Binding AccessToken, UpdateSourceTrigger=PropertyChanged}" PasswordChar="*" PlaceholderText="Stored in the secret store"/>
+                        <TextBlock Classes="helper" Text="Sign in to Image Chest, open your profile's Security tab, and choose New Token. Image Chest shows the token only once."/>
+                    </StackPanel>
+                    <Button Content="Open Profile" Command="{Binding OpenProfilePageCommand}" HorizontalAlignment="Left"/>
+                </StackPanel>
+            </Border>
+
+            <Border Classes="card">
+                <StackPanel Spacing="15">
+                    <TextBlock Text="Post" FontSize="16" FontWeight="SemiBold"/>
+                    <StackPanel Spacing="6">
+                        <TextBlock Classes="fieldLabel" Text="Title"/>
+                        <TextBox Text="{Binding Title, UpdateSourceTrigger=PropertyChanged}" PlaceholderText="Optional"/>
+                    </StackPanel>
+                    <StackPanel Spacing="6">
+                        <TextBlock Classes="fieldLabel" Text="Privacy"/>
+                        <ComboBox ItemsSource="{Binding PrivacyOptions}" SelectedItem="{Binding SelectedPrivacy}" MinWidth="260"/>
+                    </StackPanel>
+                    <CheckBox Content="NSFW" IsChecked="{Binding Nsfw}"/>
+                    <CheckBox Content="Anonymous" IsChecked="{Binding Anonymous}"/>
+                    <CheckBox Content="Direct link (link to the image instead of the post)" IsChecked="{Binding DirectLink}"/>
+                </StackPanel>
+            </Border>
+
+            <Border Background="{DynamicResource LayerFillColorDefaultBrush}"
+                    BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}"
+                    BorderThickness="1" CornerRadius="10" Padding="12"
+                    IsVisible="{Binding StatusMessage, Converter={x:Static StringConverters.IsNotNullOrEmpty}}">
+                <TextBlock Text="{Binding StatusMessage}" TextWrapping="Wrap"/>
+            </Border>
+        </StackPanel>
+    </ScrollViewer>
+</UserControl>

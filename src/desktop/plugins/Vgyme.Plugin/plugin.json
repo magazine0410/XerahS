@@ -1,0 +1,15 @@
+{
+  "pluginId": "vgyme",
+  "name": "vgy.me",
+  "version": "1.0.0",
+  "author": "ShareX Team",
+  "description": "Upload images to vgy.me",
+  "apiVersion": "1.0",
+  "entryPoint": "ShareX.Vgyme.Plugin.VgymeProvider",
+  "assemblyFileName": "XerahS.Vgyme.Plugin.dll",
+  "supportedCategories": ["Image"],
+  "supportsExplorer": false,
+  "configViewId": "vgyme",
+  "dependencies": [],
+  "homepageUrl": "https://vgy.me/"
+}

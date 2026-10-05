@@ -436,6 +436,14 @@ namespace ShareX.UploadersLib.ImageUploaders
         public int ThumbnailHeight { get; set; }
     }
 
+    /// <summary>ShareX's CheveretoUploader settings (its JSON property is CheveretoUploader).</summary>
+    public class CheveretoUploaderSettings
+    {
+        public string UploadURL { get; set; } = string.Empty;
+        [JsonEncrypt]
+        public string APIKey { get; set; } = string.Empty;
+    }
+
     public class FlickrSettings
     {
         public bool DirectLink { get; set; } = true;

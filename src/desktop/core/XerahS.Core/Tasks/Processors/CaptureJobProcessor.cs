@@ -491,6 +491,7 @@ namespace XerahS.Core.Tasks.Processors
             try
             {
                 info.DataType = EDataType.Image;
+                info.UploadAttemptedDuringCapture = true;
                 var pluginResult = await new UploadJobProcessor().UploadAsync(info, token);
                 if (info.UploadCancelled) return;
                 if (pluginResult == null)
@@ -631,6 +632,7 @@ namespace XerahS.Core.Tasks.Processors
                 return;
             }
 
+            if (result != null) info.Result = result;
             string? errorText = result?.Errors?.Errors?.FirstOrDefault()?.Text ?? result?.Errors?.ToString();
             DebugHelper.WriteLine($"Upload failed: {errorText ?? "Unknown upload error."}");
         }

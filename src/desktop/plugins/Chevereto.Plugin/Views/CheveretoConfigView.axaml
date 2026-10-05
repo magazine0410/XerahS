@@ -1,0 +1,67 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:ShareX.Chevereto.Plugin.ViewModels"
+             x:Class="ShareX.Chevereto.Plugin.Views.CheveretoConfigView"
+             x:DataType="vm:CheveretoConfigViewModel">
+
+    <UserControl.Styles>
+        <Style Selector="Border.heroCard">
+            <Setter Property="Background" Value="{DynamicResource LayerFillColorDefaultBrush}"/>
+            <Setter Property="CornerRadius" Value="18"/>
+            <Setter Property="Padding" Value="20"/>
+            <Setter Property="BorderBrush" Value="{DynamicResource AccentFillColorDefaultBrush}"/>
+            <Setter Property="BorderThickness" Value="1"/>
+        </Style>
+        <Style Selector="Border.card">
+            <Setter Property="Background" Value="{DynamicResource CardBackgroundFillColorDefaultBrush}"/>
+            <Setter Property="CornerRadius" Value="14"/>
+            <Setter Property="Padding" Value="18"/>
+            <Setter Property="BorderBrush" Value="{DynamicResource CardStrokeColorDefaultBrush}"/>
+            <Setter Property="BorderThickness" Value="1"/>
+        </Style>
+        <Style Selector="TextBlock.fieldLabel">
+            <Setter Property="FontWeight" Value="SemiBold"/>
+        </Style>
+        <Style Selector="TextBlock.helper">
+            <Setter Property="FontSize" Value="11"/>
+            <Setter Property="TextWrapping" Value="Wrap"/>
+            <Setter Property="Foreground" Value="{DynamicResource TextFillColorSecondaryBrush}"/>
+        </Style>
+    </UserControl.Styles>
+
+    <ScrollViewer HorizontalScrollBarVisibility="Disabled">
+        <StackPanel Spacing="18">
+            <Border Classes="heroCard">
+                <StackPanel Spacing="8">
+                    <TextBlock Text="Chevereto" FontSize="24" FontWeight="Bold"/>
+                    <TextBlock Text="Upload images to your own Chevereto server through its API, as in ShareX."
+                               TextWrapping="Wrap" Foreground="{DynamicResource TextFillColorSecondaryBrush}" MaxWidth="680"/>
+                </StackPanel>
+            </Border>
+
+            <Border Classes="card">
+                <StackPanel Spacing="15">
+                    <TextBlock Text="Server" FontSize="16" FontWeight="SemiBold"/>
+                    <StackPanel Spacing="6">
+                        <TextBlock Classes="fieldLabel" Text="Upload URL *"/>
+                        <TextBox Text="{Binding UploadURL, UpdateSourceTrigger=PropertyChanged}" PlaceholderText="https://example.com/api/1/upload"/>
+                        <TextBlock Classes="helper" Text="The server's API upload address, usually /api/1/upload on your Chevereto site."/>
+                    </StackPanel>
+                    <StackPanel Spacing="6">
+                        <TextBlock Classes="fieldLabel" Text="API key *"/>
+                        <TextBox Text="{Binding ApiKey, UpdateSourceTrigger=PropertyChanged}" PasswordChar="*" PlaceholderText="Stored in the secret store"/>
+                        <TextBlock Classes="helper" Text="In Chevereto: Dashboard &gt; Settings &gt; API (or your account's API key in Chevereto 4)."/>
+                    </StackPanel>
+                    <CheckBox Content="Direct URL (link to the image instead of its page)" IsChecked="{Binding DirectURL}"/>
+                </StackPanel>
+            </Border>
+
+            <Border Background="{DynamicResource LayerFillColorDefaultBrush}"
+                    BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}"
+                    BorderThickness="1" CornerRadius="10" Padding="12"
+                    IsVisible="{Binding StatusMessage, Converter={x:Static StringConverters.IsNotNullOrEmpty}}">
+                <TextBlock Text="{Binding StatusMessage}" TextWrapping="Wrap"/>
+            </Border>
+        </StackPanel>
+    </ScrollViewer>
+</UserControl>

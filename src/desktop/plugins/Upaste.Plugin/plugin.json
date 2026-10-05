@@ -1,0 +1,15 @@
+{
+  "pluginId": "upaste",
+  "name": "uPaste",
+  "version": "1.0.0",
+  "author": "ShareX Team",
+  "description": "Upload text to uPaste",
+  "apiVersion": "1.0",
+  "entryPoint": "ShareX.Upaste.Plugin.UpasteProvider",
+  "assemblyFileName": "XerahS.Upaste.Plugin.dll",
+  "supportedCategories": ["Text"],
+  "supportsExplorer": false,
+  "configViewId": "upaste",
+  "dependencies": [],
+  "homepageUrl": "https://upaste.me/"
+}
