@@ -345,7 +345,16 @@ public partial class App : Application
 
             // Trigger async recording initialization via callback
             // This prevents blocking the main window from showing quickly
-            PostUIInitializationCallback?.Invoke();
+            if (AppContracts.Cli.TryGetRunWorkflowId(desktop.Args ?? [], out _))
+            {
+                // A workflow started from the command line must not race the main window's first
+                // activation. In particular, window captures must keep their selected target focused.
+                Helpers.StartupWorkflowLauncher.RunAfterOpened(desktop.MainWindow, () => PostUIInitializationCallback?.Invoke());
+            }
+            else
+            {
+                PostUIInitializationCallback?.Invoke();
+            }
 
             // Initialize auto-update service if enabled
             if (SettingsManager.Settings.AutoCheckUpdate)
