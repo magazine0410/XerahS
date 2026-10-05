@@ -84,8 +84,7 @@ public static class ColorPickerToolService
 
         if (copyToClipboard)
         {
-            await CopyResultAsync(selection.Value.Point, selection.Value.ControlPressed, toolsSettings,
-                settings?.GeneralSettings?.ShowToastNotificationAfterTaskCompleted ?? true);
+            await CopyResultAsync(selection.Value.Point, selection.Value.ControlPressed, settings);
         }
 
         return selection.Value.Point;
@@ -266,8 +265,10 @@ public static class ColorPickerToolService
         };
     }
 
-    internal static async Task CopyResultAsync(PointInfo result, bool controlPressed, TaskSettingsTools? toolsSettings, bool showNotification)
+    internal static async Task CopyResultAsync(PointInfo result, bool controlPressed, TaskSettings? settings)
     {
+        var toolsSettings = settings?.ToolsSettingsReference;
+        bool showNotification = settings?.GeneralSettings?.ShowToastNotificationAfterTaskCompleted ?? true;
         // As in ShareX: Ctrl + click uses the Ctrl format, an empty format copies nothing, and the
         // notification shows the copied text.
         var clipboardText = ColorPickerService.GetClipboardText(toolsSettings, result.Color, result.Position, controlPressed);
@@ -279,6 +280,7 @@ public static class ColorPickerToolService
         try
         {
             await PlatformServices.Clipboard.SetTextAsync(clipboardText);
+            NotificationSoundService.PlayActionCompleted(settings);
             if (showNotification)
             {
                 ShowToast("XerahS - Screen color picker", $"Copied to clipboard: {clipboardText}");

@@ -27,7 +27,10 @@
     <PackageReference Include="ZXing.Net.Bindings.SkiaSharp" />
   </ItemGroup>
   <ItemGroup>
+    <EmbeddedResource Include="Resources/CaptureSound.wav" />
+    <EmbeddedResource Include="Resources/TaskCompletedSound.wav" />
     <EmbeddedResource Include="Resources/ActionCompletedSound.wav" />
+    <EmbeddedResource Include="Resources/ErrorSound.wav" />
   </ItemGroup>
 </Project>
 

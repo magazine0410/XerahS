@@ -25,13 +25,15 @@
 
 using Avalonia.Controls;
 using Avalonia.Platform.Storage;
+using XerahS.Core;
+using XerahS.Core.Services;
 using XerahS.Media.Metadata;
 
 namespace XerahS.UI.Services;
 
 internal static class MetadataToolService
 {
-    public static async Task StripAsync(Window? owner)
+    public static async Task StripAsync(Window? owner, TaskSettings? taskSettings = null)
     {
         try
         {
@@ -39,7 +41,10 @@ internal static class MetadataToolService
             if (storage == null) return;
             var files = await storage.OpenFilePickerAsync(new FilePickerOpenOptions { Title = "Strip metadata", AllowMultiple = false });
             if (files.FirstOrDefault()?.TryGetLocalPath() is { } path)
+            {
                 await MetadataService.StripMetadataAsync(path);
+                NotificationSoundService.PlayActionCompleted(taskSettings);
+            }
         }
         catch (Exception ex)
         {

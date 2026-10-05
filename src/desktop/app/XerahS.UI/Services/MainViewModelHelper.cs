@@ -339,6 +339,7 @@ public static class MainViewModelHelper
                 ?? new PinToScreenOptions();
 
             PinToScreenManager.PinImage(imageToPin, null, options);
+            Core.Services.NotificationSoundService.PlayActionCompleted();
         }
         catch (Exception ex)
         {

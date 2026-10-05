@@ -58,6 +58,9 @@ public partial class VideoTrimmerViewModel : ViewModelBase, IDisposable
     [ObservableProperty] private Bitmap? _startPreview;
     [ObservableProperty] private Bitmap? _endPreview;
 
+    /// <summary>As in ShareX, played after the trimmed video is saved.</summary>
+    public Action? PlayNotificationSound { get; set; }
+
     public event EventHandler? FilePickerRequested;
     public event EventHandler? SavePickerRequested;
 
@@ -172,6 +175,7 @@ public partial class VideoTrimmerViewModel : ViewModelBase, IDisposable
             await _service.TrimAsync(InputFilePath, OutputFilePath, StartSeconds, EndSeconds, Duration, IsPrecise, progress, _trimCancellation.Token);
             ProgressPercent = 100;
             StatusText = $"Saved {Path.GetFileName(OutputFilePath)}";
+            PlayNotificationSound?.Invoke();
         }
         catch (OperationCanceledException)
         {

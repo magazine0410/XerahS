@@ -26,6 +26,7 @@
 using Avalonia.Controls;
 using XerahS.Common;
 using XerahS.Core;
+using XerahS.Core.Services;
 using XerahS.UI.ViewModels;
 using XerahS.Media;
 using XerahS.UI.Views;
@@ -43,7 +44,7 @@ public static class MediaToolsToolService
     private static readonly Dictionary<ImageBatchOperation, ImageBatchToolWindow> _imageBatchWindows = new();
     private static VideoThumbnailerWindow? _videoThumbnailerWindow;
 
-    public static Task HandleWorkflowAsync(WorkflowType job, Window? owner)
+    public static Task HandleWorkflowAsync(WorkflowType job, Window? owner, TaskSettings? taskSettings = null)
     {
         switch (job)
         {
@@ -88,7 +89,7 @@ public static class MediaToolsToolService
                 break;
 
             case WorkflowType.VideoTrimmer:
-                OpenVideoTrimmer(null, owner);
+                OpenVideoTrimmer(null, owner, taskSettings);
                 break;
 
             case WorkflowType.ImageResizer:
@@ -151,11 +152,11 @@ public static class MediaToolsToolService
     }
 
     /// <summary>Opens the Video Trimmer, optionally with a video already loaded (History "Trim video...").</summary>
-    public static void OpenVideoTrimmer(string? filePath, Window? owner)
+    public static void OpenVideoTrimmer(string? filePath, Window? owner, TaskSettings? taskSettings = null)
     {
         ShowWindow(_trimmerWindow, owner, () =>
         {
-            var vm = new VideoTrimmerViewModel();
+            var vm = new VideoTrimmerViewModel { PlayNotificationSound = () => NotificationSoundService.PlayActionCompleted(taskSettings) };
             var w = new VideoTrimmerWindow();
             w.Initialize(vm);
             return w;

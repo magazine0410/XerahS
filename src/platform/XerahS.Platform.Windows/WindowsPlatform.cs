@@ -84,6 +84,8 @@ namespace XerahS.Platform.Windows
             // Register OCR service using native Windows.Media.Ocr
             PlatformServices.Ocr = new WindowsOcrService();
 
+            PlatformServices.SoundPlayback = new Services.WindowsSoundPlaybackService();
+
             // Register AUMID for UWP Toast Notifications
             SetAUMID("ShareXTeam.XerahS");
         }

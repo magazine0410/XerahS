@@ -33,6 +33,7 @@ using XerahS.Platform.Abstractions;
 using XerahS.RegionCapture.ScreenRecording;
 using System.Diagnostics;
 using System.Drawing;
+using XerahS.Core.Services;
 
 namespace XerahS.Core.Tasks
 {
@@ -147,6 +148,8 @@ namespace XerahS.Core.Tasks
                 // 3. Stop recording
                 DebugHelper.WriteLine("Stopping recording...");
                 string? outputPath = await recordingCoordinator.StopRecordingAsync();
+                // As in ShareX, when the recording has ended and before the output is processed.
+                NotificationSoundService.PlayActionCompleted(taskSettings);
                 DebugHelper.WriteLine($"[GIF] StopRecordingAsync returned: {(string.IsNullOrEmpty(outputPath) ? "(null)" : outputPath)} (exists={(!string.IsNullOrEmpty(outputPath) && File.Exists(outputPath))})");
                 string? expectedOutputPath = recordingOptions.OutputPath;
                 bool expectedOutputExists = !string.IsNullOrEmpty(expectedOutputPath) && File.Exists(expectedOutputPath);

@@ -85,12 +85,13 @@ internal static class ToolWorkflowDispatcher
                 return true;
 
             case WorkflowType.Metadata:
-                new Views.MetadataWindow().Show();
+                // As in ShareX, the metadata window plays the default workflow's sound.
+                new Views.MetadataWindow(null, () => Core.Services.NotificationSoundService.PlayActionCompleted()).Show();
                 dispatchTask = Task.CompletedTask;
                 return true;
 
             case WorkflowType.StripMetadata:
-                dispatchTask = MetadataToolService.StripAsync(owner);
+                dispatchTask = MetadataToolService.StripAsync(owner, taskSettings);
                 return true;
 
             case WorkflowType.ImageViewer:
@@ -102,7 +103,7 @@ internal static class ToolWorkflowDispatcher
                 return true;
 
             case WorkflowType.HashCheck:
-                dispatchTask = HashCheckToolService.HandleWorkflowAsync(workflowType, owner);
+                dispatchTask = HashCheckToolService.HandleWorkflowAsync(workflowType, owner, taskSettings);
                 return true;
 
             case WorkflowType.MediaBrowser:
@@ -114,7 +115,7 @@ internal static class ToolWorkflowDispatcher
             case WorkflowType.PinToScreenFromClipboard:
             case WorkflowType.PinToScreenFromFile:
             case WorkflowType.PinToScreenCloseAll:
-                dispatchTask = PinToScreenToolService.HandleWorkflowAsync(workflowType, owner);
+                dispatchTask = PinToScreenToolService.HandleWorkflowAsync(workflowType, owner, taskSettings);
                 return true;
 
             case WorkflowType.MonitorTest:
@@ -168,7 +169,7 @@ internal static class ToolWorkflowDispatcher
             case WorkflowType.VideoConverter:
             case WorkflowType.VideoTrimmer:
             case WorkflowType.VideoThumbnailer:
-                dispatchTask = MediaToolsToolService.HandleWorkflowAsync(workflowType, owner);
+                dispatchTask = MediaToolsToolService.HandleWorkflowAsync(workflowType, owner, taskSettings);
                 return true;
 
             case WorkflowType.AnalyzeImage:

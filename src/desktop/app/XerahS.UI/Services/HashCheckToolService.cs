@@ -26,6 +26,7 @@
 using Avalonia.Controls;
 using Avalonia.Platform.Storage;
 using XerahS.Core;
+using XerahS.Core.Services;
 using XerahS.UI.ViewModels;
 using XerahS.UI.Views;
 
@@ -33,18 +34,21 @@ namespace XerahS.UI.Services;
 
 public static class HashCheckToolService
 {
-    public static Task HandleWorkflowAsync(WorkflowType job, Window? owner)
+    public static Task HandleWorkflowAsync(WorkflowType job, Window? owner, TaskSettings? taskSettings = null)
     {
         return job switch
         {
-            WorkflowType.HashCheck => OpenHashCheckAsync(owner, null),
+            WorkflowType.HashCheck => OpenHashCheckAsync(owner, null, taskSettings),
             _ => Task.CompletedTask
         };
     }
 
-    private static Task OpenHashCheckAsync(Window? owner, string? filePath)
+    private static Task OpenHashCheckAsync(Window? owner, string? filePath, TaskSettings? taskSettings)
     {
-        var viewModel = new HashCheckViewModel(filePath);
+        var viewModel = new HashCheckViewModel(filePath)
+        {
+            PlayNotificationSound = () => NotificationSoundService.PlayActionCompleted(taskSettings)
+        };
 
         var window = new HashCheckWindow
         {

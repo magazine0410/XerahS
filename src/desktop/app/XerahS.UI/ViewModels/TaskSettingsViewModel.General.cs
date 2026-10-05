@@ -22,6 +22,7 @@
 */
 
 #endregion License Information (GPL v3)
+using CommunityToolkit.Mvvm.Input;
 using XerahS.Core;
 using XerahS.Platform.Abstractions;
 
@@ -106,6 +107,100 @@ namespace XerahS.UI.ViewModels
                     GeneralSource.GeneralSettings.CustomCaptureSoundPath = value;
                     OnPropertyChanged();
                 }
+            }
+        }
+
+        public bool UseCustomTaskCompletedSound
+        {
+            get => GeneralSource.GeneralSettings.UseCustomTaskCompletedSound;
+            set
+            {
+                if (GeneralSource.GeneralSettings.UseCustomTaskCompletedSound != value)
+                {
+                    GeneralSource.GeneralSettings.UseCustomTaskCompletedSound = value;
+                    OnPropertyChanged();
+                }
+            }
+        }
+
+        public string CustomTaskCompletedSoundPath
+        {
+            get => GeneralSource.GeneralSettings.CustomTaskCompletedSoundPath;
+            set
+            {
+                if (GeneralSource.GeneralSettings.CustomTaskCompletedSoundPath != value)
+                {
+                    GeneralSource.GeneralSettings.CustomTaskCompletedSoundPath = value;
+                    OnPropertyChanged();
+                }
+            }
+        }
+
+        public bool UseCustomActionCompletedSound
+        {
+            get => GeneralSource.GeneralSettings.UseCustomActionCompletedSound;
+            set
+            {
+                if (GeneralSource.GeneralSettings.UseCustomActionCompletedSound != value)
+                {
+                    GeneralSource.GeneralSettings.UseCustomActionCompletedSound = value;
+                    OnPropertyChanged();
+                }
+            }
+        }
+
+        public string CustomActionCompletedSoundPath
+        {
+            get => GeneralSource.GeneralSettings.CustomActionCompletedSoundPath;
+            set
+            {
+                if (GeneralSource.GeneralSettings.CustomActionCompletedSoundPath != value)
+                {
+                    GeneralSource.GeneralSettings.CustomActionCompletedSoundPath = value;
+                    OnPropertyChanged();
+                }
+            }
+        }
+
+        public bool UseCustomErrorSound
+        {
+            get => GeneralSource.GeneralSettings.UseCustomErrorSound;
+            set
+            {
+                if (GeneralSource.GeneralSettings.UseCustomErrorSound != value)
+                {
+                    GeneralSource.GeneralSettings.UseCustomErrorSound = value;
+                    OnPropertyChanged();
+                }
+            }
+        }
+
+        public string CustomErrorSoundPath
+        {
+            get => GeneralSource.GeneralSettings.CustomErrorSoundPath;
+            set
+            {
+                if (GeneralSource.GeneralSettings.CustomErrorSoundPath != value)
+                {
+                    GeneralSource.GeneralSettings.CustomErrorSoundPath = value;
+                    OnPropertyChanged();
+                }
+            }
+        }
+
+        /// <summary>ShareX's "..." button next to each custom sound path: picks a WAV file.</summary>
+        [RelayCommand]
+        private async Task BrowseCustomSoundAsync(string? sound)
+        {
+            var filePath = await _dialogService.ShowFilePickerAsync("Choose audio file", new[] { "*.wav" });
+            if (string.IsNullOrWhiteSpace(filePath)) return;
+
+            switch (sound)
+            {
+                case nameof(NotificationSound.Capture): CustomCaptureSoundPath = filePath; break;
+                case nameof(NotificationSound.TaskCompleted): CustomTaskCompletedSoundPath = filePath; break;
+                case nameof(NotificationSound.ActionCompleted): CustomActionCompletedSoundPath = filePath; break;
+                case nameof(NotificationSound.Error): CustomErrorSoundPath = filePath; break;
             }
         }
 

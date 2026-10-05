@@ -253,14 +253,20 @@ namespace XerahS.Core.Tasks.Processors
                             {
                                 DebugHelper.WriteLine($"ScanQRCode error: {error}");
                             }
-                            else if (results.Count > 0)
-                            {
-                                PlatformServices.Clipboard.SetText(string.Join(Environment.NewLine, results));
-                                DebugHelper.WriteLine($"ScanQRCode decoded {results.Count} code(s) and copied to clipboard.");
-                            }
                             else
                             {
-                                DebugHelper.WriteLine("ScanQRCode: no QR codes detected.");
+                                if (results.Count > 0)
+                                {
+                                    PlatformServices.Clipboard.SetText(string.Join(Environment.NewLine, results));
+                                    DebugHelper.WriteLine($"ScanQRCode decoded {results.Count} code(s) and copied to clipboard.");
+                                }
+                                else
+                                {
+                                    DebugHelper.WriteLine("ScanQRCode: no QR codes detected.");
+                                }
+
+                                // As in ShareX's QR code window, a finished scan plays the default workflow's sound.
+                                NotificationSoundService.PlayActionCompleted();
                             }
                         }
                         catch (Exception ex)
@@ -295,6 +301,7 @@ namespace XerahS.Core.Tasks.Processors
                                 await PinToScreenCallback(info.Metadata.Image, null, options);
                                 DebugHelper.WriteLine("PinToScreen: image pinned to desktop.");
                             }
+                            NotificationSoundService.PlayActionCompleted(info.TaskSettings);
                         }
                         catch (Exception ex)
                         {
@@ -558,6 +565,7 @@ namespace XerahS.Core.Tasks.Processors
                     // As in ShareX: silent OCR copies the text without opening the window, and clears the clipboard when nothing was found.
                     if (!string.IsNullOrWhiteSpace(info.Metadata.OcrText)) PlatformServices.Clipboard.SetText(info.Metadata.OcrText);
                     else PlatformServices.Clipboard.Clear();
+                    NotificationSoundService.PlayActionCompleted(info.TaskSettings);
                 }
                 else if (PlatformServices.IsInitialized)
                 {

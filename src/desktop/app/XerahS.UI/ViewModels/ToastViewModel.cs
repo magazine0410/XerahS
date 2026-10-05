@@ -753,6 +753,7 @@ public partial class ToastViewModel : ObservableObject, IDisposable
                     var options = SettingsManager.DefaultTaskSettings?.ToolsSettings?.PinToScreenOptions
                         ?? new PinToScreenOptions();
                     Services.PinToScreenManager.PinImage(bitmap, null, options);
+                    Core.Services.NotificationSoundService.PlayActionCompleted();
                 }
             }
             catch (Exception ex)

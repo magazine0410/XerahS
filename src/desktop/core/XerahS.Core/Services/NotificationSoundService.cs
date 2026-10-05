@@ -28,28 +28,42 @@ using XerahS.Platform.Abstractions;
 
 namespace XerahS.Core.Services;
 
-/// <summary>Resolves the effective workflow's sound options, matching ShareX's ActionCompleted sound.</summary>
+/// <summary>Plays ShareX's notification sounds with the effective workflow's sound options (ShareX's PlayNotificationSoundAsync).</summary>
 public static class NotificationSoundService
 {
-    public static void PlayActionCompleted(TaskSettings settings) =>
-        _ = Task.Run(() => PlayActionCompletedAsync(settings));
+    public static void Play(NotificationSound sound, TaskSettings? settings = null) =>
+        _ = Task.Run(() => PlayAsync(sound, settings));
 
-    public static async Task PlayActionCompletedAsync(TaskSettings settings)
+    public static void PlayActionCompleted(TaskSettings? settings = null) => Play(NotificationSound.ActionCompleted, settings);
+
+    public static Task PlayActionCompletedAsync(TaskSettings? settings = null) => PlayAsync(NotificationSound.ActionCompleted, settings);
+
+    public static async Task PlayAsync(NotificationSound sound, TaskSettings? settings = null)
     {
         try
         {
-            var general = TaskSettings.GetSafeTaskSettings(settings).GeneralSettings;
-            if (!general.PlaySoundAfterAction || PlatformServices.SoundPlayback is not { } playback) return;
-            byte[] audio;
-            if (general.UseCustomActionCompletedSound && !string.IsNullOrEmpty(general.CustomActionCompletedSoundPath))
+            // As in ShareX, a caller without a workflow uses the default workflow's settings.
+            var general = (settings == null ? SettingsManager.DefaultTaskSettings : TaskSettings.GetSafeTaskSettings(settings)).GeneralSettings;
+            // ShareX's error sound follows "Play sound after task is completed".
+            (bool enabled, bool useCustom, string customPath, string resource) = sound switch
             {
-                string path = FileHelpers.GetAbsolutePath(general.CustomActionCompletedSoundPath);
+                NotificationSound.Capture => (general.PlaySoundAfterCapture, general.UseCustomCaptureSound, general.CustomCaptureSoundPath, "CaptureSound"),
+                NotificationSound.TaskCompleted => (general.PlaySoundAfterUpload, general.UseCustomTaskCompletedSound, general.CustomTaskCompletedSoundPath, "TaskCompletedSound"),
+                NotificationSound.ActionCompleted => (general.PlaySoundAfterAction, general.UseCustomActionCompletedSound, general.CustomActionCompletedSoundPath, "ActionCompletedSound"),
+                NotificationSound.Error => (general.PlaySoundAfterUpload, general.UseCustomErrorSound, general.CustomErrorSoundPath, "ErrorSound"),
+                _ => throw new ArgumentOutOfRangeException(nameof(sound), sound, null)
+            };
+            if (!enabled || PlatformServices.SoundPlayback is not { } playback) return;
+            byte[] audio;
+            if (useCustom && !string.IsNullOrEmpty(customPath))
+            {
+                string path = FileHelpers.GetAbsolutePath(customPath);
                 if (!File.Exists(path)) return;
                 audio = await File.ReadAllBytesAsync(path).ConfigureAwait(false);
             }
             else
             {
-                using var stream = typeof(NotificationSoundService).Assembly.GetManifestResourceStream("XerahS.Core.Resources.ActionCompletedSound.wav")!;
+                using var stream = typeof(NotificationSoundService).Assembly.GetManifestResourceStream($"XerahS.Core.Resources.{resource}.wav")!;
                 using var buffer = new MemoryStream();
                 await stream.CopyToAsync(buffer).ConfigureAwait(false);
                 audio = buffer.ToArray();

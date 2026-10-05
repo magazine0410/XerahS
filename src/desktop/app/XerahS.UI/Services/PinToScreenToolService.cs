@@ -43,26 +43,29 @@ public static class PinToScreenToolService
         Patterns = new[] { "*.png", "*.jpg", "*.jpeg", "*.bmp", "*.gif", "*.webp", "*.tiff", "*.tif" }
     };
 
-    public static async Task HandleWorkflowAsync(WorkflowType job, Window? owner)
+    public static async Task HandleWorkflowAsync(WorkflowType job, Window? owner, TaskSettings? taskSettings = null)
     {
-        switch (job)
+        bool done = job switch
         {
-            case WorkflowType.PinToScreen:
-                await PinToScreenAsync(owner);
-                break;
-            case WorkflowType.PinToScreenFromScreen:
-                await PinFromScreenAsync();
-                break;
-            case WorkflowType.PinToScreenFromClipboard:
-                await PinFromClipboardAsync();
-                break;
-            case WorkflowType.PinToScreenFromFile:
-                await PinFromFileAsync(owner);
-                break;
-            case WorkflowType.PinToScreenCloseAll:
-                PinToScreenManager.CloseAll();
-                break;
+            WorkflowType.PinToScreen => await PinToScreenAsync(owner),
+            WorkflowType.PinToScreenFromScreen => await PinFromScreenAsync(),
+            WorkflowType.PinToScreenFromClipboard => await PinFromClipboardAsync(),
+            WorkflowType.PinToScreenFromFile => await PinFromFileAsync(owner),
+            WorkflowType.PinToScreenCloseAll => CloseAll(),
+            _ => false
+        };
+
+        // As in ShareX, after an image is pinned and after closing all pinned images.
+        if (done)
+        {
+            NotificationSoundService.PlayActionCompleted(taskSettings);
         }
+    }
+
+    private static bool CloseAll()
+    {
+        PinToScreenManager.CloseAll();
+        return true;
     }
 
     public readonly record struct PinFilesResult(int PinnedCount, int SkippedCount);
@@ -132,7 +135,7 @@ public static class PinToScreenToolService
         return new PinFilesResult(pinnedCount, skippedCount);
     }
 
-    private static async Task PinToScreenAsync(Window? owner)
+    private static async Task<bool> PinToScreenAsync(Window? owner)
     {
         var dialog = new PinToScreenStartupDialog
         {
@@ -159,6 +162,7 @@ public static class PinToScreenToolService
                 try
                 {
                     await PinAsync(bitmap, location);
+                    return true;
                 }
                 finally
                 {
@@ -166,7 +170,7 @@ public static class PinToScreenToolService
                 }
             }
 
-            return;
+            return false;
         }
 
         if (dialog.Result != null)
@@ -175,31 +179,35 @@ public static class PinToScreenToolService
             try
             {
                 await PinAsync(bitmap, dialog.Result.Location);
+                return true;
             }
             finally
             {
                 bitmap.Dispose();
             }
         }
+
+        return false;
     }
 
-    private static async Task PinFromScreenAsync()
+    private static async Task<bool> PinFromScreenAsync()
     {
-        if (!PlatformServices.IsInitialized) return;
+        if (!PlatformServices.IsInitialized) return false;
 
         var captureOptions = BuildCaptureOptions();
 
         var rect = await PlatformServices.ScreenCapture.SelectRegionAsync(captureOptions);
-        if (rect == SKRectI.Empty) return;
+        if (rect == SKRectI.Empty) return false;
 
         var bitmap = await PlatformServices.ScreenCapture.CaptureRectAsync(
             new SKRect(rect.Left, rect.Top, rect.Right, rect.Bottom), captureOptions);
-        if (bitmap == null) return;
+        if (bitmap == null) return false;
 
         var location = new PixelPoint(rect.Left, rect.Top);
         try
         {
             await PinAsync(bitmap, location);
+            return true;
         }
         finally
         {
@@ -207,21 +215,22 @@ public static class PinToScreenToolService
         }
     }
 
-    private static async Task PinFromClipboardAsync()
+    private static async Task<bool> PinFromClipboardAsync()
     {
-        if (!PlatformServices.IsInitialized) return;
+        if (!PlatformServices.IsInitialized) return false;
 
         var bitmap = PlatformServices.Clipboard.GetImage();
 
         if (bitmap == null)
         {
             ShowToast("Pin to Screen", "Clipboard does not contain an image.");
-            return;
+            return false;
         }
 
         try
         {
             await PinAsync(bitmap, null);
+            return true;
         }
         finally
         {
@@ -229,26 +238,27 @@ public static class PinToScreenToolService
         }
     }
 
-    private static async Task PinFromFileAsync(Window? owner)
+    private static async Task<bool> PinFromFileAsync(Window? owner)
     {
         var path = await BrowseImageFileAsync(null, owner);
-        if (string.IsNullOrEmpty(path)) return;
+        if (string.IsNullOrEmpty(path)) return false;
 
         if (await HostedEditorAndPinService.TryPinFileAsync(path))
         {
-            return;
+            return true;
         }
 
         using var bitmap = SKBitmap.Decode(path);
         if (bitmap == null)
         {
             ShowToast("Pin to Screen", "Failed to load image file.");
-            return;
+            return false;
         }
 
         try
         {
             PinToScreenManager.PinImage(bitmap, null, GetOptions());
+            return true;
         }
         finally
         {

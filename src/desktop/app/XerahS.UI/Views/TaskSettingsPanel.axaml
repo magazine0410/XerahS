@@ -457,17 +457,25 @@
                                   IsChecked="{Binding OverrideGeneralSettings}"
                                   IsVisible="{Binding ShowOverrideSettings}"
                                   ToolTip.Tip="When off, this workflow uses the notification and sound settings from Settings &gt; Task Settings."/>
+                        <!-- Sounds Section, as in ShareX -->
+                        <StackPanel Spacing="8">
+                            <TextBlock Text="Sounds" FontWeight="SemiBold"/>
+                            <Border BorderBrush="{DynamicResource SystemControlForegroundBaseLowBrush}" BorderThickness="1" CornerRadius="4" Padding="16" IsEnabled="{Binding GeneralSettingsEnabled}">
+                                <StackPanel Spacing="10">
+                                    <CheckBox IsChecked="{Binding PlaySoundAfterCapture}" Content="Play sound after capture is made"/>
+                                    <CheckBox IsChecked="{Binding PlaySoundAfterUpload}" Content="Play sound after task is completed"
+                                              ToolTip.Tip="Also turns the error sound on or off, as in ShareX."/>
+                                    <CheckBox IsChecked="{Binding PlaySoundAfterAction}" Content="Play sound after action is completed"/>
+                                </StackPanel>
+                            </Border>
+                        </StackPanel>
+
                         <!-- Notifications Section -->
                         <StackPanel Spacing="8">
                             <TextBlock Text="Notifications" FontWeight="SemiBold"/>
                             <Border BorderBrush="{DynamicResource SystemControlForegroundBaseLowBrush}" BorderThickness="1" CornerRadius="4" Padding="16" IsEnabled="{Binding GeneralSettingsEnabled}">
                                 <StackPanel Spacing="16">
-                                    <StackPanel Spacing="10">
-                                        <CheckBox IsChecked="{Binding PlaySoundAfterCapture}" Content="Play sound after capture"/>
-                                        <CheckBox IsChecked="{Binding PlaySoundAfterUpload}" Content="Play sound after upload"/>
-                                        <CheckBox IsChecked="{Binding PlaySoundAfterAction}" Content="Play sound after action"/>
-                                        <CheckBox IsChecked="{Binding ShowToastNotification}" Content="Include toast notification"/>
-                                    </StackPanel>
+                                    <CheckBox IsChecked="{Binding ShowToastNotification}" Content="Include toast notification"/>
                                     
                                     <!-- Toast Settings -->
                                     <Grid ColumnDefinitions="Auto, 16, *" RowDefinitions="Auto, Auto, Auto, Auto, Auto, Auto" 
@@ -518,16 +526,39 @@
                             </Border>
                         </StackPanel>
 
-                        <!-- Sound Section -->
+                        <!-- Custom Sounds Section, as in ShareX -->
                         <StackPanel Spacing="8">
-                            <TextBlock Text="Sound" FontWeight="SemiBold"/>
+                            <TextBlock Text="Custom sounds" FontWeight="SemiBold"/>
                             <Border BorderBrush="{DynamicResource SystemControlForegroundBaseLowBrush}" BorderThickness="1" CornerRadius="4" Padding="16" IsEnabled="{Binding GeneralSettingsEnabled}">
                                 <StackPanel Spacing="16">
-                                    <CheckBox IsChecked="{Binding UseCustomCaptureSound}" Content="Use custom capture sound"/>
-                                    <Grid ColumnDefinitions="Auto, 16, *" IsVisible="{Binding UseCustomCaptureSound}">
-                                        <TextBlock Grid.Column="0" Text="Path:" VerticalAlignment="Center"/>
-                                        <TextBox Grid.Column="2" Text="{Binding CustomCaptureSoundPath}" AutomationProperties.Name="Sound File Path"/>
-                                    </Grid>
+                                    <StackPanel Spacing="4">
+                                        <CheckBox IsChecked="{Binding UseCustomCaptureSound}" Content="Use custom capture sound"/>
+                                        <Grid ColumnDefinitions="*, 8, Auto" IsEnabled="{Binding UseCustomCaptureSound}">
+                                            <TextBox Grid.Column="0" Text="{Binding CustomCaptureSoundPath}" AutomationProperties.Name="Capture sound file path"/>
+                                            <Button Grid.Column="2" Content="..." Command="{Binding BrowseCustomSoundCommand}" CommandParameter="Capture" AutomationProperties.Name="Choose Capture sound file path"/>
+                                        </Grid>
+                                    </StackPanel>
+                                    <StackPanel Spacing="4">
+                                        <CheckBox IsChecked="{Binding UseCustomTaskCompletedSound}" Content="Use custom task completed sound"/>
+                                        <Grid ColumnDefinitions="*, 8, Auto" IsEnabled="{Binding UseCustomTaskCompletedSound}">
+                                            <TextBox Grid.Column="0" Text="{Binding CustomTaskCompletedSoundPath}" AutomationProperties.Name="Task completed sound file path"/>
+                                            <Button Grid.Column="2" Content="..." Command="{Binding BrowseCustomSoundCommand}" CommandParameter="TaskCompleted" AutomationProperties.Name="Choose Task completed sound file path"/>
+                                        </Grid>
+                                    </StackPanel>
+                                    <StackPanel Spacing="4">
+                                        <CheckBox IsChecked="{Binding UseCustomActionCompletedSound}" Content="Use custom action completed sound"/>
+                                        <Grid ColumnDefinitions="*, 8, Auto" IsEnabled="{Binding UseCustomActionCompletedSound}">
+                                            <TextBox Grid.Column="0" Text="{Binding CustomActionCompletedSoundPath}" AutomationProperties.Name="Action completed sound file path"/>
+                                            <Button Grid.Column="2" Content="..." Command="{Binding BrowseCustomSoundCommand}" CommandParameter="ActionCompleted" AutomationProperties.Name="Choose Action completed sound file path"/>
+                                        </Grid>
+                                    </StackPanel>
+                                    <StackPanel Spacing="4">
+                                        <CheckBox IsChecked="{Binding UseCustomErrorSound}" Content="Use custom error sound"/>
+                                        <Grid ColumnDefinitions="*, 8, Auto" IsEnabled="{Binding UseCustomErrorSound}">
+                                            <TextBox Grid.Column="0" Text="{Binding CustomErrorSoundPath}" AutomationProperties.Name="Error sound file path"/>
+                                            <Button Grid.Column="2" Content="..." Command="{Binding BrowseCustomSoundCommand}" CommandParameter="Error" AutomationProperties.Name="Choose Error sound file path"/>
+                                        </Grid>
+                                    </StackPanel>
                                 </StackPanel>
                             </Border>
                         </StackPanel>

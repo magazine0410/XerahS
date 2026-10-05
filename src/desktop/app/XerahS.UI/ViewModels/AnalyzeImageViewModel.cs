@@ -78,6 +78,8 @@ public sealed partial class AnalyzeImageViewModel : ViewModelBase, IDisposable
     public Func<Task<SKBitmap?>>? SelectRegionRequested { get; set; }
     public Func<string, Task>? CopyTextRequested { get; set; }
     public Func<Task>? EditOptionsRequested { get; set; }
+    /// <summary>As in ShareX, played after an analysis returns a result and after copying the result.</summary>
+    public Action? PlayNotificationSound { get; set; }
 
     public bool HasImage => PreviewImage != null;
     public bool HasResult => !string.IsNullOrWhiteSpace(ResultText);
@@ -147,6 +149,7 @@ public sealed partial class AnalyzeImageViewModel : ViewModelBase, IDisposable
             ResultText = result.ReplaceLineEndings(Environment.NewLine);
             ElapsedText = $"Time: {timer.ElapsedMilliseconds:N0} ms";
             if (_options.AutoCopyResult && HasResult && CopyTextRequested != null) await CopyTextRequested(ResultText);
+            if (HasResult) PlayNotificationSound?.Invoke();
         }
         catch (Exception ex)
         {
@@ -163,7 +166,11 @@ public sealed partial class AnalyzeImageViewModel : ViewModelBase, IDisposable
     [RelayCommand]
     private async Task CopyResultAsync()
     {
-        if (HasResult && CopyTextRequested != null) await CopyTextRequested(ResultText);
+        if (HasResult && CopyTextRequested != null)
+        {
+            await CopyTextRequested(ResultText);
+            PlayNotificationSound?.Invoke();
+        }
     }
 
     [RelayCommand]

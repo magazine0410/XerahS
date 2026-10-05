@@ -25,6 +25,7 @@
 
 using Avalonia.Controls;
 using XerahS.Core;
+using XerahS.Core.Services;
 using XerahS.Platform.Abstractions;
 using XerahS.UI.Views;
 
@@ -45,7 +46,7 @@ internal static class WindowToolsService
             if (!service.SupportsBorderless) throw new PlatformNotSupportedException("Borderless windows are not supported on this window system.");
             var settings = (taskSettings ?? SettingsManager.DefaultTaskSettings).ToolsSettingsReference.BorderlessWindowSettings;
             new BorderlessWindowWindow(settings, (title, workingArea) => service.ToggleBorderlessWindow(service.SearchWindow(title), workingArea),
-                settings => _ = ImageEditorOptionsStore.PersistAsync()).Show();
+                settings => _ = ImageEditorOptionsStore.PersistAsync(), () => NotificationSoundService.PlayActionCompleted(taskSettings)).Show();
         }
         return Task.CompletedTask;
     }

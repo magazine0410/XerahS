@@ -1,0 +1,1 @@
+CaptureSound.wav, TaskCompletedSound.wav, ActionCompletedSound.wav, and ErrorSound.wav are copied without modification from ShareX/Resources at ShareX commit cf5a6fe57. They are ShareX's default capture, task-completed, action-completed, and error notification sounds. See the repository LICENSE for the ShareX GPL license.

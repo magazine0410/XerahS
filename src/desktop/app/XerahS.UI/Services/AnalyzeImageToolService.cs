@@ -50,7 +50,10 @@ internal static class AnalyzeImageToolService
         TaskSettings settings = taskSettings ?? TaskSettings.GetSafeTaskSettings(SettingsManager.DefaultTaskSettings);
         AIOptions options = settings.ToolsSettingsReference.AIOptions ??= new AIOptions();
         var service = new AnalyzeImageService();
-        var viewModel = new AnalyzeImageViewModel(options, service, AIApiKeys.Get, image, filePath);
+        var viewModel = new AnalyzeImageViewModel(options, service, AIApiKeys.Get, image, filePath)
+        {
+            PlayNotificationSound = () => NotificationSoundService.PlayActionCompleted(settings)
+        };
         var window = new AnalyzeImageWindow(viewModel, () => CaptureRegionAsync(settings.CaptureSettings), service)
         {
             OptionsSaved = SettingsManager.SaveWorkflowsConfig

@@ -69,6 +69,9 @@ public partial class HashCheckViewModel : ViewModelBase
     /// </summary>
     public Func<Task<string?>>? BrowseFileRequested { get; set; }
 
+    /// <summary>As in ShareX, played when the hash (or both hashes) has been calculated.</summary>
+    public Action? PlayNotificationSound { get; set; }
+
     public HashType[] HashTypes { get; } = Enum.GetValues<HashType>();
 
     public HashCheckViewModel()
@@ -148,6 +151,7 @@ public partial class HashCheckViewModel : ViewModelBase
                 {
                     UpdateMatchStatus();
                     StatusText = "Done.";
+                    PlayNotificationSound?.Invoke();
                 }
             }
             else
@@ -186,6 +190,7 @@ public partial class HashCheckViewModel : ViewModelBase
             TargetHash = result2.ToUpperInvariant();
             UpdateMatchStatus();
             StatusText = "Done.";
+            PlayNotificationSound?.Invoke();
         }
         else
         {

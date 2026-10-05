@@ -30,6 +30,7 @@ using XerahS.Common;
 using XerahS.Core.Capture;
 using XerahS.Core.Helpers;
 using XerahS.Core.Managers;
+using XerahS.Core.Services;
 using XerahS.Platform.Abstractions;
 using XerahS.RegionCapture.ScreenRecording;
 
@@ -82,6 +83,7 @@ namespace XerahS.Core.Tasks.Pipeline
                     throw new PlatformNotSupportedException("The window system does not support changing the active window's topmost state.");
                 if (!PlatformServices.Window.ToggleActiveWindowTopmost())
                     throw new InvalidOperationException("Could not change the active window's topmost state.");
+                NotificationSoundService.PlayActionCompleted(taskSettings);
                 context.Info.SuppressCompletionNotification = true;
                 return PipelineStageResult.Stop;
             }
@@ -94,6 +96,7 @@ namespace XerahS.Core.Tasks.Pipeline
                 bool excludeTaskbar = taskSettings.ToolsSettingsReference.BorderlessWindowSettings.ExcludeTaskbarArea;
                 if (!PlatformServices.Window.ToggleBorderlessWindow(PlatformServices.Window.GetForegroundWindow(), excludeTaskbar))
                     throw new InvalidOperationException("Could not toggle the active window's borderless state.");
+                NotificationSoundService.PlayActionCompleted(taskSettings);
                 context.Info.SuppressCompletionNotification = true;
                 return PipelineStageResult.Stop;
             }
@@ -466,7 +469,11 @@ namespace XerahS.Core.Tasks.Pipeline
                     return PipelineStageResult.Stop;
 
                 case WorkflowType.DisableHotkeys:
-                    WorkerTask.ToggleHotkeysCallback?.Invoke();
+                    if (WorkerTask.ToggleHotkeysCallback != null)
+                    {
+                        WorkerTask.ToggleHotkeysCallback();
+                        NotificationSoundService.PlayActionCompleted(taskSettings);
+                    }
                     return PipelineStageResult.Stop;
             }
 
@@ -505,6 +512,8 @@ namespace XerahS.Core.Tasks.Pipeline
             {
                 metadata.Image = image;
                 DebugHelper.WriteLine($"Captured image: {image.Width}x{image.Height} in {captureStopwatch.ElapsedMilliseconds}ms");
+                // As in ShareX's AfterCapture, before the after capture tasks.
+                NotificationSoundService.Play(NotificationSound.Capture, taskSettings);
             }
             else if (hasClipboardPayload)
             {

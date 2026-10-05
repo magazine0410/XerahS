@@ -123,6 +123,9 @@ public static class QrCodeToolService
                 return;
             }
 
+            // As in ShareX's QR code window, a finished scan plays the default workflow's sound, also when nothing was found.
+            NotificationSoundService.PlayActionCompleted();
+
             if (results.Count == 0)
             {
                 ShowToast("QR Code", "No QR code was detected.");

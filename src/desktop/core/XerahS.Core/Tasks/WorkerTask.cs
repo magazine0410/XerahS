@@ -26,6 +26,7 @@
 using XerahS.Common;
 using XerahS.Core.Helpers;
 using XerahS.Core.Managers;
+using XerahS.Core.Services;
 using XerahS.Core.Tasks.Processors;
 using XerahS.Platform.Abstractions;
 using XerahS.Services.Abstractions;
@@ -226,6 +227,7 @@ namespace XerahS.Core.Tasks
                 }
 
                 _hasImageOutput = Info.Metadata?.Image != null;
+                PlayCompletionSound();
                 try
                 {
                     OnTaskCompleted();
@@ -389,6 +391,30 @@ namespace XerahS.Core.Tasks
         protected virtual void OnTaskCompleted()
         {
             TaskCompleted?.Invoke(this, EventArgs.Empty);
+        }
+
+        /// <summary>
+        /// As in ShareX's TaskManager: the error sound for a failed task (including a failed upload), and the
+        /// task completed sound for a finished task with a result, except URL sharing. A stopped task plays nothing.
+        /// </summary>
+        internal static NotificationSound? GetCompletionSound(TaskStatus status, TaskInfo info)
+        {
+            if (status is TaskStatus.Stopped or TaskStatus.Canceled) return null;
+            if (status == TaskStatus.Failed || info.Result?.IsError == true) return NotificationSound.Error;
+            if (info.Job != TaskJob.ShareURL && !string.IsNullOrEmpty(info.ToString())) return NotificationSound.TaskCompleted;
+            return null;
+        }
+
+        private void PlayCompletionSound()
+        {
+            try
+            {
+                if (GetCompletionSound(Status, Info) is { } sound) NotificationSoundService.Play(sound, Info.TaskSettings);
+            }
+            catch (Exception ex)
+            {
+                DebugHelper.WriteException(ex, "Task completion sound");
+            }
         }
 
         private static bool ShouldRequireSuccessfulUpload(TaskInfo info)
