@@ -239,6 +239,10 @@
                             <!-- File Type Scope -->
                             <StackPanel Spacing="8">
                                 <TextBlock Text="File Type Configuration" FontWeight="SemiBold" FontSize="16"/>
+                                <TextBlock Text="File types only choose a destination when the selected destination is Auto, and set the order of the destinations tried when an upload fails. The selected destination (with the check mark) receives every upload, whatever its file types."
+                                           FontSize="11"
+                                           TextWrapping="Wrap"
+                                           Foreground="{DynamicResource TextFillColorSecondaryBrush}"/>
                                 <ContentControl Content="{Binding SelectedCategory.SelectedInstance}">
                                     <ContentControl.ContentTemplate>
                                         <DataTemplate x:DataType="vm:UploaderInstanceViewModel">
