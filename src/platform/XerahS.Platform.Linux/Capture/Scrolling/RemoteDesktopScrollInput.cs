@@ -78,10 +78,15 @@ internal sealed class RemoteDesktopScrollInput : IScrollInput
             PortalRequestExtensions.CacheLocalConnectionName(_connection, info);
             _portal = _connection.CreateProxy<IRemoteDesktopPortal>(PortalBusName, PortalObjectPath);
 
-            var properties = _connection.CreateProxy<IDBusProperties>(PortalBusName, PortalObjectPath);
-            uint version = Convert.ToUInt32(await properties.GetAsync(InterfaceName, "version").ConfigureAwait(false));
-            uint available = Convert.ToUInt32(await properties.GetAsync(InterfaceName, "AvailableDeviceTypes").ConfigureAwait(false));
-            if (!HasRequiredDevices(available)) return false;
+            // An unreadable property does not stop the capture: persistence is then requested, as it
+            // was before these checks, and the granted devices are still checked after Start.
+            uint version = await TryGetUInt32PropertyAsync(_portal, "version").ConfigureAwait(false) ?? 2;
+            if (await TryGetUInt32PropertyAsync(_portal, "AvailableDeviceTypes").ConfigureAwait(false) is { } available &&
+                !HasRequiredDevices(available))
+            {
+                DebugHelper.WriteLine($"RemoteDesktopScrollInput: The portal offers no keyboard and pointer (AvailableDeviceTypes={available}).");
+                return false;
+            }
 
             var createOptions = new Dictionary<string, object> { ["session_handle_token"] = $"xerahs_scroll_{Guid.NewGuid():N}" };
             var (createResponse, createResults) = await _connection.SendPortalRequestAsync(PortalBusName, createOptions,
@@ -117,7 +122,7 @@ internal sealed class RemoteDesktopScrollInput : IScrollInput
                 return false;
             }
 
-            if (!startResults.TryGetResult("devices", out uint granted) || !HasRequiredDevices(granted) || _closed)
+            if (!GrantsRequiredDevices(startResults) || _closed)
             {
                 DebugHelper.WriteLine("RemoteDesktopScrollInput: The session did not grant both keyboard and pointer access.");
                 return false;
@@ -141,6 +146,26 @@ internal sealed class RemoteDesktopScrollInput : IScrollInput
 
     internal static bool HasRequiredDevices(uint devices) =>
         (devices & (KeyboardDevice | PointerDevice)) == (KeyboardDevice | PointerDevice);
+
+    /// <summary>
+    /// The specification says Start reports the granted devices. A portal that leaves them out is not
+    /// refused here; if input was not granted, the input calls fail and the capture reports it.
+    /// </summary>
+    internal static bool GrantsRequiredDevices(IDictionary<string, object> startResults) =>
+        !startResults.TryGetResult("devices", out uint granted) || HasRequiredDevices(granted);
+
+    private static async Task<uint?> TryGetUInt32PropertyAsync(IRemoteDesktopPortal portal, string name)
+    {
+        try
+        {
+            return Convert.ToUInt32(await portal.GetAsync(name).ConfigureAwait(false));
+        }
+        catch (Exception ex) when (ex is DBusException or InvalidCastException or FormatException or OverflowException)
+        {
+            DebugHelper.WriteLine($"RemoteDesktopScrollInput: Could not read the portal's {name} property: {ex.Message}");
+            return null;
+        }
+    }
 
     internal static Dictionary<string, object> CreateSelectOptions(uint version, string? restoreToken)
     {
@@ -254,4 +279,7 @@ public interface IRemoteDesktopPortal : IDBusObject
     Task NotifyPointerMotionAsync(ObjectPath sessionHandle, IDictionary<string, object> options, double dx, double dy);
     Task NotifyPointerAxisDiscreteAsync(ObjectPath sessionHandle, IDictionary<string, object> options, uint axis, int steps);
     Task NotifyKeyboardKeysymAsync(ObjectPath sessionHandle, IDictionary<string, object> options, int keysym, uint state);
+
+    /// <summary>Reads a property of this interface. Tmds.DBus sends it as org.freedesktop.DBus.Properties.Get.</summary>
+    Task<object> GetAsync(string prop);
 }

@@ -38,6 +38,15 @@ public class ScrollingCaptureSessionTests
         Assert.That(RemoteDesktopScrollInput.HasRequiredDevices(devices), Is.EqualTo(expected));
 
     [Test]
+    public void StartRefusesOnlyReportedDevicesWithoutKeyboardAndPointer()
+    {
+        Assert.That(RemoteDesktopScrollInput.GrantsRequiredDevices(new Dictionary<string, object> { ["devices"] = 3u }), Is.True);
+        Assert.That(RemoteDesktopScrollInput.GrantsRequiredDevices(new Dictionary<string, object> { ["devices"] = 2u }), Is.False);
+        Assert.That(RemoteDesktopScrollInput.GrantsRequiredDevices(new Dictionary<string, object>()), Is.True,
+            "A portal that does not report the devices is not refused before any input is tried.");
+    }
+
+    [Test]
     public void PortalOnlyUsesPersistenceOnVersionTwoOrNewer()
     {
         Assert.That(RemoteDesktopScrollInput.CreateSelectOptions(1, "saved").Keys, Is.EquivalentTo(new[] { "types" }));
