@@ -34,15 +34,22 @@ namespace XerahS.UI.ViewModels;
 public partial class FFmpegOptionsViewModel : ObservableObject
 {
     private readonly FFmpegOptions _options;
+    private readonly XerahS.RegionCapture.ScreenRecording.ScreenRecordingSettings? _recordingSettings;
     private string _detectedFFmpegPath = string.Empty;
 
     public FFmpegOptionsViewModel() : this(new FFmpegOptions())
     {
     }
 
-    public FFmpegOptionsViewModel(FFmpegOptions options)
+    public FFmpegOptionsViewModel(FFmpegOptions options, XerahS.RegionCapture.ScreenRecording.ScreenRecordingSettings? recordingSettings = null)
     {
+        _recordingSettings = recordingSettings;
         _options = options ?? new FFmpegOptions();
+        if (OperatingSystem.IsLinux())
+        {
+            if (_options.VideoSource is "gdigrab" or "ddagrab" or "screen-capture-recorder") _options.VideoSource = "screen";
+            if (_options.AudioSource == "virtual-audio-capturer") _options.AudioSource = "system";
+        }
         RefreshDetectedPath();
     }
 
@@ -52,7 +59,9 @@ public partial class FFmpegOptionsViewModel : ObservableObject
     /// </summary>
     public Action<bool>? CloseRequested { get; set; }
 
-    public IReadOnlyList<FFmpegCaptureDevice> VideoCaptureDevices { get; } = new[]
+    public IReadOnlyList<FFmpegCaptureDevice> VideoCaptureDevices { get; } = OperatingSystem.IsLinux()
+        ? new[] { FFmpegCaptureDevice.None, new FFmpegCaptureDevice("screen", "Screen") }
+        : new[]
     {
         FFmpegCaptureDevice.None,
         FFmpegCaptureDevice.GDIGrab,
@@ -60,7 +69,9 @@ public partial class FFmpegOptionsViewModel : ObservableObject
         FFmpegCaptureDevice.ScreenCaptureRecorder
     };
 
-    public IReadOnlyList<FFmpegCaptureDevice> AudioCaptureDevices { get; } = new[]
+    public IReadOnlyList<FFmpegCaptureDevice> AudioCaptureDevices { get; } = OperatingSystem.IsLinux()
+        ? new[] { FFmpegCaptureDevice.None, new FFmpegCaptureDevice("system", "System audio"), new FFmpegCaptureDevice("default", "Default microphone") }
+        : new[]
     {
         FFmpegCaptureDevice.None,
         FFmpegCaptureDevice.VirtualAudioCapturer
@@ -145,6 +156,12 @@ public partial class FFmpegOptionsViewModel : ObservableObject
             if (_options.AudioSource != newValue)
             {
                 _options.AudioSource = newValue;
+                if (_recordingSettings != null)
+                {
+                    _recordingSettings.CaptureSystemAudio = newValue is "system" or "virtual-audio-capturer";
+                    _recordingSettings.CaptureMicrophone = newValue.Length > 0 && !_recordingSettings.CaptureSystemAudio;
+                    _recordingSettings.MicrophoneDeviceId = newValue == "default" ? null : newValue;
+                }
                 OnPropertyChanged();
             }
         }

@@ -55,10 +55,9 @@ namespace XerahS.Core.Tasks
             Action<string?> onStarted)
         {
             string? requestedOutputPath = recordingOptions.OutputPath;
+            await recordingCoordinator.StartRecordingAsync(recordingOptions);
             while (true)
             {
-                recordingOptions.OutputPath = requestedOutputPath;
-                await recordingCoordinator.StartRecordingAsync(recordingOptions);
                 recordingOptions.OutputPath = recordingCoordinator.PlannedOutputPath ?? recordingOptions.OutputPath;
                 onStarted(recordingOptions.OutputPath);
 
@@ -69,7 +68,8 @@ namespace XerahS.Core.Tasks
                 }
 
                 DebugHelper.WriteLine("Restarting recording: discarding the current take.");
-                await recordingCoordinator.AbortRecordingAsync();
+                recordingOptions.OutputPath = requestedOutputPath;
+                await recordingCoordinator.RestartRecordingAsync(recordingOptions);
             }
         }
 
@@ -84,6 +84,7 @@ namespace XerahS.Core.Tasks
             var metadata = Info.Metadata ?? new TaskMetadata();
 
             XerahS.Common.TroubleshootingHelper.Log(taskSettings.Job.ToString(), "WORKER_TASK", $"HandleStartRecordingAsync Entry: mode={mode}, region={region}");
+            bool recordingStarted = false;
 
             try
             {
@@ -93,15 +94,7 @@ namespace XerahS.Core.Tasks
                 taskSettings.CaptureSettings ??= new TaskSettingsCapture();
                 var captureSettings = taskSettings.CaptureSettings;
 
-                var recordingOptions = new RecordingOptions
-                {
-                    Mode = mode,
-                    Settings = captureSettings.ScreenRecordingSettings,
-                    FFmpegOverridePath = ResolveRecordingFFmpegOverridePath(captureSettings.FFmpegOptions),
-                    TargetWindowHandle = windowHandle,
-                    UseModernCapture = captureSettings.UseModernCapture,
-                    LinuxRecordingBackendPreference = ResolveLinuxRecordingBackendPreference(captureSettings)
-                };
+                var recordingOptions = CreateRecordingOptions(taskSettings, mode, windowHandle);
 
                 // Set region if provided (for Region mode)
                 if (region.HasValue)
@@ -113,7 +106,7 @@ namespace XerahS.Core.Tasks
                 // [2026-01-10T14:40:00+08:00] Align screen recording output with screenshot naming/destination using TaskHelpers.
                 var recordingMetadata = metadata;
                 string recordingsFolder = TaskHelpers.GetScreenshotsFolder(taskSettings, recordingMetadata);
-                string fileName = TaskHelpers.GetFileName(taskSettings, "mp4", recordingMetadata);
+                string fileName = TaskHelpers.GetFileName(taskSettings, recordingOptions.FFmpegOptions?.Extension ?? "mp4", recordingMetadata);
                 Directory.CreateDirectory(recordingsFolder);
                 var resolvedPath = TaskHelpers.HandleExistsFile(recordingsFolder, fileName, taskSettings);
                 if (string.IsNullOrWhiteSpace(resolvedPath))
@@ -140,6 +133,7 @@ namespace XerahS.Core.Tasks
                 var recordingCoordinator = CreateRecordingCoordinator();
                 await RecordUntilStoppedAsync(recordingCoordinator, recordingOptions, plannedPath =>
                 {
+                    recordingStarted = true;
                     Info.FilePath = plannedPath ?? Info.FilePath;
                     XerahS.Common.TroubleshootingHelper.Log(taskSettings.Job.ToString(), "WORKER_TASK", "Recording started; waiting for stop signal...");
                 });
@@ -148,18 +142,19 @@ namespace XerahS.Core.Tasks
                 // 3. Stop recording
                 DebugHelper.WriteLine("Stopping recording...");
                 string? outputPath = await recordingCoordinator.StopRecordingAsync();
+                if (outputPath == null)
+                {
+                    // Aborted while recording. ShareX plays the action sound when a recording ends, aborted or not.
+                    NotificationSoundService.PlayActionCompleted(taskSettings);
+                    Status = TaskStatus.Stopped;
+                    return;
+                }
                 // As in ShareX, when the recording has ended and before the output is processed.
                 NotificationSoundService.PlayActionCompleted(taskSettings);
                 DebugHelper.WriteLine($"[GIF] StopRecordingAsync returned: {(string.IsNullOrEmpty(outputPath) ? "(null)" : outputPath)} (exists={(!string.IsNullOrEmpty(outputPath) && File.Exists(outputPath))})");
                 string? expectedOutputPath = recordingOptions.OutputPath;
                 bool expectedOutputExists = !string.IsNullOrEmpty(expectedOutputPath) && File.Exists(expectedOutputPath);
                 DebugHelper.WriteLine($"[RecordingFinalize] Expected output path: {(string.IsNullOrEmpty(expectedOutputPath) ? "(null)" : expectedOutputPath)} (exists={expectedOutputExists})");
-
-                if (string.IsNullOrEmpty(outputPath) && !string.IsNullOrEmpty(Info.FilePath) && File.Exists(Info.FilePath))
-                {
-                    DebugHelper.WriteLine($"[GIF] StopRecordingAsync returned null but Info.FilePath exists. Recovering path: {Info.FilePath}");
-                    outputPath = Info.FilePath;
-                }
 
                 bool hasRecoveredOutput = !string.IsNullOrEmpty(outputPath) && File.Exists(outputPath);
                 if (!hasRecoveredOutput)
@@ -181,81 +176,8 @@ namespace XerahS.Core.Tasks
                     Info.FilePath = outputPath;
                     Info.DataType = EDataType.File;
 
-                    bool isGifJob = taskSettings.Job == WorkflowType.ScreenRecorderGIF ||
-                                    taskSettings.Job == WorkflowType.ScreenRecorderGIFActiveWindow ||
-                                    taskSettings.Job == WorkflowType.ScreenRecorderGIFCustomRegion ||
-                                    taskSettings.Job == WorkflowType.StartScreenRecorderGIF;
-                    DebugHelper.WriteLine($"[GIF] isGifJob={isGifJob}, Job={taskSettings.Job}");
-
-                    if (isGifJob && !string.IsNullOrEmpty(outputPath) && File.Exists(outputPath))
-                    {
-                         XerahS.Common.TroubleshootingHelper.Log(taskSettings.Job.ToString(), "WORKER_TASK", "Converting video to GIF...");
-                         DebugHelper.WriteLine($"[GIF] Conversion requested. Job={taskSettings.Job}, Source={outputPath}");
-                         string gifPath = Path.ChangeExtension(outputPath, ".gif");
-                         int gifFps = taskSettings.CaptureSettings?.GIFFPS > 0
-                             ? taskSettings.CaptureSettings.GIFFPS
-                             : taskSettings.CaptureSettings?.ScreenRecordingSettings?.FPS ?? 15;
-                         var ffmpegOptions = taskSettings.CaptureSettings?.FFmpegOptions;
-                         string? ffmpegPath = ResolveGifFFmpegPath(ffmpegOptions);
-                         DebugHelper.WriteLine($"[GIF] FFmpegPath={(string.IsNullOrWhiteSpace(ffmpegPath) ? "(missing)" : ffmpegPath)}");
-                         if (string.IsNullOrWhiteSpace(ffmpegPath))
-                         {
-                             XerahS.Common.TroubleshootingHelper.Log(taskSettings.Job.ToString(), "WORKER_TASK", "FFmpeg not found. GIF conversion skipped.");
-                             DebugHelper.WriteLine("FFmpeg not found. GIF conversion skipped.");
-                             try
-                             {
-                                 PlatformServices.Toast?.ShowToast(new Platform.Abstractions.ToastConfig
-                                 {
-                                     Title = "GIF Conversion Skipped",
-                                     Text = "FFmpeg not found. Configure or download FFmpeg to enable GIF output.",
-                                     Duration = 5f,
-                                     Size = new SizeI(420, 120),
-                                     AutoHide = true,
-                                     LeftClickAction = Platform.Abstractions.ToastClickAction.CloseNotification
-                                 });
-                             }
-                             catch
-                             {
-                                 // Ignore toast errors
-                             }
-                         }
-                         var videoHelpers = new VideoHelpers(ffmpegPath);
-                         string? statsMode = ffmpegOptions?.GIFStatsMode.ToString();
-                         string? dither = ffmpegOptions?.GIFDither.ToString();
-                         int bayerScale = ffmpegOptions?.GIFBayerScale ?? 2;
-                         int maxWidth = ffmpegOptions?.GIFMaxWidth > 0 ? ffmpegOptions.GIFMaxWidth : -1;
-                         bool paletteNew = ffmpegOptions != null &&
-                             ffmpegOptions.GIFStatsMode == XerahS.Core.FFmpegPaletteGenStatsMode.single;
-                         DebugHelper.WriteLine($"[GIF] Settings: fps={gifFps}, maxWidth={maxWidth}, statsMode={statsMode}, dither={dither}, bayerScale={bayerScale}, paletteNew={paletteNew}");
-                         bool success = await videoHelpers.ConvertToGifAsync(
-                             outputPath,
-                             gifPath,
-                             gifFps,
-                             maxWidth,
-                             statsMode,
-                             dither,
-                             bayerScale,
-                             paletteNew);
-                         DebugHelper.WriteLine($"[GIF] Conversion result: success={success}, output={(File.Exists(gifPath) ? gifPath : "(missing)")}");
-
-                         if (success)
-                         {
-                             XerahS.Common.TroubleshootingHelper.Log(taskSettings.Job.ToString(), "WORKER_TASK", "Conversion successful. Switching result to GIF.");
-
-                             // Delete original MP4 if conversion succeeded
-                             try { File.Delete(outputPath); } catch { }
-
-                             outputPath = gifPath;
-                             Info.FilePath = outputPath;
-                         }
-                         else
-                         {
-                             XerahS.Common.TroubleshootingHelper.Log(taskSettings.Job.ToString(), "WORKER_TASK", "Conversion failed. Keeping MP4.");
-                         }
-                    }
-
                     // Open VideoEditor when AnnotateMedia is checked, mirroring how AnnotateMedia opens ImageEditor for images
-                    if (taskSettings.AfterCaptureJob.HasFlag(AfterCaptureTasks.AnnotateMedia)
+                    if (!recordingOptions.AudioOnly && taskSettings.AfterCaptureJob.HasFlag(AfterCaptureTasks.AnnotateMedia)
                         && PlatformServices.IsInitialized && PlatformServices.UI != null)
                     {
                         string? ffmpegPath = ResolveGifFFmpegPath(taskSettings.CaptureSettings?.FFmpegOptions);
@@ -289,12 +211,7 @@ namespace XerahS.Core.Tasks
                     await Processors.AfterCaptureFileTasks.ProcessAsync(Info, _cancellationTokenSource.Token);
                     outputPath = Info.FilePath;
 
-                    // Reuse upload pipeline for recordings; flag upload when AfterUpload tasks exist.
-                    if (taskSettings.AfterUploadJob != AfterUploadTasks.None)
-                    {
-                        taskSettings.AfterCaptureJob |= AfterCaptureTasks.UploadImageToHost;
-                    }
-
+                    // UploadJobProcessor honors UploadImageToHost, independently of after-upload actions.
                     var uploadProcessor = new UploadJobProcessor();
                     await uploadProcessor.ProcessAsync(Info, _cancellationTokenSource.Token);
 
@@ -363,8 +280,15 @@ namespace XerahS.Core.Tasks
                     }
                 }
             }
+            catch (RecordingAbortedException)
+            {
+                // Aborted before the recording started (or during a restart's wait).
+                NotificationSoundService.PlayActionCompleted(taskSettings);
+                throw;
+            }
             catch (OperationCanceledException)
             {
+                // Includes a cancelled ScreenCast source picker, which ends quietly like a cancelled region selection.
                 throw;
             }
             catch (Exception ex)
@@ -374,13 +298,16 @@ namespace XerahS.Core.Tasks
                 // Show user-facing error message
                 string errorMessage = ex switch
                 {
+                    RecordingFailedException => recordingStarted
+                        ? $"Screen recording failed: {ex.Message}"
+                        : $"Failed to start recording: {ex.Message}",
                     FileNotFoundException => "FFmpeg not found. Please install FFmpeg to enable screen recording.",
-                    PlatformNotSupportedException => "Screen recording is not supported on this system.",
+                    PlatformNotSupportedException => ex.Message,
                     InvalidOperationException when ex.Message.Contains("not available") =>
                         "Screen recording is not available. On Linux Wayland, ensure xdg-desktop-portal with ScreenCast support is available, PipeWire is running, and either FFmpeg pipewire, GStreamer pipewiresrc, or wf-recorder is installed.",
                     InvalidOperationException when ex.Message.Contains("initialization") =>
                         "Screen recording initialization failed. Check that required services are running.",
-                    _ => $"Failed to start recording: {ex.Message}"
+                    _ => recordingStarted ? $"Screen recording failed: {ex.Message}" : $"Failed to start recording: {ex.Message}"
                 };
 
                 try
@@ -475,7 +402,7 @@ namespace XerahS.Core.Tasks
                 FilePath = outputPath,
                 FileName = Path.GetFileName(outputPath),
                 DateTime = DateTime.Now,
-                Type = "Video",
+                Type = info.TaskSettings?.CaptureSettings.FFmpegOptions.IsVideoSourceSelected == false ? "File" : "Video",
                 Host = info.UploaderHost ?? string.Empty,
                 URL = info.Metadata?.UploadURL ?? string.Empty
             };
@@ -496,6 +423,47 @@ namespace XerahS.Core.Tasks
             }
 
             return historyItem;
+        }
+
+        internal static RecordingOptions CreateRecordingOptions(TaskSettings task, CaptureMode mode, IntPtr windowHandle = default)
+        {
+            var capture = task.CaptureSettings;
+            // The persisted Core DTO uses the same names as RegionCapture's FFmpeg DTO.
+            // Snapshot it so GIF jobs, restarts and backend adjustments cannot mutate workflow defaults.
+            var ffmpeg = Newtonsoft.Json.JsonConvert.DeserializeObject<RegionCapture.FFmpegOptions>(
+                Newtonsoft.Json.JsonConvert.SerializeObject(capture.FFmpegOptions)) ?? new RegionCapture.FFmpegOptions();
+            var settings = Newtonsoft.Json.JsonConvert.DeserializeObject<ScreenRecordingSettings>(
+                Newtonsoft.Json.JsonConvert.SerializeObject(capture.ScreenRecordingSettings)) ?? new ScreenRecordingSettings();
+            if (task.Job is WorkflowType.ScreenRecorderGIF or WorkflowType.ScreenRecorderGIFActiveWindow or
+                WorkflowType.ScreenRecorderGIFCustomRegion or WorkflowType.StartScreenRecorderGIF)
+                ffmpeg.VideoCodec = RegionCapture.FFmpegVideoCodec.gif;
+            settings.FPS = ffmpeg.VideoCodec == RegionCapture.FFmpegVideoCodec.gif ? capture.GIFFPS : capture.ScreenRecordFPS;
+            settings.ShowCursor = capture.ScreenRecordShowCursor;
+            if (ffmpeg.IsAudioSourceSelected && !settings.CaptureSystemAudio && !settings.CaptureMicrophone)
+            {
+                settings.CaptureSystemAudio = ffmpeg.AudioSource is "system" or "virtual-audio-capturer";
+                settings.CaptureMicrophone = !settings.CaptureSystemAudio;
+                settings.MicrophoneDeviceId = ffmpeg.AudioSource == "default" ? null : ffmpeg.AudioSource;
+            }
+            if (!ffmpeg.IsAudioSourceSelected)
+            {
+                settings.CaptureSystemAudio = false;
+                settings.CaptureMicrophone = false;
+            }
+            return new WorkflowRecordingOptions
+            {
+                MouseHighlighterOptions = task.ToolsSettingsReference.MouseHighlighterOptions,
+                Mode = mode, TargetWindowHandle = windowHandle, Settings = settings, FFmpegOptions = ffmpeg,
+                FFmpegOverridePath = ResolveRecordingFFmpegOverridePath(capture.FFmpegOptions),
+                UseModernCapture = capture.UseModernCapture,
+                LinuxRecordingBackendPreference = ResolveLinuxRecordingBackendPreference(capture),
+                AutoStart = capture.ScreenRecordAutoStart, StartDelay = capture.ScreenRecordStartDelay,
+                Duration = capture.ScreenRecordFixedDuration ? capture.ScreenRecordDuration : 0,
+                TwoPassEncoding = capture.ScreenRecordTwoPassEncoding || ffmpeg.IsAnimatedImage,
+                AskConfirmationOnAbort = capture.ScreenRecordAskConfirmationOnAbort,
+                ShowTimer = capture.ScreenRecordShowTimer, ShowButtonLabels = capture.ScreenRecordShowButtonLabels,
+                HighlightMouse = capture.ScreenRecordMouseHighlighter
+            };
         }
 
         private static LinuxRecordingBackendPreference ResolveLinuxRecordingBackendPreference(TaskSettingsCapture captureSettings)

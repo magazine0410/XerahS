@@ -25,18 +25,29 @@
                 <TextBlock Text="Screen recorder" FontWeight="SemiBold"/>
                 <Border BorderBrush="{DynamicResource SystemControlForegroundBaseLowBrush}" BorderThickness="1" CornerRadius="4" Padding="16" IsEnabled="{Binding CaptureSettingsEnabled}">
                     <StackPanel Spacing="16">
+                        <StackPanel Orientation="Horizontal" Spacing="8">
+                            <TextBlock Text="GIF FPS:" VerticalAlignment="Center"/>
+                            <NumericUpDown Value="{Binding GIFFPS}" Minimum="1" Maximum="60" Increment="1" Width="120" AutomationProperties.Name="GIF FPS"/>
+                        </StackPanel>
+                        <CheckBox Content="Show cursor in recording" IsChecked="{Binding ScreenRecordShowCursor}"/>
+                        <CheckBox Content="Highlight mouse while recording" IsChecked="{Binding ScreenRecordMouseHighlighter}"/>
+                        <CheckBox Content="Show recording timer" IsChecked="{Binding ScreenRecordShowTimer}"/>
+                        <CheckBox Content="Show recording button labels" IsChecked="{Binding ScreenRecordShowButtonLabels}"/>
+                        <CheckBox Content="Start recording after a delay" IsChecked="{Binding ScreenRecordAutoStart}"/>
+                        <CheckBox Content="Record losslessly first, then apply encoding options" IsChecked="{Binding ScreenRecordTwoPassEncoding}"/>
+                        <CheckBox Content="Ask for confirmation when aborting" IsChecked="{Binding ScreenRecordAskConfirmationOnAbort}"/>
                         <Grid ColumnDefinitions="Auto, 16, *" RowDefinitions="Auto, Auto, Auto, Auto, Auto" RowSpacing="16">
                             <TextBlock Grid.Row="0" Grid.Column="0" Text="FPS:" VerticalAlignment="Center"/>
                             <NumericUpDown Grid.Row="0" Grid.Column="2" Value="{Binding ScreenRecordFPS}" Minimum="1" Maximum="144" Increment="1" MinWidth="120" HorizontalAlignment="Stretch" AutomationProperties.Name="FPS"/>
 
-                            <TextBlock Grid.Row="1" Grid.Column="0" Text="Duration:" VerticalAlignment="Center"/>
-                            <StackPanel Grid.Row="1" Grid.Column="2" Orientation="Horizontal" Spacing="8">
-                                <NumericUpDown Value="{Binding ScreenRecordDuration}" Minimum="0" Maximum="3600" Increment="1" Width="120" AutomationProperties.Name="Recording Duration"/>
-                                <TextBlock Text="seconds (0 to disable)" VerticalAlignment="Center"/>
+                            <CheckBox Grid.Row="1" Grid.Column="0" Content="Use fixed duration" IsChecked="{Binding ScreenRecordFixedDuration}"/>
+                            <StackPanel Grid.Row="1" Grid.Column="2" Orientation="Horizontal" Spacing="8" IsEnabled="{Binding ScreenRecordFixedDuration}">
+                                <NumericUpDown Value="{Binding ScreenRecordDuration}" Minimum="0.1" Maximum="3600" Increment="1" Width="120" AutomationProperties.Name="Recording Duration"/>
+                                <TextBlock Text="seconds" VerticalAlignment="Center"/>
                             </StackPanel>
 
                             <TextBlock Grid.Row="2" Grid.Column="0" Text="Start delay:" VerticalAlignment="Center"/>
-                            <StackPanel Grid.Row="2" Grid.Column="2" Orientation="Horizontal" Spacing="8">
+                            <StackPanel Grid.Row="2" Grid.Column="2" Orientation="Horizontal" Spacing="8" IsEnabled="{Binding ScreenRecordAutoStart}">
                                 <NumericUpDown Value="{Binding ScreenRecordStartDelay}" Minimum="0" Maximum="60" Increment="0.1" FormatString="0.0" Width="120" AutomationProperties.Name="Recording Start Delay"/>
                                 <TextBlock Text="seconds" VerticalAlignment="Center"/>
                             </StackPanel>

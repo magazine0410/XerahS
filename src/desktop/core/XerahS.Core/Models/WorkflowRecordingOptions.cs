@@ -23,26 +23,10 @@
 
 #endregion License Information (GPL v3)
 
-using NUnit.Framework;
-using XerahS.Platform.Linux.Recording;
+using XerahS.RegionCapture.ScreenRecording;
+namespace XerahS.Core;
 
-namespace XerahS.Tests.Platform;
-
-/// <summary>
-/// Hyprland window streams only negotiate through the portal's own PipeWire remote; without it
-/// pipewiresrc fails with "no more input formats" (reproduced against xdg-desktop-portal-hyprland).
-/// </summary>
-[TestFixture]
-public class WaylandPortalPipeWireSourceTests
+public sealed class WorkflowRecordingOptions : RecordingOptions
 {
-    [Test]
-    public void UsesThePortalRemote_AndPassesTheNodeIdAsPath() =>
-        // target-object would take the id as an object.serial; KWin's screencast nodes then report "target not found".
-        Assert.That(WaylandPortalRecordingService.BuildPipeWireSource(106, 95),
-            Is.EqualTo("pipewiresrc fd=95 path=106 do-timestamp=true"));
-
-    [Test]
-    public void KeepsTheLegacyFormWithoutARemote() =>
-        Assert.That(WaylandPortalRecordingService.BuildPipeWireSource(106, -1),
-            Is.EqualTo("pipewiresrc path=106 do-timestamp=true"));
+    public MouseHighlighterOptions MouseHighlighterOptions { get; init; } = new();
 }

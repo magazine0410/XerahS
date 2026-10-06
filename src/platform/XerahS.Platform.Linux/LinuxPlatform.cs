@@ -250,6 +250,8 @@ namespace XerahS.Platform.Linux
         public static void InitializeRecording()
         {
             DebugHelper.WriteLine("LinuxPlatform.InitializeRecording() called");
+            // A recording that ended with XerahS exiting may have left KDE's click label turned off.
+            _ = Services.Kde.KdeRecordingHighlight.RestoreAfterUnexpectedExitAsync();
             try
             {
                 var environment = LinuxRuntimeEnvironment.Detect();

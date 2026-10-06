@@ -247,6 +247,9 @@ public partial class RecordingViewModel : ViewModelBase, IDisposable
         _durationTimer.Elapsed += OnDurationTimerElapsed;
     }
 
+    public bool ShowRecordingTimer => _screenRecordingCoordinator.CurrentOptions?.ShowTimer ?? true;
+    public bool ShowRecordingButtonLabels => _screenRecordingCoordinator.CurrentOptions?.ShowButtonLabels ?? true;
+
     private void OnStatusChanged(object? sender, RecordingStatusEventArgs e)
     {
         // Update properties on UI thread
@@ -254,6 +257,8 @@ public partial class RecordingViewModel : ViewModelBase, IDisposable
         {
             Status = e.Status;
             Duration = e.Duration;
+            OnPropertyChanged(nameof(ShowRecordingTimer));
+            OnPropertyChanged(nameof(ShowRecordingButtonLabels));
 
             switch (e.Status)
             {
@@ -266,6 +271,14 @@ public partial class RecordingViewModel : ViewModelBase, IDisposable
                     CanPauseResume = false;
                     CanAbort = false;
                     _durationTimer.Stop();
+                    break;
+
+                case RecordingStatus.Waiting:
+                    StatusText = "Waiting…";
+                    CanStart = true;
+                    CanStop = false;
+                    CanAbort = true;
+                    CanPauseResume = false;
                     break;
 
                 case RecordingStatus.Initializing:
@@ -366,6 +379,11 @@ public partial class RecordingViewModel : ViewModelBase, IDisposable
         try
         {
             LastError = null;
+            if (_screenRecordingCoordinator.IsWaiting)
+            {
+                _screenRecordingCoordinator.SignalStart();
+                return;
+            }
 
             if (!_initialized)
             {
@@ -401,9 +419,9 @@ public partial class RecordingViewModel : ViewModelBase, IDisposable
         try
         {
             DebugHelper.WriteLine("Stopping recording...");
-            // Use global recording manager (Stage 5)
-            await _screenRecordingCoordinator.StopRecordingAsync();
-            DebugHelper.WriteLine($"Recording saved to: {OutputFilePath}");
+            // As the tray and the recording controls: the recording workflow finalizes the output once.
+            _screenRecordingCoordinator.SignalStop();
+            await Task.CompletedTask;
         }
         catch (Exception ex)
         {
@@ -445,7 +463,8 @@ public partial class RecordingViewModel : ViewModelBase, IDisposable
     {
         try
         {
-            await _screenRecordingCoordinator.AbortRecordingAsync();
+            // The recording controls ask for confirmation when the workflow says so.
+            await Views.RecordingControlWindow.RequestAbortAsync(_screenRecordingCoordinator);
         }
         catch (Exception ex)
         {
@@ -536,7 +555,7 @@ public partial class RecordingViewModel : ViewModelBase, IDisposable
         _taskSettings = _workflow.TaskSettings ?? new TaskSettings();
         _workflow.TaskSettings = _taskSettings;
 
-        var recordingSettings = _taskSettings.CaptureSettings.ScreenRecordingSettings;
+        var recordingSettings = _taskSettings.CaptureSettingsReference.ScreenRecordingSettings;
         if (!AvailableCodecs.Contains(recordingSettings.Codec))
         {
             recordingSettings.Codec = VideoCodec.H264;
@@ -552,10 +571,10 @@ public partial class RecordingViewModel : ViewModelBase, IDisposable
         }
 
         // Seed UI from workflow settings
-        Fps = recordingSettings.FPS;
+        Fps = _taskSettings.CaptureSettingsReference.ScreenRecordFPS;
         BitrateKbps = recordingSettings.BitrateKbps;
         Codec = recordingSettings.Codec;
-        ShowCursor = recordingSettings.ShowCursor;
+        ShowCursor = _taskSettings.CaptureSettingsReference.ScreenRecordShowCursor;
         CaptureSystemAudio = recordingSettings.CaptureSystemAudio;
         CaptureMicrophone = recordingSettings.CaptureMicrophone;
         RecordingIntent = recordingSettings.RecordingIntent;
@@ -565,8 +584,10 @@ public partial class RecordingViewModel : ViewModelBase, IDisposable
 
     private void SyncSettingsToWorkflow()
     {
-        var recordingSettings = _taskSettings.CaptureSettings.ScreenRecordingSettings;
+        var recordingSettings = _taskSettings.CaptureSettingsReference.ScreenRecordingSettings;
 
+        _taskSettings.CaptureSettingsReference.ScreenRecordFPS = Fps;
+        _taskSettings.CaptureSettingsReference.ScreenRecordShowCursor = ShowCursor;
         recordingSettings.FPS = Fps;
         recordingSettings.BitrateKbps = BitrateKbps;
         recordingSettings.Codec = Codec;
@@ -600,19 +621,33 @@ public partial class RecordingViewModel : ViewModelBase, IDisposable
     partial void OnFpsChanged(int value)
     {
         if (!_initialized) return;
-        _taskSettings.CaptureSettings.ScreenRecordingSettings.FPS = value;
+        _taskSettings.CaptureSettingsReference.ScreenRecordFPS = value;
+        _taskSettings.CaptureSettingsReference.ScreenRecordingSettings.FPS = value;
     }
 
     partial void OnBitrateKbpsChanged(int value)
     {
         if (!_initialized) return;
-        _taskSettings.CaptureSettings.ScreenRecordingSettings.BitrateKbps = value;
+        _taskSettings.CaptureSettingsReference.ScreenRecordingSettings.BitrateKbps = value;
+        var ffmpeg = _taskSettings.CaptureSettingsReference.FFmpegOptions;
+        ffmpeg.x264_Use_Bitrate = true;
+        ffmpeg.x264_Bitrate = value;
+        ffmpeg.VPx_Bitrate = value;
     }
 
     partial void OnCodecChanged(VideoCodec value)
     {
         if (!_initialized) return;
-        _taskSettings.CaptureSettings.ScreenRecordingSettings.Codec = value;
+        _taskSettings.CaptureSettingsReference.ScreenRecordingSettings.Codec = value;
+        var ffmpeg = _taskSettings.CaptureSettingsReference.FFmpegOptions;
+        ffmpeg.VideoCodec = value switch
+        {
+            VideoCodec.HEVC => FFmpegVideoCodec.libx265,
+            VideoCodec.VP9 => FFmpegVideoCodec.libvpx_vp9,
+            VideoCodec.AV1 => FFmpegVideoCodec.libaom_av1,
+            _ => FFmpegVideoCodec.libx264
+        };
+        if (value is VideoCodec.VP9 or VideoCodec.AV1) ffmpeg.AudioCodec = FFmpegAudioCodec.libopus;
         OnPropertyChanged(nameof(EncoderInfo));
         OnPropertyChanged(nameof(UsageNotes));
     }
@@ -620,27 +655,30 @@ public partial class RecordingViewModel : ViewModelBase, IDisposable
     partial void OnShowCursorChanged(bool value)
     {
         if (!_initialized) return;
-        _taskSettings.CaptureSettings.ScreenRecordingSettings.ShowCursor = value;
+        _taskSettings.CaptureSettingsReference.ScreenRecordShowCursor = value;
+        _taskSettings.CaptureSettingsReference.ScreenRecordingSettings.ShowCursor = value;
     }
 
     partial void OnCaptureSystemAudioChanged(bool value)
     {
         if (!_initialized) return;
-        _taskSettings.CaptureSettings.ScreenRecordingSettings.CaptureSystemAudio = value;
-        _taskSettings.CaptureSettings.ScreenRecordingSettings.ForceFFmpeg = value || CaptureMicrophone;
+        _taskSettings.CaptureSettingsReference.ScreenRecordingSettings.CaptureSystemAudio = value;
+        _taskSettings.CaptureSettingsReference.ScreenRecordingSettings.ForceFFmpeg = value || CaptureMicrophone;
+        _taskSettings.CaptureSettingsReference.FFmpegOptions.AudioSource = CaptureSystemAudio ? "system" : CaptureMicrophone ? "default" : "";
     }
 
     partial void OnCaptureMicrophoneChanged(bool value)
     {
         if (!_initialized) return;
-        _taskSettings.CaptureSettings.ScreenRecordingSettings.CaptureMicrophone = value;
-        _taskSettings.CaptureSettings.ScreenRecordingSettings.ForceFFmpeg = value || CaptureSystemAudio;
+        _taskSettings.CaptureSettingsReference.ScreenRecordingSettings.CaptureMicrophone = value;
+        _taskSettings.CaptureSettingsReference.ScreenRecordingSettings.ForceFFmpeg = value || CaptureSystemAudio;
+        _taskSettings.CaptureSettingsReference.FFmpegOptions.AudioSource = CaptureSystemAudio ? "system" : CaptureMicrophone ? "default" : "";
     }
 
     partial void OnRecordingIntentChanged(RecordingIntent value)
     {
         if (!_initialized) return;
-        _taskSettings.CaptureSettings.ScreenRecordingSettings.RecordingIntent = value;
+        _taskSettings.CaptureSettingsReference.ScreenRecordingSettings.RecordingIntent = value;
     }
 
     public void Dispose()

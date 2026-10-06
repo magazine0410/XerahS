@@ -93,6 +93,8 @@ public class TrayIconHelper : INotifyPropertyChanged
 
     // Border window shown around the recording area (visible for all recording types including GIF)
     private Views.RecordingBorderWindow? _borderWindow;
+    private Views.RecordingControlWindow? _recordingControls;
+    private int? _encodingProgress;
 
     /// <summary>
     /// Current tray icon based on recording state.
@@ -104,6 +106,13 @@ public class TrayIconHelper : INotifyPropertyChanged
     {
         get
         {
+            // As ShareX while encoding: a tray icon filled from the bottom by the encoding progress.
+            if (_currentRecordingStatus == RecordingStatus.Finalizing && _encodingProgress is int progress)
+            {
+                try { return CreateProgressIcon(progress); }
+                catch (Exception ex) { DebugHelper.WriteException(ex, "Failed to draw the encoding progress icon"); }
+            }
+
             string idleIconPath = GetIdleIconPath();
             string iconPath = _currentRecordingStatus switch
             {
@@ -136,6 +145,35 @@ public class TrayIconHelper : INotifyPropertyChanged
         }
     }
 
+    /// <summary>ShareX's Helpers.GetProgressIcon, with the color of its recording progress.</summary>
+    internal static WindowIcon CreateProgressIcon(int percentage)
+    {
+        const int size = 32;
+        percentage = Math.Clamp(percentage, 0, 100);
+        var color = new SkiaSharp.SKColor(140, 0, 36);
+        using var bitmap = new SkiaSharp.SKBitmap(size, size);
+        using (var canvas = new SkiaSharp.SKCanvas(bitmap))
+        {
+            canvas.Clear(new SkiaSharp.SKColor(39, 39, 39));
+            int filled = (int)(size * (percentage / 100f));
+            if (filled > 0)
+            {
+                using var fill = new SkiaSharp.SKPaint { Color = color };
+                canvas.DrawRect(0, size - filled, size, filled, fill);
+                if (filled < size)
+                {
+                    // ShareX draws the top edge in the color lightened by 30%.
+                    static byte Lighter(byte value) => (byte)(value + (255 - value) * 0.3f);
+                    using var edge = new SkiaSharp.SKPaint { Color = new SkiaSharp.SKColor(Lighter(color.Red), Lighter(color.Green), Lighter(color.Blue)) };
+                    canvas.DrawRect(0, size - filled, size, 1, edge);
+                }
+            }
+        }
+        using var image = SkiaSharp.SKImage.FromBitmap(bitmap);
+        using var png = image.Encode(SkiaSharp.SKEncodedImageFormat.Png, 100);
+        return new WindowIcon(new MemoryStream(png.ToArray()));
+    }
+
     private static string GetIdleIconPath()
     {
         // The white/monochrome tray icon is opt-in everywhere. The setting is auto-flipped
@@ -156,8 +194,11 @@ public class TrayIconHelper : INotifyPropertyChanged
             {
                 RecordingStatus.Recording => $"{AppResources.AppName} - Recording (click tray to stop)",
                 RecordingStatus.Paused => $"{AppResources.AppName} - Paused (click tray to resume)",
+                RecordingStatus.Waiting => $"{AppResources.AppName} - Waiting to record (click tray to start)",
                 RecordingStatus.Initializing => $"{AppResources.AppName} - Starting recording...",
-                RecordingStatus.Finalizing => $"{AppResources.AppName} - Finalizing...",
+                RecordingStatus.Finalizing => _encodingProgress is int progress
+                    ? $"{AppResources.AppName} - Encoding... {progress}%"
+                    : $"{AppResources.AppName} - Finalizing...",
                 _ => AppResources.AppName
             };
         }
@@ -169,7 +210,8 @@ public class TrayIconHelper : INotifyPropertyChanged
     public bool IsRecordingActive => _currentRecordingStatus is RecordingStatus.Recording
         or RecordingStatus.Paused
         or RecordingStatus.Initializing
-        or RecordingStatus.Finalizing;
+        or RecordingStatus.Finalizing
+        or RecordingStatus.Waiting;
 
     private TrayIconHelper()
     {
@@ -207,12 +249,14 @@ public class TrayIconHelper : INotifyPropertyChanged
         if (_screenRecordingCoordinator != null)
         {
             _screenRecordingCoordinator.StatusChanged -= OnRecordingStatusChanged;
+            _screenRecordingCoordinator.RecordingPreparing -= OnRecordingPreparing;
             _screenRecordingCoordinator.RecordingStarted -= OnRecordingStarted;
             _screenRecordingCoordinator.ErrorOccurred -= OnRecordingError;
         }
 
         _screenRecordingCoordinator = screenRecordingCoordinator;
         _screenRecordingCoordinator.StatusChanged += OnRecordingStatusChanged;
+        _screenRecordingCoordinator.RecordingPreparing += OnRecordingPreparing;
         _screenRecordingCoordinator.RecordingStarted += OnRecordingStarted;
         _screenRecordingCoordinator.ErrorOccurred += OnRecordingError;
 
@@ -242,6 +286,8 @@ public class TrayIconHelper : INotifyPropertyChanged
             bool wasActive = IsRecordingActive;
 
             _currentRecordingStatus = e.Status;
+            _encodingProgress = e.Status == RecordingStatus.Finalizing ? e.EncodingProgress ?? _encodingProgress : null;
+            _recordingControls?.SetStatus(e);
 
             bool isNowActive = IsRecordingActive;
 
@@ -256,7 +302,7 @@ public class TrayIconHelper : INotifyPropertyChanged
             // Initializing→Recording: both are "active" so stateChanged=false, but Stop becomes available now
             bool stopBecameAvailable = e.Status == RecordingStatus.Recording && previousStatus == RecordingStatus.Initializing;
 
-            if (stateChanged || pauseToggled || stopBecameAvailable)
+            if (stateChanged || pauseToggled || stopBecameAvailable || previousStatus == RecordingStatus.Waiting)
             {
                 DebugHelper.WriteLine($"TrayIconHelper: Recording state changed from {previousStatus} to {e.Status}, rebuilding menu");
                 OnPropertyChanged(nameof(IsRecordingActive));
@@ -276,6 +322,26 @@ public class TrayIconHelper : INotifyPropertyChanged
     /// Shows the recording border window around the capture area.
     /// Border color indicates recording technology: Red for FFmpeg/GDI, Green for Modern Capture.
     /// </summary>
+    private void OnRecordingPreparing(object? sender, RecordingStartedEventArgs e)
+    {
+        Avalonia.Threading.Dispatcher.UIThread.Post(() =>
+        {
+            // Restart records the next take in the same controls, as ShareX keeps its window.
+            if (_recordingControls != null)
+            {
+                _recordingControls.Reset(e.Options);
+                return;
+            }
+            var controls = new Views.RecordingControlWindow(_screenRecordingCoordinator!, e.Options);
+            controls.Closed += (_, _) =>
+            {
+                if (ReferenceEquals(_recordingControls, controls)) _recordingControls = null;
+            };
+            _recordingControls = controls;
+            controls.Show();
+        });
+    }
+
     private void OnRecordingStarted(object? sender, RecordingStartedEventArgs e)
     {
         Avalonia.Threading.Dispatcher.UIThread.Post(() =>
@@ -436,7 +502,8 @@ public class TrayIconHelper : INotifyPropertyChanged
 
         try
         {
-            await _screenRecordingCoordinator.StopRecordingAsync();
+            _screenRecordingCoordinator.SignalStop();
+            await Task.CompletedTask;
         }
         catch (Exception ex)
         {
@@ -456,7 +523,8 @@ public class TrayIconHelper : INotifyPropertyChanged
 
         try
         {
-            await _screenRecordingCoordinator.AbortRecordingAsync();
+            // As ShareX's tray Abort: the recording controls ask first when the workflow says so.
+            await Views.RecordingControlWindow.RequestAbortAsync(_screenRecordingCoordinator);
         }
         catch (Exception ex)
         {
@@ -544,7 +612,11 @@ public class TrayIconHelper : INotifyPropertyChanged
         bool canStop = _currentRecordingStatus is RecordingStatus.Recording or RecordingStatus.Paused;
         bool canAbort = _currentRecordingStatus is RecordingStatus.Recording
             or RecordingStatus.Paused
-            or RecordingStatus.Initializing;
+            or RecordingStatus.Initializing
+            or RecordingStatus.Waiting;
+
+        if (_currentRecordingStatus == RecordingStatus.Waiting)
+            TrayMenu.Items.Add(new NativeMenuItem { Header = "Start Recording", Command = new RelayCommand(() => _screenRecordingCoordinator?.SignalStart()) });
 
         if (canPauseResume)
         {
@@ -712,6 +784,11 @@ public class TrayIconHelper : INotifyPropertyChanged
 
     public void OnTrayClick()
     {
+        if (_currentRecordingStatus == RecordingStatus.Waiting)
+        {
+            _screenRecordingCoordinator?.SignalStart();
+            return;
+        }
         // When recording is active, tray click honours the tooltip promise:
         // "Recording (click tray to stop)" / "Paused (click tray to resume)"
         if (_currentRecordingStatus == RecordingStatus.Recording)

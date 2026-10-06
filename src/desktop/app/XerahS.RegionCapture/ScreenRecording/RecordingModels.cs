@@ -37,6 +37,25 @@ public class RecordingOptions
     /// </summary>
     public CaptureMode Mode { get; set; } = CaptureMode.Screen;
 
+    public FFmpegOptions? FFmpegOptions { get; set; }
+    public bool AutoStart { get; set; } = true;
+    public double StartDelay { get; set; }
+    public double Duration { get; set; }
+    public bool TwoPassEncoding { get; set; }
+    public bool IsLossless { get; set; }
+    public bool AskConfirmationOnAbort { get; set; }
+    public bool ShowTimer { get; set; } = true;
+    public bool ShowButtonLabels { get; set; } = true;
+    public bool HighlightMouse { get; set; }
+    public bool AudioOnly => FFmpegOptions is { IsVideoSourceSelected: false };
+
+    public RecordingOptions Clone(string? outputPath = null)
+    {
+        var clone = (RecordingOptions)MemberwiseClone();
+        clone.OutputPath = outputPath ?? OutputPath;
+        return clone;
+    }
+
     /// <summary>
     /// Target window handle for Window mode
     /// Platform-specific: Windows (HWND), Linux (XID), macOS (WindowID cast to IntPtr)
@@ -209,8 +228,11 @@ public class RecordingStatusEventArgs : EventArgs
     /// <summary>Current recording status</summary>
     public RecordingStatus Status { get; }
 
-    /// <summary>Current recording duration</summary>
+    /// <summary>Current recording duration; for <see cref="RecordingStatus.Waiting"/>, the start delay</summary>
     public TimeSpan Duration { get; }
+
+    /// <summary>Percentage of the final encoding that is done, while <see cref="RecordingStatus.Finalizing"/></summary>
+    public int? EncodingProgress { get; init; }
 
     public RecordingStatusEventArgs(RecordingStatus status, TimeSpan duration)
     {

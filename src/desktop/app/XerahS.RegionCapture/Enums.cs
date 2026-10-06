@@ -114,7 +114,9 @@ namespace XerahS.RegionCapture
         [Description("WebP")]
         libwebp,
         [Description("APNG")]
-        apng
+        apng,
+        [Description("AV1")]
+        libaom_av1
     }
 
     public enum FFmpegAudioCodec

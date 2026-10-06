@@ -44,6 +44,11 @@ namespace XerahS.Platform.Abstractions
         /// Wayland compositors other than KDE Plasma.
         /// </summary>
         bool IsCursorPositionReliable => true;
+        /// <summary>
+        /// Optional compositor-owned highlight for screen recordings; null uses the shared overlay. Throws
+        /// <see cref="PlatformNotSupportedException"/> when neither is available.
+        /// </summary>
+        Task<IAsyncDisposable?> BeginRecordingHighlightAsync() => Task.FromResult<IAsyncDisposable?>(null);
         bool SupportsGlobalMouseMonitoring => false;
         IGlobalMouseMonitor CreateGlobalMouseMonitor(MouseHighlighterInputBuffer input) =>
             throw new PlatformNotSupportedException("Global mouse monitoring is not supported on this window system.");

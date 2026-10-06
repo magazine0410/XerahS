@@ -159,7 +159,7 @@ internal static class FFmpegEncodingBridge
     /// preference the portal stream rejects (not-negotiated). videoscale then only absorbs a window
     /// being resized mid-recording, keeping the raw frames at the size ffmpeg expects.
     /// </summary>
-    public static string BuildCaptureArgs(string sourceElement, int width, int height, string? cropElement = null)
+    public static string BuildCaptureArgs(string sourceElement, int width, int height, string? cropElement = null, bool lossless = false)
     {
         var parts = new List<string>
         {
@@ -175,7 +175,7 @@ internal static class FFmpegEncodingBridge
 
         parts.AddRange([
             "!", "videoscale",
-            "!", string.Create(CultureInfo.InvariantCulture, $"video/x-raw,format=I420,width={Even(width)},height={Even(height)},pixel-aspect-ratio=1/1"),
+            "!", string.Create(CultureInfo.InvariantCulture, $"video/x-raw,format={(lossless ? "BGRA" : "I420")},width={Even(width)},height={Even(height)},pixel-aspect-ratio=1/1"),
             "!", "fdsink fd=1 sync=false",
         ]);
         return string.Join(" ", parts);

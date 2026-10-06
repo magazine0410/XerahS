@@ -143,6 +143,20 @@ namespace XerahS.Media
             }
         }
 
+        /// <summary>Terminate an unresponsive process after graceful shutdown has timed out.</summary>
+        public void ForceClose()
+        {
+            StopRequested = true;
+            try
+            {
+                if (process is { HasExited: false }) process.Kill(entireProcessTree: true);
+            }
+            catch (InvalidOperationException)
+            {
+                // The process may exit between checking its state and killing it.
+            }
+        }
+
         private void FFmpeg_DataReceived(object sender, DataReceivedEventArgs e)
         {
             lock (this)

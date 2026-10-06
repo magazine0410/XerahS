@@ -50,7 +50,7 @@ public class TaskHelpersCaptureDelayTests
     }
 
     [Test]
-    public void GetCaptureStartDelaySeconds_ScreenRecord_ReturnsStartDelay()
+    public void GetCaptureStartDelaySeconds_ScreenRecord_LeavesDelayToRecordingSession()
     {
         var settings = new TaskSettings
         {
@@ -64,7 +64,7 @@ public class TaskHelpersCaptureDelayTests
         var delaySeconds = TaskHelpers.GetCaptureStartDelaySeconds(settings, out var category);
 
         Assert.That(category, Is.EqualTo(EnumExtensions.WorkflowType_Category_ScreenRecord));
-        Assert.That(delaySeconds, Is.EqualTo(3.5d).Within(0.0001d));
+        Assert.That(delaySeconds, Is.Zero);
     }
 
     [Test]
