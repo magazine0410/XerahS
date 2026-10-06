@@ -94,14 +94,16 @@ ffmpeg -f avfoundation -framerate 30 -capture_cursor 1 -i "1" -f avfoundation -i
 
 ### Installation
 
-Wayland recording support is backend-dependent. XerahS currently tries these Linux paths in order:
+Workflow recordings apply the configured FFmpeg options on Linux:
 
 | Session / condition | Backend |
 |---|---|
-| wlroots compositor with `wf-recorder` installed | `wf-recorder` |
-| Wayland portal session and FFmpeg build that exposes a `pipewire` input | XDG ScreenCast portal + FFmpeg |
-| Wayland portal session and GStreamer with `pipewiresrc` installed | XDG ScreenCast portal + GStreamer |
+| Wayland with GStreamer `pipewiresrc` and FFmpeg | XDG ScreenCast portal → GStreamer raw frames → FFmpeg with the requested encoder/options |
+| Wayland without GStreamer, but with an FFmpeg `pipewire` input | XDG ScreenCast portal + FFmpeg |
 | X11 session | FFmpeg `x11grab` |
+| Audio-only | FFmpeg PulseAudio input; no ScreenCast portal |
+
+The older native GStreamer and wlroots `wf-recorder` routes remain available to callers without explicit FFmpeg options. Workflow recordings use FFmpeg encoding to honor detailed codec settings; missing encoders are reported instead of silently changing the output format.
 
 If you want to use the FFmpeg Wayland path specifically, verify the actual binary first:
 
@@ -109,7 +111,7 @@ If you want to use the FFmpeg Wayland path specifically, verify the actual binar
 ffmpeg -devices 2>&1 | grep pipewire
 ```
 
-If a `pipewire` line appears in the output, your FFmpeg binary exposes that input. If not, do not assume a newer distro release will add it automatically. XerahS can still work through GStreamer on Wayland, or through `wf-recorder` on wlroots compositors.
+If a `pipewire` line appears in the output, your FFmpeg binary exposes that input. If not, do not assume a newer distro release will add it automatically. XerahS can capture with GStreamer and feed raw frames to FFmpeg instead.
 
 **Fedora / RHEL (RPM Fusion)**
 
@@ -138,7 +140,6 @@ ffmpeg -devices 2>&1 | grep pipewire
 - If you now see a `pipewire` device, you can use the FFmpeg Wayland path.
 - If you still do **not** see `pipewire`, use one of these supported alternatives instead:
   - Install GStreamer PipeWire support and let XerahS use the portal + `pipewiresrc` fallback.
-  - On wlroots compositors, install `wf-recorder`.
   - Point XerahS at a custom FFmpeg binary that actually exposes the `pipewire` input device.
 
 On Ubuntu, if you are only missing some codecs (e.g. H.264/MP3 playback) rather than PipeWire itself, you can optionally install:
@@ -167,7 +168,7 @@ environment.systemPackages = [ pkgs.ffmpeg-full ];
 
 Do not assume a static FFmpeg build will provide Wayland portal capture support. Verify the binary with `ffmpeg -devices` before using it in XerahS.
 
-GStreamer with PipeWire plugins is used as a fallback if FFmpeg lacks PipeWire support:
+GStreamer with PipeWire plugins supplies raw frames to the configured FFmpeg encoder:
 
 ```sh
 # GStreamer PipeWire plugins (fallback)
@@ -187,17 +188,29 @@ The flow is fully automatic:
 3. The portal returns a PipeWire node ID for the selected source.
 4. XerahS passes that node ID to the selected recorder integration.
 
+“Show cursor in recording” selects the portal's embedded or hidden cursor mode, using the values defined by the [ScreenCast API](https://flatpak.github.io/xdg-desktop-portal/docs/doc-org.freedesktop.portal.ScreenCast.html#org-freedesktop-portal-screencast-availablecursormodes).
+
 **The user never needs to know or configure a PipeWire node ID.** It is resolved automatically per recording session.
 
-### Recording backend priority (Wayland)
+### Session controls
 
-| Priority | Backend | Condition |
-|---|---|---|
-| 1 | `wf-recorder` | wlroots compositor detected and wf-recorder is installed |
-| 2 | XDG Portal + FFmpeg (`pipewire`) | FFmpeg has PipeWire input support |
-| 3 | XDG Portal + GStreamer (`pipewiresrc`) | GStreamer PipeWire plugins installed |
+**Task settings → Video Settings** contains the ShareX recording preferences: FPS/GIF FPS, cursor/highlighter, timer/button labels, automatic start and delay, fixed duration, lossless first-stage encoding, and abort confirmation. Defaults match ShareX.
 
-On X11, the fallback is `x11grab`.
+Controls also open for recording hotkeys. As in ShareX, they sit below the recorded area when XerahS knows it (a region, or a window on X11); drag the timer to move them. Manual mode waits for Start; automatic mode counts the configured delay down in the timer. Fixed duration counts the time left, excluding pauses. While the final file is encoded, the controls are hidden and the tray icon and tooltip show the progress.
+
+On Wayland, the ScreenCast source picker opens first, before the controls, the start delay and the manual start, so the countdown follows the choice of the recorded area as it does in ShareX. Closing the picker ends the recording quietly, like a cancelled region selection. Restart discards the take but keeps the chosen source, so the picker does not open again. Pause also keeps the portal session, and resume records another segment from the same stream; after stopping, FFmpeg joins the segments. X11 pause uses recording segments too.
+
+Abort discards the take. With "Ask for confirmation when aborting", the Abort button, the tray's Abort and the recording page's Abort ask in the controls themselves; the Abort screen recording hotkey aborts without asking, as in ShareX. Restart discards without an abort prompt.
+
+“Record losslessly first, then apply encoding options” follows ShareX's two-stage behavior: capture to lossless H.264, then encode the final file after stop. GIF, animated WebP and APNG always use this path. Source segments survive an encoding failure, and the error notification names them. Formats whose encoder needs even dimensions crop an odd-sized window or portal stream by one pixel, as ShareX's EvenRectangleSize does.
+
+On X11 the recording highlighter uses the shared configurable overlay. On KDE Wayland it uses KWin's Mouse Click Animation, restoring the prior enabled/loaded state afterward. This appearance difference was explicitly chosen for Wayland, where passive global click events are unavailable to the shared overlay. On other Wayland desktops, a notification says that highlighting is not supported there, and the recording continues without it. The KWin integration uses its [Effects D-Bus interface](https://github.com/KDE/kwin/blob/master/src/org.kde.kwin.Effects.xml) and [mouseclick shortcut](https://github.com/KDE/kwin/blob/master/src/plugins/mouseclick/mouseclick.cpp).
+
+### Custom commands
+
+Extra FFmpeg arguments are appended before the generated output encoding options. Enabling a custom command replaces the generated command, except during lossless first-stage capture and the GIF conversion, which, as in ShareX, uses its own palette command without extra arguments. The supported ShareX placeholders are `$fps$`, `$area_x$`, `$area_y$`, `$area_width$`, `$area_height$`, `$cursor$`, `$duration$` and `$output$` (case-insensitive). Quote path placeholders in the command.
+
+XerahS also supports `$input$`: it is `pipe:0` for the Wayland raw-frame bridge and the captured file during final encoding. A custom Wayland bridge command must consume the supplied raw stream with its format, even dimensions and frame rate. A custom final conversion command must read `$input$` and write `$output$`.
 
 ### Verify your setup
 
@@ -210,13 +223,9 @@ Run the built-in diagnostic from the app: **Workflows > Edit workflow > Video Se
 
 ### Audio on Linux
 
-System audio is captured from the PulseAudio monitor source of the default output device. XerahS resolves this automatically using `pactl`. Microphone capture uses the selected device ID from settings.
+System audio uses PulseAudio's default-output monitor (`@DEFAULT_MONITOR@`). Microphone capture uses the selected device or `default`. When both are enabled they are mixed into one audio track. The Wayland bridge ends live audio when its video stream closes, so stopping can finalize the file.
 
-Both are passed to FFmpeg as a second input:
-
-```
--f pulse -i alsa_output.pci-0000_00_1f.3.analog-stereo.monitor
-```
+For audio-only recording, choose **Video source: None** and **System audio** or **Default microphone** in FFmpeg options. The selected AAC, Opus, Vorbis or MP3 encoder determines the `.m4a`, `.opus`, `.ogg` or `.mp3` extension. As in ShareX, the workflow still asks for its area first; the audio is recorded without the ScreenCast portal, and the video editor is skipped. When both sources are None, the recording does not start and a notification says so, as ShareX's message does.
 
 ### Example command (Wayland, FFmpeg + PipeWire)
 
@@ -260,16 +269,24 @@ ffmpeg -f x11grab -framerate 30 -draw_mouse 1 -video_size 1280x720 -i :0.0+100,5
 
 ---
 
-## Supported codecs (all platforms)
+## Detailed FFmpeg codec options on Linux
 
-| Codec | FFmpeg encoder | Notes |
-|---|---|---|
-| H.264 | `libx264` | Default. Best compatibility. |
-| H.265 / HEVC | `libx265` | Better compression, slower encode. |
-| VP9 | `libvpx-vp9` | Open, good for WebM. |
-| AV1 | `libaom-av1` | Best compression, CPU-intensive. |
+| Codec | Options |
+|---|---|
+| H.264 / HEVC (`libx264` / `libx265`) | Preset and CRF, or bitrate |
+| VP8 / VP9 (`libvpx` / `libvpx-vp9`) | Bitrate |
+| Xvid (`libxvid`) | Quality scale; AVI output |
+| NVENC | Preset, tune and bitrate |
+| AMF | Usage, quality and bitrate |
+| QSV | Preset and bitrate |
+| GIF | FPS, maximum width, palette statistics and dithering |
+| Animated WebP / APNG | Animated output after lossless capture |
+| AAC / Opus | Audio bitrate |
+| Vorbis / MP3 | Audio quality scale |
 
-All codecs use `-pix_fmt yuv420p` for broad player compatibility.
+The existing AV1 choice uses `libaom-av1`. Hardware codecs require support in both the installed FFmpeg build and the system's GPU/driver. Encoder failures are reported and do not proceed to upload. As in ShareX, only **Upload image to host** enables upload; choosing after-upload actions alone does not.
+
+The detailed capture options above are implemented for Linux. Windows/macOS native recording paths retain their existing platform behavior; those platform-specific settings integrations are deferred.
 
 ---
 

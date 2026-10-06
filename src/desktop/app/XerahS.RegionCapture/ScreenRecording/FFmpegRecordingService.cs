@@ -44,6 +44,7 @@ public class FFmpegRecordingService : IRecordingService
     private bool _disposed;
     private string? _ffmpegPath;
     private Task? _ffmpegTask;
+    private volatile bool _stopRequested;
 
     /// <summary>
     /// Gets or sets the path to ffmpeg.exe
@@ -82,6 +83,7 @@ public class FFmpegRecordingService : IRecordingService
                 throw new InvalidOperationException("Recording already in progress");
             }
 
+            _stopRequested = false;
             _currentOptions = options;
             UpdateStatus(RecordingStatus.Initializing);
         }
@@ -105,9 +107,8 @@ public class FFmpegRecordingService : IRecordingService
             Console.WriteLine($"[FFmpegRecordingService] FFmpeg Arguments: {args}");
 
             // Create and start FFmpeg process
-            _ffmpeg = new FFmpegCLIManager(ffmpegPath);
-            _ffmpeg.ShowError = true;
-            _ffmpeg.TrackEncodeProgress = true;
+            var ffmpeg = new FFmpegCLIManager(ffmpegPath) { TrackEncodeProgress = true };
+            _ffmpeg = ffmpeg;
 
             Console.WriteLine("[FFmpegRecordingService] Starting FFmpeg process...");
             
@@ -118,27 +119,27 @@ public class FFmpegRecordingService : IRecordingService
                 {
                     lock (_lock)
                     {
+                        if (_stopRequested || _disposed) return;
                         _stopwatch.Restart();
                         UpdateStatus(RecordingStatus.Recording);
                     }
                     
                     Console.WriteLine("[FFmpegRecordingService] FFmpeg process running...");
 
-                    bool success = _ffmpeg.Run(args);
+                    bool success = ffmpeg.Run(args);
                     
                     Console.WriteLine($"[FFmpegRecordingService] FFmpeg process finished. Success: {success}");
 
-                    if (!success && !_ffmpeg.StopRequested)
-                    {
-                        Console.WriteLine($"[FFmpegRecordingService] FFmpeg process failed. Output: {_ffmpeg.Output}");
-                        HandleFatalError(new Exception($"FFmpeg process failed.\nOutput: {_ffmpeg.Output}"), true);
-                    }
+                    if (success && !_stopRequested) UpdateStatus(RecordingStatus.Idle);
+                    if (!success && !_disposed)
+                        HandleFatalError(new Exception($"FFmpeg process failed.\nOutput: {ffmpeg.Output}"), true);
                 }
                 catch (Exception ex)
                 {
                     Console.WriteLine($"[FFmpegRecordingService] Exception in background task: {ex}");
-                    HandleFatalError(ex, true);
+                    if (!_disposed) HandleFatalError(ex, true);
                 }
+                finally { ffmpeg.Dispose(); }
             });
 
             return Task.CompletedTask;
@@ -158,12 +159,13 @@ public class FFmpegRecordingService : IRecordingService
 
         lock (_lock)
         {
-            if (_status != RecordingStatus.Recording)
+            if (_status == RecordingStatus.Idle || _status == RecordingStatus.Finalizing)
             {
                 Console.WriteLine("[FFmpegRecordingService] StopRecordingAsync: Not recording (Status != Recording). Returning.");
                 return; // Already stopped or never started
             }
 
+            _stopRequested = true;
             UpdateStatus(RecordingStatus.Finalizing);
             _stopwatch.Stop();
 
@@ -173,25 +175,7 @@ public class FFmpegRecordingService : IRecordingService
 
         try
         {
-            Console.WriteLine("[FFmpegRecordingService] Sending 'q' to FFmpeg process...");
-            // Send 'q' to FFmpeg to stop gracefully
-            if (ffmpeg != null)
-            {
-                ffmpeg.StopRequested = true;
-                ffmpeg.WriteInput("q");
-            }
-
-            bool exited = await WaitForFFmpegExitAsync(ffmpegTask, TimeSpan.FromSeconds(10));
-            if (!exited && ffmpeg?.IsProcessRunning == true)
-            {
-                Console.WriteLine("[FFmpegRecordingService] FFmpeg process still running after timeout. Closing forcefully.");
-                ffmpeg.Close();
-                await WaitForFFmpegExitAsync(ffmpegTask, TimeSpan.FromSeconds(5));
-            }
-        }
-        catch (Exception ex)
-        {
-            HandleFatalError(ex, false);
+            if (ffmpeg != null) await RecordingEncoding.StopProcessAsync(ffmpeg, ffmpegTask);
         }
         finally
         {
@@ -204,24 +188,6 @@ public class FFmpegRecordingService : IRecordingService
         }
 
         Console.WriteLine("[FFmpegRecordingService] StopRecordingAsync completed.");
-    }
-
-    private static async Task<bool> WaitForFFmpegExitAsync(Task? ffmpegTask, TimeSpan timeout)
-    {
-        if (ffmpegTask == null)
-        {
-            return true;
-        }
-
-        try
-        {
-            var completed = await Task.WhenAny(ffmpegTask, Task.Delay(timeout));
-            return completed == ffmpegTask;
-        }
-        catch
-        {
-            return false;
-        }
     }
 
     private string FindFFmpegPath()
@@ -268,6 +234,11 @@ public class FFmpegRecordingService : IRecordingService
 
     private string BuildFFmpegArguments(RecordingOptions options)
     {
+        if (OperatingSystem.IsLinux() && options.FFmpegOptions != null)
+        {
+            options.OutputPath = Path.ChangeExtension(ResolveOutputPath(options.OutputPath), RecordingEncoding.Extension(options));
+            return RecordingEncoding.LinuxArguments(options);
+        }
         var settings = options.Settings ?? new ScreenRecordingSettings();
         bool hasAudio = settings.CaptureSystemAudio || settings.CaptureMicrophone;
         var args = new List<string>();
@@ -538,27 +509,10 @@ public class FFmpegRecordingService : IRecordingService
     public void Dispose()
     {
         if (_disposed) return;
-
-        lock (_lock)
-        {
-            _disposed = true;
-
-            try
-            {
-                if (_status == RecordingStatus.Recording)
-                {
-                    StopRecordingAsync().Wait();
-                }
-            }
-            catch
-            {
-                // Best effort cleanup
-            }
-
-            _ffmpeg?.Close();
-            _ffmpeg = null;
-        }
-
+        _disposed = true;
+        _stopRequested = true;
+        _ffmpeg?.ForceClose();
+        _ffmpeg = null;
         GC.SuppressFinalize(this);
     }
 }

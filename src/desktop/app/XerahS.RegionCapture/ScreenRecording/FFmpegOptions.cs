@@ -98,6 +98,7 @@ namespace XerahS.RegionCapture
                             return "mp4";
                         case FFmpegVideoCodec.libvpx:
                         case FFmpegVideoCodec.libvpx_vp9:
+                        case FFmpegVideoCodec.libaom_av1:
                             return "webm";
                         case FFmpegVideoCodec.libxvid:
                             return "avi";

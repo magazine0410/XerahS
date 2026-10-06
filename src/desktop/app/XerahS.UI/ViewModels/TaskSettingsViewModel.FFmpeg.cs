@@ -154,7 +154,7 @@ namespace XerahS.UI.ViewModels
 
             var ffmpegOptions = taskSettings.CaptureSettings.FFmpegOptions ?? new FFmpegOptions();
             taskSettings.CaptureSettings.FFmpegOptions = ffmpegOptions;
-            var vm = new FFmpegOptionsViewModel(ffmpegOptions);
+            var vm = new FFmpegOptionsViewModel(ffmpegOptions, taskSettings.CaptureSettings.ScreenRecordingSettings);
             await _dialogService.ShowFFmpegOptionsAsync(vm);
             RefreshFFmpegState();
         }

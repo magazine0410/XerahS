@@ -39,11 +39,13 @@ public interface IRecordingService : IDisposable
 
     /// <summary>
     /// Start a new recording session
-    /// Note: CancellationToken support deferred to future optimization
     /// </summary>
     /// <param name="options">Recording configuration</param>
     /// <returns>Task that completes when recording has started</returns>
     Task StartRecordingAsync(RecordingOptions options);
+
+    /// <summary>Cancel an outstanding permission request before stopping the session.</summary>
+    void CancelInitialization() { }
 
     /// <summary>
     /// Stop the current recording session
@@ -70,6 +72,37 @@ public interface IPausableRecordingService
 {
     Task PauseRecordingAsync();
     Task ResumeRecordingAsync();
+}
+
+/// <summary>Discard an active session without concatenating or encoding its takes.</summary>
+public interface IAbortableRecordingService
+{
+    Task AbortRecordingAsync();
+}
+
+/// <summary>
+/// A backend whose capture source is chosen once per session (the Wayland ScreenCast portal). The source is chosen
+/// before the start delay or the manual start, as ShareX chooses its area before its countdown, and Restart keeps it.
+/// </summary>
+public interface ISessionRecordingService
+{
+    /// <summary>Choose the capture source. Throws <see cref="OperationCanceledException"/> when the user cancels.</summary>
+    Task PrepareRecordingAsync(RecordingOptions options);
+
+    /// <summary>Discard the current take, keeping the chosen source for the next take.</summary>
+    Task DiscardTakeAsync();
+}
+
+/// <summary>The user aborted the recording; it ends without output, an error, or an upload.</summary>
+public sealed class RecordingAbortedException : OperationCanceledException
+{
+    public RecordingAbortedException() : base("The recording was aborted.") { }
+}
+
+/// <summary>The recorder or the final encoding failed. The message is short enough for a notification.</summary>
+public sealed class RecordingFailedException : InvalidOperationException
+{
+    public RecordingFailedException(string message, Exception? innerException = null) : base(message, innerException) { }
 }
 
 /// <summary>

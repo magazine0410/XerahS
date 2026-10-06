@@ -435,6 +435,59 @@ namespace XerahS.UI.ViewModels
             }
         }
 
+        public bool ScreenRecordFixedDuration
+        {
+            get => CaptureSource.CaptureSettings.ScreenRecordFixedDuration;
+            set { CaptureSource.CaptureSettings.ScreenRecordFixedDuration = value; OnPropertyChanged(); }
+        }
+
+        public bool ScreenRecordTwoPassEncoding
+        {
+            get => CaptureSource.CaptureSettings.ScreenRecordTwoPassEncoding;
+            set { CaptureSource.CaptureSettings.ScreenRecordTwoPassEncoding = value; OnPropertyChanged(); }
+        }
+
+        public bool ScreenRecordAskConfirmationOnAbort
+        {
+            get => CaptureSource.CaptureSettings.ScreenRecordAskConfirmationOnAbort;
+            set { CaptureSource.CaptureSettings.ScreenRecordAskConfirmationOnAbort = value; OnPropertyChanged(); }
+        }
+
+        public bool ScreenRecordAutoStart
+        {
+            get => CaptureSource.CaptureSettings.ScreenRecordAutoStart;
+            set { CaptureSource.CaptureSettings.ScreenRecordAutoStart = value; OnPropertyChanged(); }
+        }
+
+        public bool ScreenRecordShowTimer
+        {
+            get => CaptureSource.CaptureSettings.ScreenRecordShowTimer;
+            set { CaptureSource.CaptureSettings.ScreenRecordShowTimer = value; OnPropertyChanged(); }
+        }
+
+        public bool ScreenRecordShowButtonLabels
+        {
+            get => CaptureSource.CaptureSettings.ScreenRecordShowButtonLabels;
+            set { CaptureSource.CaptureSettings.ScreenRecordShowButtonLabels = value; OnPropertyChanged(); }
+        }
+
+        public bool ScreenRecordMouseHighlighter
+        {
+            get => CaptureSource.CaptureSettings.ScreenRecordMouseHighlighter;
+            set { CaptureSource.CaptureSettings.ScreenRecordMouseHighlighter = value; OnPropertyChanged(); }
+        }
+
+        public bool ScreenRecordShowCursor
+        {
+            get => CaptureSource.CaptureSettings.ScreenRecordShowCursor;
+            set
+            {
+                CaptureSource.CaptureSettings.ScreenRecordShowCursor = value;
+                CaptureSource.CaptureSettings.ScreenRecordingSettings.ShowCursor = value;
+                OnPropertyChanged();
+            }
+        }
+
         public int ScreenRecordFPS
         {
             get => CaptureSource.CaptureSettings.ScreenRecordFPS;
@@ -443,9 +496,17 @@ namespace XerahS.UI.ViewModels
                 if (CaptureSource.CaptureSettings.ScreenRecordFPS != value)
                 {
                     CaptureSource.CaptureSettings.ScreenRecordFPS = value;
+                    // The recording page reads the same value from ScreenRecordingSettings.
+                    CaptureSource.CaptureSettings.ScreenRecordingSettings.FPS = value;
                     OnPropertyChanged();
                 }
             }
+        }
+
+        public int GIFFPS
+        {
+            get => CaptureSource.CaptureSettings.GIFFPS;
+            set { CaptureSource.CaptureSettings.GIFFPS = value; OnPropertyChanged(); }
         }
 
         public float ScreenRecordDuration

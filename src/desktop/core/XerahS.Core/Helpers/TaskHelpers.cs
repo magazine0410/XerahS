@@ -201,7 +201,7 @@ public static partial class TaskHelpers
 
         if (category == EnumExtensions.WorkflowType_Category_ScreenRecord && IsScreenRecordStartJob(taskSettings.Job))
         {
-            return captureSettings.ScreenRecordStartDelay;
+            return 0; // The recording session owns its countdown and manual Start control.
         }
 
         return 0;

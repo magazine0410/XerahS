@@ -37,6 +37,10 @@ namespace XerahS.Bootstrap
         event EventHandler<RecordingErrorEventArgs>? ErrorOccurred;
         event EventHandler<RecordingStartedEventArgs>? RecordingStarted;
 
+        event EventHandler<RecordingStartedEventArgs>? RecordingPreparing { add { } remove { } }
+        bool IsWaiting => false;
+        RecordingOptions? CurrentOptions => null;
+        void SignalStart() { }
         bool IsRecording { get; }
         bool IsPaused { get; }
         bool IsUsingFallback { get; }

@@ -646,8 +646,37 @@ namespace XerahS.Core.Tasks.Pipeline
             return FinishCapture(context, image, captureStopwatch);
         }
 
+        /// <summary>
+        /// As ShareX's StartRecording, refuses to record when FFmpeg's video and audio sources are both "None". An
+        /// audio-only recording still asks for its area first, as in ShareX.
+        /// </summary>
+        private static bool EnsureRecordingSourceSelected(PipelineContext context)
+        {
+            if (context.Info.TaskSettings?.CaptureSettings.FFmpegOptions is not { IsSourceSelected: false }) return true;
+            try
+            {
+                PlatformServices.Toast?.ShowToast(new Platform.Abstractions.ToastConfig
+                {
+                    Title = "FFmpeg error",
+                    Text = "FFmpeg video and audio source can't both be \"None\".",
+                    Duration = 5f,
+                    Size = new SizeI(420, 120),
+                    AutoHide = true,
+                    LeftClickAction = Platform.Abstractions.ToastClickAction.CloseNotification
+                });
+            }
+            catch (Exception ex)
+            {
+                DebugHelper.WriteException(ex, "CaptureStage: could not show the FFmpeg source notification");
+            }
+            context.Status = TaskStatus.Stopped;
+            return false;
+        }
+
         private async Task HandleScreenRecorderRegionAsync(PipelineContext context, CaptureOptions captureOptions, bool isDelay, double delay, string category, CancellationToken token)
         {
+            if (!EnsureRecordingSourceSelected(context)) return;
+
             if (context.Info.Metadata.Image != null)
             {
                 context.Info.Metadata.Image.Dispose();
@@ -657,8 +686,10 @@ namespace XerahS.Core.Tasks.Pipeline
             bool isLinuxWayland = OperatingSystem.IsLinux() &&
                 Environment.GetEnvironmentVariable("XDG_SESSION_TYPE")?.Equals("wayland", StringComparison.OrdinalIgnoreCase) == true;
 
+            // An audio-only recording does not use the ScreenCast portal, so its area is selected here, as in ShareX.
             bool portalHandlesSourceSelection = isLinuxWayland &&
-                ScreenRecorderService.NativeRecordingServiceFactory != null;
+                ScreenRecorderService.NativeRecordingServiceFactory != null &&
+                context.Info.TaskSettings?.CaptureSettings.FFmpegOptions.IsVideoSourceSelected != false;
 
             if (portalHandlesSourceSelection)
             {
@@ -712,6 +743,8 @@ namespace XerahS.Core.Tasks.Pipeline
 
         private async Task HandleScreenRecorderWindowAsync(PipelineContext context, bool isDelay, double delay, string category, CancellationToken token)
         {
+            if (!EnsureRecordingSourceSelected(context)) return;
+
             if (context.Info.Metadata.Image != null)
             {
                 context.Info.Metadata.Image.Dispose();
@@ -735,6 +768,8 @@ namespace XerahS.Core.Tasks.Pipeline
             string category,
             CancellationToken token)
         {
+            if (!EnsureRecordingSourceSelected(context)) return;
+
             if (context.Info.Metadata.Image != null)
             {
                 context.Info.Metadata.Image.Dispose();
@@ -789,6 +824,8 @@ namespace XerahS.Core.Tasks.Pipeline
             string category,
             CancellationToken token)
         {
+            if (!EnsureRecordingSourceSelected(context)) return;
+
             if (context.Info.Metadata.Image != null)
             {
                 context.Info.Metadata.Image.Dispose();

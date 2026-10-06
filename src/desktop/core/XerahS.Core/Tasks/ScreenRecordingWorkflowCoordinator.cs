@@ -45,6 +45,10 @@ internal sealed class ScreenRecordingWorkflowCoordinator(IScreenRecordingManager
 
     public Task AbortRecordingAsync() => recordingManager.AbortRecordingAsync();
 
+    public Task DiscardRecordingAsync() => recordingManager.DiscardRecordingAsync();
+
+    public Task RestartRecordingAsync(RecordingOptions options) => recordingManager.RestartRecordingAsync(options);
+
     public Task TogglePauseResumeAsync() => recordingManager.TogglePauseResumeAsync();
 
     public bool ConsumeRestartRequest() => recordingManager.ConsumeRestartRequest();

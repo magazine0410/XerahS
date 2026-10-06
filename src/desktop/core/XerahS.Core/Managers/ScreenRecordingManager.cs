@@ -52,7 +52,6 @@ public class ScreenRecordingManager : IScreenRecordingManager
     private string? _finalOutputPath;
     private int _segmentIndex;
     private bool _isPaused;
-    private bool _abortRequested;
     private bool _restartRequested;
     private bool _isFinalized;
     private string? _cachedFinalPath;
@@ -65,7 +64,21 @@ public class ScreenRecordingManager : IScreenRecordingManager
     /// </summary>
     public static System.Threading.Tasks.Task? PlatformInitializationTask { get; set; }
 
-    private ScreenRecordingManager()
+    private Exception? _recordingFailure;
+    private bool _sessionActive;
+    private bool _suppressBackendStatus; // pause, resume and Restart's discard
+    private bool _finishing;
+    private bool _discardRequested;
+    private TaskCompletionSource<bool>? _startSignal;
+    private readonly System.Diagnostics.Stopwatch _sessionClock = new();
+    private System.Threading.Timer? _sessionTimer;
+    // A backend whose source was chosen before the start signal, or that Restart kept from the discarded take.
+    private IRecordingService? _preparedRecording;
+    private System.Runtime.ExceptionServices.ExceptionDispatchInfo? _finalizationFailure;
+    public bool IsWaiting => _startSignal != null;
+    public event EventHandler<RecordingStartedEventArgs>? RecordingPreparing;
+
+    internal ScreenRecordingManager()
     {
     }
 
@@ -104,7 +117,7 @@ public class ScreenRecordingManager : IScreenRecordingManager
         {
             lock (_lock)
             {
-                return _currentRecording != null;
+                return _sessionActive;
             }
         }
     }
@@ -156,7 +169,7 @@ public class ScreenRecordingManager : IScreenRecordingManager
         {
             lock (_lock)
             {
-                return _currentOptions;
+                return _currentOptions ?? _resumeOptions;
             }
         }
     }
@@ -184,9 +197,12 @@ public class ScreenRecordingManager : IScreenRecordingManager
     {
         lock (_lock)
         {
-            _stopSignal?.TrySetResult(true);
+            if (_startSignal != null) _startSignal.TrySetResult(true);
+            else _stopSignal?.TrySetResult(true);
         }
     }
+
+    public void SignalStart() => _startSignal?.TrySetResult(true);
 
     /// <summary>
     /// Restart (ShareX #7255): wake the recording workflow like Stop does, flagged so it discards
@@ -196,7 +212,7 @@ public class ScreenRecordingManager : IScreenRecordingManager
     {
         lock (_lock)
         {
-            if (_currentRecording == null)
+            if (!_sessionActive || _isFinalized)
             {
                 return;
             }
@@ -226,9 +242,9 @@ public class ScreenRecordingManager : IScreenRecordingManager
     {
         lock (_lock)
         {
-            if (_stopSignal == null || _stopSignal.Task.IsCompleted)
+            if (_stopSignal == null)
             {
-                _stopSignal = new TaskCompletionSource<bool>();
+                _stopSignal = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
             }
             return _stopSignal.Task;
         }
@@ -271,10 +287,164 @@ public class ScreenRecordingManager : IScreenRecordingManager
             DebugHelper.WriteLine($"ScreenRecordingManager: Generated default output path: {options.OutputPath}");
         }
 
-        bool preferFallback = ShouldForceFallback(options);
-        RecordingOptions optionsToStart = PrepareRecordingOptions(options, isResume: false);
+        lock (_lock)
+        {
+            if (_sessionActive) throw new InvalidOperationException("A recording is already in progress.");
+            _sessionActive = true;
+            _discardRequested = false;
+            _isFinalized = false;
+            _cachedFinalPath = null;
+            _finalizationFailure = null;
+            _currentOptions = options;
+        }
 
-        await StartRecordingCoreAsync(optionsToStart, preferFallback);
+        await _stopSemaphore.WaitAsync();
+        try
+        {
+            await PrepareRecordingServiceAsync(options);
+        }
+        catch (Exception ex)
+        {
+            EndSessionWithoutOutput();
+            if (ex is OperationCanceledException && _discardRequested && ex is not RecordingAbortedException) throw new RecordingAbortedException();
+            throw;
+        }
+        finally { _stopSemaphore.Release(); }
+
+        await RunTakeAsync(options);
+    }
+
+    /// <summary>
+    /// Restart (ShareX #7255): discards the current take and records the next one with the same options. A backend
+    /// that chose its source for the session (the Wayland portal) keeps it, so the source picker does not open again.
+    /// </summary>
+    public async Task RestartRecordingAsync(RecordingOptions options)
+    {
+        await _stopSemaphore.WaitAsync();
+        try
+        {
+            lock (_lock)
+            {
+                if (!_sessionActive || _isFinalized || _discardRequested) throw new RecordingAbortedException();
+            }
+            _sessionTimer?.Dispose();
+            _sessionTimer = null;
+            _sessionClock.Stop();
+            // The discarded take's Finalizing and Idle are not the session's: the controls stay for the next take.
+            _suppressBackendStatus = true;
+            try { await StopRecordingCoreAsync(signalStop: false, discard: true, keepSession: true); }
+            finally { _suppressBackendStatus = false; }
+            CleanupSegments(deleteFinalOutput: false);
+        }
+        catch (Exception ex) when (ex is not RecordingAbortedException)
+        {
+            EndSessionWithoutOutput();
+            throw;
+        }
+        finally { _stopSemaphore.Release(); }
+
+        await RunTakeAsync(options);
+    }
+
+    Task IScreenRecordingManager.RestartRecordingAsync(object options) => options is RecordingOptions recordingOptions
+        ? RestartRecordingAsync(recordingOptions)
+        : throw new ArgumentException("Recording options must be a RecordingOptions instance.", nameof(options));
+
+    /// <summary>Choose a session backend's capture source before the controls, the start delay, and the manual start.</summary>
+    private async Task PrepareRecordingServiceAsync(RecordingOptions options)
+    {
+        if (_preparedRecording != null || ShouldForceFallback(options) || ScreenRecorderService.NativeRecordingServiceFactory == null) return;
+        IRecordingService service = ScreenRecorderService.NativeRecordingServiceFactory();
+        lock (_lock) _preparedRecording = service;
+        if (service is ISessionRecordingService session)
+        {
+            StatusChanged?.Invoke(this, new RecordingStatusEventArgs(RecordingStatus.Initializing, TimeSpan.Zero));
+            await session.PrepareRecordingAsync(options);
+        }
+    }
+
+    /// <summary>One take: show the controls, wait for the delay or the manual start, then start the backend.</summary>
+    private async Task RunTakeAsync(RecordingOptions options)
+    {
+        TaskCompletionSource<bool> startSignal = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        lock (_lock)
+        {
+            _currentOptions = options;
+            _stopSignal = new(TaskCreationOptions.RunContinuationsAsynchronously);
+            _startSignal = startSignal;
+        }
+        _recordingFailure = null;
+        _sessionClock.Reset();
+        _lastDuration = TimeSpan.Zero;
+        int delay = options.AutoStart ? global::XerahS.Core.TaskHelpers.GetCaptureStartDelayMilliseconds(options.StartDelay) : 0;
+        RecordingPreparing?.Invoke(this, new RecordingStartedEventArgs(false, options));
+        StatusChanged?.Invoke(this, new RecordingStatusEventArgs(RecordingStatus.Waiting, TimeSpan.FromMilliseconds(delay)));
+        if (options.AutoStart)
+        {
+            await Task.WhenAny(startSignal.Task, Task.Delay(delay));
+            startSignal.TrySetResult(true);
+        }
+        bool shouldStart = await startSignal.Task;
+        lock (_lock) _startSignal = null;
+
+        await _stopSemaphore.WaitAsync();
+        try
+        {
+            if (!shouldStart || _discardRequested) throw new RecordingAbortedException();
+            bool preferFallback = ShouldForceFallback(options);
+            RecordingOptions optionsToStart = PrepareRecordingOptions(options, isResume: false);
+            await StartRecordingCoreAsync(optionsToStart, preferFallback);
+            if (_recordingFailure != null)
+                throw new RecordingFailedException(RecordingEncoding.Summarize(_recordingFailure.Message), _recordingFailure);
+            if (_isFinalized || _discardRequested) return;
+            _sessionTimer = new System.Threading.Timer(_ =>
+            {
+                var elapsed = _sessionClock.Elapsed;
+                _lastDuration = elapsed;
+                if (_sessionClock.IsRunning)
+                {
+                    StatusChanged?.Invoke(this, new RecordingStatusEventArgs(RecordingStatus.Recording, elapsed));
+                    if (options.Duration > 0 && elapsed.TotalSeconds >= options.Duration) _stopSignal?.TrySetResult(true);
+                }
+            }, null, 100, 100);
+        }
+        catch (Exception ex)
+        {
+            EndSessionWithoutOutput();
+            if (ex is OperationCanceledException && _discardRequested && ex is not RecordingAbortedException) throw new RecordingAbortedException();
+            throw;
+        }
+        finally { _stopSemaphore.Release(); }
+    }
+
+    /// <summary>Ends a session that produced no output: aborted, failed to start, or its source was not chosen.</summary>
+    private void EndSessionWithoutOutput()
+    {
+        _sessionTimer?.Dispose();
+        _sessionTimer = null;
+        _sessionClock.Stop();
+        ReleasePreparedRecording();
+        lock (_lock)
+        {
+            _startSignal = null;
+            _stopSignal?.TrySetResult(true);
+            _isFinalized = true;
+            _cachedFinalPath = null;
+            _sessionActive = false;
+            _currentOptions = null;
+        }
+        StatusChanged?.Invoke(this, new RecordingStatusEventArgs(RecordingStatus.Idle, _sessionClock.Elapsed));
+    }
+
+    private void ReleasePreparedRecording()
+    {
+        IRecordingService? prepared;
+        lock (_lock)
+        {
+            prepared = _preparedRecording;
+            _preparedRecording = null;
+        }
+        if (prepared != null) CleanupCurrentRecording(prepared);
     }
 
     async Task IScreenRecordingManager.StartRecordingAsync(object options)
@@ -301,6 +471,8 @@ public class ScreenRecordingManager : IScreenRecordingManager
             if (_isFinalized)
             {
                 DebugHelper.WriteLine("ScreenRecordingManager: Already finalized, returning cached path");
+                // A failed finalization is reported again rather than encoded a second time.
+                _finalizationFailure?.Throw();
                 return _cachedFinalPath;
             }
         }
@@ -315,23 +487,23 @@ public class ScreenRecordingManager : IScreenRecordingManager
                 if (_isFinalized)
                 {
                     DebugHelper.WriteLine("ScreenRecordingManager: Already finalized (after semaphore), returning cached path");
+                    _finalizationFailure?.Throw();
                     return _cachedFinalPath;
                 }
             }
 
+            _finishing = true;
+            if (_recordingFailure != null)
+                throw new RecordingFailedException(RecordingEncoding.Summarize(_recordingFailure.Message), _recordingFailure);
+            _sessionTimer?.Dispose();
+            _sessionTimer = null;
+            _sessionClock.Stop();
             bool wasPaused = IsPaused;
             if (wasPaused)
             {
                 // Stop while paused: finalize segments without starting a new recording.
                 _isPaused = false;
                 StatusChanged?.Invoke(this, new RecordingStatusEventArgs(RecordingStatus.Finalizing, _lastDuration));
-            }
-
-            if (_abortRequested)
-            {
-                CleanupSegments(deleteFinalOutput: true);
-                _abortRequested = false;
-                return null;
             }
 
             await StopRecordingCoreAsync(signalStop: true);
@@ -347,10 +519,8 @@ public class ScreenRecordingManager : IScreenRecordingManager
                 finalPath = _finalOutputPath;
             }
 
-            if (wasPaused)
-            {
-                StatusChanged?.Invoke(this, new RecordingStatusEventArgs(RecordingStatus.Idle, _lastDuration));
-            }
+            _sessionActive = false;
+            StatusChanged?.Invoke(this, new RecordingStatusEventArgs(RecordingStatus.Idle, _lastDuration));
 
             // Mark as finalized and cache the path for subsequent calls
             lock (_lock)
@@ -361,31 +531,69 @@ public class ScreenRecordingManager : IScreenRecordingManager
 
             return finalPath;
         }
+        catch (Exception ex)
+        {
+            _sessionTimer?.Dispose();
+            _sessionTimer = null;
+            ReleasePreparedRecording();
+            lock (_lock)
+            {
+                _sessionActive = false;
+                _isFinalized = true;
+                _cachedFinalPath = null;
+                _finalizationFailure = System.Runtime.ExceptionServices.ExceptionDispatchInfo.Capture(ex);
+            }
+            StatusChanged?.Invoke(this, new RecordingStatusEventArgs(RecordingStatus.Error, _lastDuration));
+            throw;
+        }
         finally
         {
+            _finishing = false;
             _stopSemaphore.Release();
         }
     }
 
     /// <summary>
-    /// Aborts the current recording session without saving
+    /// Aborts the current recording session without saving. As ShareX's AbortRecording, this does not ask: the
+    /// recording controls ask first when "Ask for confirmation when aborting" is on.
     /// </summary>
-    public async Task AbortRecordingAsync()
+    public Task AbortRecordingAsync() => DiscardRecordingAsync();
+
+    public async Task DiscardRecordingAsync()
     {
-        DebugHelper.WriteLine("ScreenRecordingManager: Aborting recording...");
-
-        bool wasPaused = IsPaused;
-        _abortRequested = true;
-        _isPaused = false;
-
-        await StopRecordingCoreAsync(signalStop: true);
-        CleanupSegments(deleteFinalOutput: true);
-        _abortRequested = false;
-
-        if (wasPaused)
+        lock (_lock)
         {
-            StatusChanged?.Invoke(this, new RecordingStatusEventArgs(RecordingStatus.Idle, _lastDuration));
+            if (!_sessionActive) return;
+            _discardRequested = true;
+            (_currentRecording ?? _preparedRecording)?.CancelInitialization();
+            if (_startSignal != null)
+            {
+                // The waiting take ends the session itself.
+                _startSignal.TrySetResult(false);
+                return;
+            }
         }
+        await _stopSemaphore.WaitAsync();
+        try
+        {
+            if (!_sessionActive) return;
+            _finishing = true;
+            _sessionTimer?.Dispose();
+            _sessionTimer = null;
+            _sessionClock.Stop();
+            await StopRecordingCoreAsync(signalStop: false, discard: true);
+            CleanupSegments(deleteFinalOutput: false);
+            ReleasePreparedRecording();
+            lock (_lock)
+            {
+                _isFinalized = true;
+                _cachedFinalPath = null;
+                _sessionActive = false;
+                _stopSignal?.TrySetResult(true);
+            }
+            StatusChanged?.Invoke(this, new RecordingStatusEventArgs(RecordingStatus.Idle, _sessionClock.Elapsed));
+        }
+        finally { _finishing = false; _stopSemaphore.Release(); }
     }
 
     /// <summary>
@@ -417,10 +625,12 @@ public class ScreenRecordingManager : IScreenRecordingManager
 
     private static bool ShouldForceFallback(RecordingOptions options)
     {
+        if (OperatingSystem.IsLinux() && (options.AudioOnly ||
+            (options.FFmpegOptions != null && !IsWaylandSession))) return true;
         var settings = options.Settings;
 
         // Detect Wayland - FFmpeg x11grab doesn't work on Wayland
-        bool isWayland = Environment.GetEnvironmentVariable("XDG_SESSION_TYPE")?.Equals("wayland", StringComparison.OrdinalIgnoreCase) == true;
+        bool isWayland = IsWaylandSession;
         bool hasNativeFactory = ScreenRecorderService.NativeRecordingServiceFactory != null;
 
         DebugHelper.WriteLine(
@@ -476,6 +686,8 @@ public class ScreenRecordingManager : IScreenRecordingManager
             return true;
         }
 
+        if (OperatingSystem.IsLinux() && isWayland && hasNativeFactory) return false;
+
         if (settings?.ForceFFmpeg == true)
         {
             // On Wayland, warn that ForceFFmpeg won't work and fall back to native if available
@@ -528,9 +740,14 @@ public class ScreenRecordingManager : IScreenRecordingManager
         return false;
     }
 
+    private static bool IsWaylandSession =>
+        Environment.GetEnvironmentVariable("XDG_SESSION_TYPE")?.Equals("wayland", StringComparison.OrdinalIgnoreCase) == true ||
+        !string.IsNullOrEmpty(Environment.GetEnvironmentVariable("WAYLAND_DISPLAY"));
+
     private static bool CanFallbackFrom(Exception ex)
     {
-        return ex is PlatformNotSupportedException || ex is COMException;
+        return !(OperatingSystem.IsLinux() && IsWaylandSession)
+            && (ex is PlatformNotSupportedException || ex is COMException);
     }
 
     /// <summary>
@@ -558,13 +775,19 @@ public class ScreenRecordingManager : IScreenRecordingManager
 
                 try
                 {
-                    recordingService = CreateRecordingService(useFallback);
+                    if (!useFallback && _preparedRecording != null)
+                    {
+                        recordingService = _preparedRecording;
+                        _preparedRecording = null;
+                    }
+                    else
+                    {
+                        recordingService = CreateRecordingService(useFallback);
+                    }
                     capabilities = recordingService.GetCapabilities(optionsToStart);
                     _currentRecording = recordingService;
                     _currentOptions = optionsToStart;
                     _currentCapabilities = capabilities;
-                    _stopSignal = new TaskCompletionSource<bool>();
-                    _restartRequested = false;
                 }
                 catch
                 {
@@ -605,6 +828,8 @@ public class ScreenRecordingManager : IScreenRecordingManager
                 lock (_lock)
                 {
                     _currentCapabilities = RecordingRuntimeCapabilities.None;
+                    _currentRecording = null;
+                    _currentOptions = null;
                 }
                 preferFallback = true;
             }
@@ -663,7 +888,16 @@ public class ScreenRecordingManager : IScreenRecordingManager
 
     private void OnRecordingStatusChanged(object? sender, RecordingStatusEventArgs e)
     {
-        _lastDuration = e.Duration;
+        if (_suppressBackendStatus) return;
+        if (e.Status == RecordingStatus.Recording) _sessionClock.Start();
+        else _sessionClock.Stop();
+        _lastDuration = _sessionClock.Elapsed;
+        if (e.Status == RecordingStatus.Idle)
+        {
+            if (!_finishing) _stopSignal?.TrySetResult(true);
+            return; // The manager emits Idle after final output processing.
+        }
+        e = new RecordingStatusEventArgs(e.Status, _lastDuration);
         DebugHelper.WriteLine($"ScreenRecordingManager: Status changed to {e.Status}, Duration={e.Duration}");
         StatusChanged?.Invoke(this, e);
     }
@@ -676,6 +910,10 @@ public class ScreenRecordingManager : IScreenRecordingManager
         // Clean up on fatal error and unblock the waiting WorkerTask
         if (e.IsFatal)
         {
+            _recordingFailure = e.Error;
+            _sessionClock.Stop();
+            _sessionTimer?.Dispose();
+            _sessionTimer = null;
             lock (_lock)
             {
                 if (_currentRecording != null)
@@ -706,80 +944,35 @@ public class ScreenRecordingManager : IScreenRecordingManager
 
     public async Task PauseRecordingAsync()
     {
-        if (!IsRecording || IsPaused)
+        await _stopSemaphore.WaitAsync();
+        try
         {
-            return;
-        }
-
-        RecordingPauseBehavior pauseBehavior;
-        lock (_lock)
-        {
-            pauseBehavior = _currentCapabilities.PauseBehavior;
-        }
-
-        if (pauseBehavior == RecordingPauseBehavior.Unsupported)
-        {
-            DebugHelper.WriteLine("ScreenRecordingManager: Pause ignored because the active backend does not support pause/resume safely.");
-            return;
-        }
-
-        if (pauseBehavior == RecordingPauseBehavior.NativePauseResume)
-        {
-            if (_currentRecording is not IPausableRecordingService pausableRecording)
-            {
-                DebugHelper.WriteLine("ScreenRecordingManager: Backend reported native pause support but does not implement IPausableRecordingService.");
-                return;
-            }
-
+            if (!IsRecording || IsPaused || !CurrentCapabilities.SupportsPauseResume) return;
+            _suppressBackendStatus = true;
+            _sessionClock.Stop();
+            if (_currentRecording is IPausableRecordingService native) await native.PauseRecordingAsync();
+            else await StopRecordingCoreAsync(signalStop: false);
             _isPaused = true;
-            await pausableRecording.PauseRecordingAsync();
-            StatusChanged?.Invoke(this, new RecordingStatusEventArgs(RecordingStatus.Paused, _lastDuration));
-            return;
+            StatusChanged?.Invoke(this, new RecordingStatusEventArgs(RecordingStatus.Paused, _sessionClock.Elapsed));
         }
-
-        _isPaused = true;
-        await StopRecordingCoreAsync(signalStop: false);
-        StatusChanged?.Invoke(this, new RecordingStatusEventArgs(RecordingStatus.Paused, _lastDuration));
+        catch { _sessionClock.Start(); throw; }
+        finally { _suppressBackendStatus = false; _stopSemaphore.Release(); }
     }
 
     public async Task ResumeRecordingAsync()
     {
-        RecordingPauseBehavior pauseBehavior;
-        RecordingOptions? options;
-        IPausableRecordingService? pausableRecording = null;
-        lock (_lock)
+        await _stopSemaphore.WaitAsync();
+        try
         {
-            if (!_isPaused || _resumeOptions == null)
-            {
-                return;
-            }
-
-            pauseBehavior = _currentCapabilities.PauseBehavior;
-            options = _resumeOptions;
-            pausableRecording = _currentRecording as IPausableRecordingService;
-        }
-
-        if (pauseBehavior == RecordingPauseBehavior.Unsupported)
-        {
-            DebugHelper.WriteLine("ScreenRecordingManager: Resume ignored because the active backend does not support pause/resume safely.");
-            return;
-        }
-
-        if (pauseBehavior == RecordingPauseBehavior.NativePauseResume)
-        {
-            if (pausableRecording == null)
-            {
-                DebugHelper.WriteLine("ScreenRecordingManager: Backend reported native resume support but no active pausable recording service was found.");
-                return;
-            }
-
-            await pausableRecording.ResumeRecordingAsync();
+            if (!IsPaused || _resumeOptions == null) return;
+            _suppressBackendStatus = true;
+            if (_currentRecording is IPausableRecordingService native) await native.ResumeRecordingAsync();
+            else await StartRecordingInternalAsync(_resumeOptions, isResume: true);
             _isPaused = false;
-            return;
+            _sessionClock.Start();
+            StatusChanged?.Invoke(this, new RecordingStatusEventArgs(RecordingStatus.Recording, _sessionClock.Elapsed));
         }
-
-        _isPaused = false;
-        await StartRecordingInternalAsync(options, isResume: true);
+        finally { _suppressBackendStatus = false; _stopSemaphore.Release(); }
     }
 
     private RecordingOptions PrepareRecordingOptions(RecordingOptions options, bool isResume)
@@ -787,8 +980,8 @@ public class ScreenRecordingManager : IScreenRecordingManager
         if (!isResume)
         {
             _segments.Clear();
+            _restartRequested = false;
             _segmentIndex = 0;
-            _abortRequested = false;
             _isPaused = false;
             _isFinalized = false;
             _cachedFinalPath = null;
@@ -802,12 +995,15 @@ public class ScreenRecordingManager : IScreenRecordingManager
         }
 
         var segmentPath = BuildSegmentPath(_finalOutputPath!, _segmentIndex++);
-        return CloneOptions(options, segmentPath);
+        var capture = CloneOptions(options, segmentPath);
+        capture.IsLossless = options.TwoPassEncoding && !options.AudioOnly;
+        if (capture.IsLossless) capture.OutputPath = Path.ChangeExtension(segmentPath, "mp4");
+        return capture;
     }
 
     private void UpdateFinalOutputExtensionFromSegmentPath(string? actualSegmentPath)
     {
-        if (string.IsNullOrWhiteSpace(actualSegmentPath))
+        if (_resumeOptions?.TwoPassEncoding == true || string.IsNullOrWhiteSpace(actualSegmentPath))
         {
             return;
         }
@@ -851,8 +1047,9 @@ public class ScreenRecordingManager : IScreenRecordingManager
         await StartRecordingCoreAsync(optionsToStart, preferFallback);
     }
 
-    private async Task StopRecordingCoreAsync(bool signalStop)
+    private async Task StopRecordingCoreAsync(bool signalStop, bool discard = false, bool keepSession = false)
     {
+        bool sessionKept = false;
         IRecordingService? recordingService;
         string? outputPath;
         string? fallbackSegmentPath;
@@ -877,7 +1074,16 @@ public class ScreenRecordingManager : IScreenRecordingManager
         try
         {
             DebugHelper.WriteLine("ScreenRecordingManager: Stopping recording...");
-            await recordingService.StopRecordingAsync();
+            if (discard && keepSession && recordingService is ISessionRecordingService session)
+            {
+                await session.DiscardTakeAsync();
+                sessionKept = true;
+            }
+            else if (discard && recordingService is IAbortableRecordingService abortable)
+                await abortable.AbortRecordingAsync();
+            else await recordingService.StopRecordingAsync();
+            if (!discard && _recordingFailure != null)
+                throw new InvalidOperationException("Recording failed while stopping.", _recordingFailure);
 
             if (signalStop)
             {
@@ -892,7 +1098,7 @@ public class ScreenRecordingManager : IScreenRecordingManager
 
             if (!string.IsNullOrEmpty(resolvedOutput))
             {
-                if (!File.Exists(resolvedOutput))
+                if (!discard && !File.Exists(resolvedOutput))
                 {
                     DebugHelper.WriteLine($"ScreenRecordingManager: Output not found yet, waiting: {resolvedOutput}");
                     bool appeared = await WaitForFileAsync(resolvedOutput, TimeSpan.FromSeconds(5));
@@ -928,9 +1134,9 @@ public class ScreenRecordingManager : IScreenRecordingManager
                 {
                     _segments.Add(resolvedOutput);
                 }
-                else
+                else if (!discard)
                 {
-                    DebugHelper.WriteLine($"ScreenRecordingManager: Output missing after stop: {resolvedOutput}");
+                    throw new InvalidOperationException($"Recording stopped without producing an output file: {resolvedOutput}");
                 }
             }
         }
@@ -943,7 +1149,14 @@ public class ScreenRecordingManager : IScreenRecordingManager
         {
             lock (_lock)
             {
-                if (recordingService != null)
+                if (sessionKept)
+                {
+                    // Restart records the next take with the same source.
+                    recordingService.StatusChanged -= OnRecordingStatusChanged;
+                    recordingService.ErrorOccurred -= OnRecordingErrorOccurred;
+                    _preparedRecording = recordingService;
+                }
+                else if (recordingService != null)
                 {
                     CleanupCurrentRecording(recordingService);
                 }
@@ -956,55 +1169,44 @@ public class ScreenRecordingManager : IScreenRecordingManager
 
     private async Task<string?> FinalizeSegmentsAsync()
     {
-        if (_segments.Count == 0)
+        if (_segments.Count == 0 || _finalOutputPath == null) return null;
+        string final = _finalOutputPath;
+        string ffmpeg = _resumeOptions?.FFmpegOverridePath ?? PathsManager.GetFFmpegPath();
+        string input = _segments[0];
+        string? concat = null;
+        try
         {
-            return null;
-        }
-
-        if (string.IsNullOrEmpty(_finalOutputPath))
-        {
-            return _segments.LastOrDefault();
-        }
-
-        if (_segments.Count == 1)
-        {
-            string single = _segments[0];
-            string finalOutputPath = _finalOutputPath!;
-            if (!string.Equals(single, _finalOutputPath, StringComparison.OrdinalIgnoreCase))
+            if (_segments.Count > 1)
             {
-                FileHelpers.CreateDirectoryFromFilePath(_finalOutputPath);
-                File.Move(single, _finalOutputPath, overwrite: true);
+                concat = FileHelpers.AppendTextToFileName(input, "-concat");
+                await RecordingEncoding.ConcatenateAsync(ffmpeg, _segments, concat);
+                input = concat;
             }
-
+            if (_resumeOptions is { TwoPassEncoding: true, AudioOnly: false } options)
+            {
+                string encoded = FileHelpers.AppendTextToFileName(final, "-encoded");
+                // As ShareX's two-pass encoding, report the encoding progress (shown in the tray).
+                StatusChanged?.Invoke(this, new RecordingStatusEventArgs(RecordingStatus.Finalizing, _lastDuration) { EncodingProgress = 0 });
+                await RecordingEncoding.EncodeAsync(ffmpeg, input, options.Clone(encoded), progress =>
+                    StatusChanged?.Invoke(this, new RecordingStatusEventArgs(RecordingStatus.Finalizing, _lastDuration) { EncodingProgress = progress }));
+                File.Move(encoded, final, overwrite: true);
+            }
+            else File.Move(input, final, overwrite: true);
+            foreach (string segment in _segments)
+                if (File.Exists(segment)) File.Delete(segment);
             _segments.Clear();
             ResetSegmentState();
-            return finalOutputPath;
+            return final;
         }
-
-        string ffmpegPath = PathsManager.GetFFmpegPath();
-        if (string.IsNullOrWhiteSpace(ffmpegPath) || !File.Exists(ffmpegPath))
+        catch (RecordingFailedException ex)
         {
-            DebugHelper.WriteLine("ScreenRecordingManager: FFmpeg not found; cannot concatenate paused segments.");
-            return _segments.LastOrDefault();
+            throw new RecordingFailedException($"{ex.Message} The recording was kept: {string.Join(", ", _segments)}", ex);
         }
-
-        string finalConcatPath = _finalOutputPath!;
-        string tempOutput = FileHelpers.AppendTextToFileName(_finalOutputPath, "-concat");
-        await Task.Run(() =>
+        finally
         {
-            var ffmpeg = new XerahS.Media.FFmpegCLIManager(ffmpegPath);
-            ffmpeg.ShowError = true;
-            ffmpeg.ConcatenateVideos(_segments.ToArray(), tempOutput, autoDeleteInputFiles: true);
-        });
-
-        if (File.Exists(tempOutput))
-        {
-            File.Move(tempOutput, _finalOutputPath, overwrite: true);
+            // Originals are retained until encoding and moving the final output succeeded.
+            if (concat != null && File.Exists(concat)) File.Delete(concat);
         }
-
-        _segments.Clear();
-        ResetSegmentState();
-        return finalConcatPath;
     }
 
     private void CleanupSegments(bool deleteFinalOutput)
@@ -1046,17 +1248,7 @@ public class ScreenRecordingManager : IScreenRecordingManager
 
     private static RecordingOptions CloneOptions(RecordingOptions source, string? outputPath = null)
     {
-        return new RecordingOptions
-        {
-            Mode = source.Mode,
-            TargetWindowHandle = source.TargetWindowHandle,
-            Region = source.Region,
-            OutputPath = outputPath ?? source.OutputPath,
-            Settings = source.Settings,
-            FFmpegOverridePath = source.FFmpegOverridePath,
-            UseModernCapture = source.UseModernCapture,
-            LinuxRecordingBackendPreference = source.LinuxRecordingBackendPreference
-        };
+        return source.Clone(outputPath);
     }
 
     private static string BuildSegmentPath(string outputPath, int index)

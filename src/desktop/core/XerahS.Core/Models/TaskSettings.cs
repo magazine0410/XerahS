@@ -522,6 +522,9 @@ public class TaskSettingsCapture
     public int ScreenRecordFPS = 30;
     public int GIFFPS = 15;
     public bool ScreenRecordShowCursor = true;
+    public bool ScreenRecordMouseHighlighter = false;
+    public bool ScreenRecordShowTimer = true;
+    public bool ScreenRecordShowButtonLabels = true;
     public bool ScreenRecordAutoStart = true;
     public float ScreenRecordStartDelay = 0f;
     public bool ScreenRecordFixedDuration = false;
@@ -537,6 +540,27 @@ public class TaskSettingsCapture
     public ScreenRecordingSettings ScreenRecordingSettings = new ScreenRecordingSettings();
     public ScrollingCaptureOptions ScrollingCaptureOptions = new ScrollingCaptureOptions();
     public OCROptions OCROptions = new OCROptions();
+
+    [System.Runtime.Serialization.OnDeserialized]
+    internal void OnDeserialized(System.Runtime.Serialization.StreamingContext context) => MigrateRecordingSettings();
+
+    /// <summary>
+    /// Before ShareX's recording options were used, recordings took their frame rate, cursor and audio from
+    /// <see cref="ScreenRecordingSettings"/>, which the recording page wrote. Those values are carried over so such
+    /// settings record as before. Every editor now writes both places, so only settings saved earlier change.
+    /// </summary>
+    internal void MigrateRecordingSettings()
+    {
+        var recording = ScreenRecordingSettings ??= new ScreenRecordingSettings();
+        FFmpegOptions ??= new FFmpegOptions();
+        if (recording.FPS > 0 && recording.FPS != ScreenRecordFPS) ScreenRecordFPS = recording.FPS;
+        if (recording.ShowCursor != ScreenRecordShowCursor) ScreenRecordShowCursor = recording.ShowCursor;
+        if (string.IsNullOrEmpty(FFmpegOptions.AudioSource) && (recording.CaptureSystemAudio || recording.CaptureMicrophone))
+        {
+            FFmpegOptions.AudioSource = !recording.CaptureSystemAudio ? "default"
+                : OperatingSystem.IsWindows() ? FFmpegCaptureDevice.VirtualAudioCapturer.Value : "system";
+        }
+    }
 }
 
 /// <summary>

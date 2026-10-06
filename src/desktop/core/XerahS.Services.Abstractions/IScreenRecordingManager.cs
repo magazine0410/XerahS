@@ -40,6 +40,7 @@ public interface IScreenRecordingManager
     Task StartRecordingAsync(object options);
     Task<string?> StopRecordingAsync();
     Task AbortRecordingAsync();
+    Task DiscardRecordingAsync() => AbortRecordingAsync();
     Task TogglePauseResumeAsync();
 
     /// <summary>Asks the running recording workflow to discard the current take and start again.</summary>
@@ -47,4 +48,11 @@ public interface IScreenRecordingManager
 
     /// <summary>True once per <see cref="RequestRestart"/>; read by the workflow after the stop signal.</summary>
     bool ConsumeRestartRequest() => false;
+
+    /// <summary>Discards the current take and records the next one with <paramref name="options"/>.</summary>
+    async Task RestartRecordingAsync(object options)
+    {
+        await DiscardRecordingAsync();
+        await StartRecordingAsync(options);
+    }
 }

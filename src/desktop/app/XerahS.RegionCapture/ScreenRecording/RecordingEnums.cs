@@ -63,7 +63,10 @@ public enum RecordingStatus
     Finalizing,
 
     /// <summary>Error state - recording failed</summary>
-    Error
+    Error,
+
+    /// <summary>Waiting for manual start or the automatic start delay</summary>
+    Waiting
 }
 
 /// <summary>

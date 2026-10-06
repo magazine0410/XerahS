@@ -35,6 +35,9 @@ namespace XerahS.Platform.Linux.Services;
 /// </summary>
 public sealed class LinuxInputService : IInputService
 {
+    public Task<IAsyncDisposable?> BeginRecordingHighlightAsync() => LinuxScreenCaptureService.IsWayland
+        ? KdeRecordingHighlight.BeginAsync() : Task.FromResult<IAsyncDisposable?>(null);
+
     public bool SupportsGlobalMouseMonitoring => LinuxGlobalMouseMonitor.IsSupported;
     public IGlobalMouseMonitor CreateGlobalMouseMonitor(MouseHighlighterInputBuffer input) => new LinuxGlobalMouseMonitor(input);
 

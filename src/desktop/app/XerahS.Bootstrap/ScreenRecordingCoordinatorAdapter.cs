@@ -48,6 +48,14 @@ namespace XerahS.Bootstrap
             remove => manager.RecordingStarted -= value;
         }
 
+        public event EventHandler<RecordingStartedEventArgs>? RecordingPreparing
+        {
+            add => manager.RecordingPreparing += value;
+            remove => manager.RecordingPreparing -= value;
+        }
+        public bool IsWaiting => manager.IsWaiting;
+        public RecordingOptions? CurrentOptions => manager.CurrentOptions;
+        public void SignalStart() => manager.SignalStart();
         public bool IsRecording => manager.IsRecording;
         public bool IsPaused => manager.IsPaused;
         public bool IsUsingFallback => manager.IsUsingFallback;
