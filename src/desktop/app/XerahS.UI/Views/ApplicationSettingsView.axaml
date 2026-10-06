@@ -262,6 +262,9 @@
                                                 Command="{Binding BrowseFolderCommand}"
                                                 AutomationProperties.Name="Browse Screenshots Folder"/>
                                     </Grid>
+                                    <TextBlock Text="Secondary screenshots folder (when the main folder is unavailable):"/>
+                                    <TextBox Text="{Binding CustomScreenshotsPath2}" IsEnabled="{Binding UseCustomScreenshotsPath}" PlaceholderText="Path to an existing fallback folder"/>
+
                                 </StackPanel>
                             </Border>
                         </StackPanel>
@@ -442,6 +445,14 @@
                                               IsEnabled="{Binding SupportsContextMenuIntegration}"
                                               ToolTip.Tip="Adds an option to upload files from the right-click context menu"
                                               AutomationProperties.Name="Enable Context Menu Integration"/>
+                                    <StackPanel Spacing="12" IsEnabled="{Binding SupportsAdditionalShellIntegration}">
+                                        <CheckBox Content="Add 'Edit with XerahS' to image context menu" IsChecked="{Binding EnableImageEditorIntegration}"/>
+                                        <CheckBox Content="Associate .sxcu files with XerahS" IsChecked="{Binding RegisterCustomUploaderExtension}"/>
+                                        <CheckBox Content="Associate .sxie files with XerahS" IsChecked="{Binding RegisterImageEffectExtension}"/>
+                                        <CheckBox Content="Enable Chrome extension support" IsChecked="{Binding EnableChromeExtension}"/>
+                                        <CheckBox Content="Enable Firefox addon support" IsChecked="{Binding EnableFirefoxExtension}"/>
+                                        <TextBlock Text="{Binding ShellIntegrationStatus}" TextWrapping="Wrap"/>
+                                    </StackPanel>
                                     <CheckBox IsChecked="{Binding EnableSendToIntegration}" 
                                               Content="Add to 'Send To' menu"
                                               IsEnabled="{Binding SupportsSendToIntegration}"
@@ -978,6 +989,63 @@
                 </ScrollViewer>
             </TabItem>
 
+            <TabItem Header="Export / Import">
+                <ScrollViewer controls:SettingsSearch.PageId="export-import">
+                    <StackPanel Spacing="24" Margin="24">
+                        <StackPanel Spacing="8" controls:SettingsSearch.IsPanel="True">
+                            <TextBlock Text="Settings Backup and Restore" FontWeight="SemiBold"/>
+                            <Border BorderThickness="1"
+                                    BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}"
+                                    Background="{DynamicResource CardBackgroundFillColorDefaultBrush}"
+                                    CornerRadius="4" Padding="16">
+                                <StackPanel Spacing="12">
+                                    <TextBlock Text="Create one portable file containing the settings (application settings, workflows, destination instances, custom uploader definitions, and destination credentials), the history, or both. Import restores what the file contains. Restored credentials are encrypted by the destination computer."
+                                               TextWrapping="Wrap"/>
+                                    <Border Background="{DynamicResource SystemFillColorCautionBackgroundBrush}"
+                                            BorderBrush="{DynamicResource SystemFillColorCautionBrush}"
+                                            BorderThickness="1"
+                                            CornerRadius="4"
+                                            Padding="12">
+                                        <TextBlock Text="Security warning: the backup file is intentionally unencrypted and can contain plaintext passwords, S3 keys, and OAuth tokens. Protect it like a password vault."
+                                                   TextWrapping="Wrap"
+                                                   FontSize="12"/>
+                                    </Border>
+                                    <StackPanel Orientation="Horizontal" Spacing="16">
+                                        <CheckBox Content="Settings" IsChecked="{Binding ExportSettings}" AutomationProperties.Name="Export Settings"/>
+                                        <CheckBox Content="History" IsChecked="{Binding ExportHistory}" AutomationProperties.Name="Export History"/>
+                                    </StackPanel>
+                                    <StackPanel Orientation="Horizontal" Spacing="8">
+                                        <Button Content="Export..."
+                                                Command="{Binding BackupSettingsToFileCommand}"
+                                                AutomationProperties.Name="Back Up Settings to File"/>
+                                        <Button Content="Import..."
+                                                Command="{Binding RestoreSettingsFromFileCommand}"
+                                                AutomationProperties.Name="Restore Settings from File"/>
+                                    </StackPanel>
+                                    <TextBlock Text="{Binding SettingsBackupStatusText}"
+                                               TextWrapping="Wrap"
+                                               FontSize="12"
+                                               Foreground="{DynamicResource SystemControlForegroundBaseMediumBrush}"/>
+                                </StackPanel>
+                            </Border>
+                        </StackPanel>
+
+                        <StackPanel Spacing="8" controls:SettingsSearch.IsPanel="True">
+                            <TextBlock Text="Automatic cleanup" FontWeight="SemiBold"/>
+                            <Border BorderThickness="1" BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}" Background="{DynamicResource CardBackgroundFillColorDefaultBrush}" CornerRadius="4" Padding="16">
+                                <StackPanel Spacing="12">
+                                    <CheckBox IsChecked="{Binding AutoCleanupBackupFiles}" Content="Automatically cleanup old backup files"/>
+                                    <CheckBox IsChecked="{Binding AutoCleanupLogFiles}" Content="Automatically cleanup old log files"/>
+                                    <TextBlock Text="Number of files to keep:"/>
+                                    <NumericUpDown Value="{Binding CleanupKeepFileCount}" Minimum="1" Maximum="10000" FormatString="0" Width="160" HorizontalAlignment="Left"/>
+                                    <TextBlock Text="Cleanup runs when XerahS starts, keeping this number of each backup and log type." TextWrapping="Wrap"/>
+                                </StackPanel>
+                            </Border>
+                        </StackPanel>
+                    </StackPanel>
+                </ScrollViewer>
+            </TabItem>
+
              <!-- Advanced Tab -->
              <TabItem Header="Advanced">
                 <ScrollViewer controls:SettingsSearch.PageId="advanced">
@@ -1231,41 +1299,12 @@
                         </StackPanel>
                         
                         <StackPanel Spacing="8" controls:SettingsSearch.IsPanel="True">
-                            <TextBlock Text="Settings Backup and Restore" FontWeight="SemiBold"/>
-                            <Border BorderThickness="1"
-                                    BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}"
-                                    Background="{DynamicResource CardBackgroundFillColorDefaultBrush}"
-                                    CornerRadius="4" Padding="16">
-                                <StackPanel Spacing="12">
-                                    <TextBlock Text="Create one portable file containing application settings, workflows, destination instances, custom uploader definitions, and destination credentials. Restored credentials are encrypted by the destination computer."
-                                               TextWrapping="Wrap"/>
-                                    <Border Background="{DynamicResource SystemFillColorCautionBackgroundBrush}"
-                                            BorderBrush="{DynamicResource SystemFillColorCautionBrush}"
-                                            BorderThickness="1"
-                                            CornerRadius="4"
-                                            Padding="12">
-                                        <TextBlock Text="Security warning: the backup file is intentionally unencrypted and can contain plaintext passwords, S3 keys, and OAuth tokens. Protect it like a password vault."
-                                                   TextWrapping="Wrap"
-                                                   FontSize="12"/>
-                                    </Border>
-                                    <StackPanel Orientation="Horizontal" Spacing="8">
-                                        <Button Content="Back Up to File..."
-                                                Command="{Binding BackupSettingsToFileCommand}"
-                                                AutomationProperties.Name="Back Up Settings to File"/>
-                                        <Button Content="Restore from File..."
-                                                Command="{Binding RestoreSettingsFromFileCommand}"
-                                                AutomationProperties.Name="Restore Settings from File"/>
-                                    </StackPanel>
-                                    <TextBlock Text="{Binding SettingsBackupStatusText}"
-                                               TextWrapping="Wrap"
-                                               FontSize="12"
-                                               Foreground="{DynamicResource SystemControlForegroundBaseMediumBrush}"/>
-                                </StackPanel>
-                            </Border>
-                        </StackPanel>
-
-                        <StackPanel Spacing="8" controls:SettingsSearch.IsPanel="True">
                             <TextBlock Text="Application Configuration" FontWeight="SemiBold"/>
+                            <CheckBox IsChecked="{Binding SaveSettingsAfterTaskCompleted}" Content="Save settings after task completed"/>
+                            <TextBlock Text="Browser path:"/>
+                            <TextBox Text="{Binding BrowserPath}" IsEnabled="{Binding SupportsCustomBrowser}" PlaceholderText="Leave empty to use the default browser"/>
+                            <TextBlock IsVisible="{Binding !SupportsCustomBrowser}" Text="Custom browser paths are unavailable in Flatpak and Snap. Links use the desktop portal." TextWrapping="Wrap"/>
+
                             <Border BorderThickness="1"
                                     BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}"
                                     Background="{DynamicResource CardBackgroundFillColorDefaultBrush}"

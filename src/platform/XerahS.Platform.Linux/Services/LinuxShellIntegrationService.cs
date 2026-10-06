@@ -23,7 +23,10 @@
 
 #endregion License Information (GPL v3)
 
+using System.Diagnostics;
 using System.Text;
+using System.Text.Json;
+using System.Xml.Linq;
 using XerahS.Common;
 using XerahS.Platform.Abstractions;
 
@@ -31,396 +34,281 @@ namespace XerahS.Platform.Linux.Services;
 
 public sealed class LinuxShellIntegrationService : IShellIntegrationService
 {
-    private const string PluginMimeType = "application/x-xerahs-plugin";
-    private const string PluginDesktopEntryFileName = "xerahs-xsdp.desktop";
-    private const string PluginMimeXmlFileName = "xerahs-xsdp.xml";
-    private const string SendToFlag = AppContracts.Cli.SendToFlag;
-    private const string SendToMarkerKey = AppContracts.LinuxIntegration.SendToMarkerKey;
-    private const string SendToMarkerValue = "true";
+    private const string Marker = "X-XerahS-Managed=true";
+    private readonly LinuxXdgDirectories _xdg;
+    private readonly string _executable;
+    private readonly bool _updateDatabases;
+    private string Applications => Path.Combine(_xdg.DataHome, "applications");
+    private string ServiceMenus => Path.Combine(_xdg.DataHome, "kio", "servicemenus");
+    private string ThunarActions => Path.Combine(_xdg.ConfigHome, "Thunar", "uca.xml");
+    private string NativeHost => Path.Combine(_xdg.DataDirectory, "native-messaging-host");
+    // GIO checks the first executable before expanding %% in its path. Use a fixed shell
+    // executable and pass the application as a literal argument, also permitting '=' in its name.
+    private string DesktopCommand => "/bin/sh -c \"" + EscapeDesktopArgument("exec \"$@\"") + "\" xerahs \"" + EscapeDesktopArgument(_executable) + "\"";
 
-    private readonly string _processPath;
-    private readonly string _desktopEntryPath;
-    private readonly string _mimeXmlPath;
-    private readonly string _mimeAppsPath;
-    private readonly string[] _contextMenuScriptPaths;
-    private readonly string _kdeSendToEntryPath;
-    private readonly string _thunarSendToEntryPath;
+    public LinuxShellIntegrationService() : this(LinuxXdgDirectories.Detect(),
+        LinuxStartupService.ResolveExecutablePath(Environment.GetEnvironmentVariable("APPIMAGE"), Environment.ProcessPath) ?? "", true) { }
 
-    public LinuxShellIntegrationService()
+    internal LinuxShellIntegrationService(LinuxXdgDirectories xdg, string executable, bool updateDatabases = false)
     {
-        _processPath = Environment.ProcessPath ?? string.Empty;
-
-        LinuxXdgDirectories xdg = LinuxXdgDirectories.Detect();
-        string dataHome = xdg.DataHome;
-        string configHome = xdg.ConfigHome;
-
-        _desktopEntryPath = Path.Combine(dataHome, "applications", PluginDesktopEntryFileName);
-        _mimeXmlPath = Path.Combine(dataHome, "mime", "packages", PluginMimeXmlFileName);
-        _mimeAppsPath = Path.Combine(configHome, "mimeapps.list");
-
-        _contextMenuScriptPaths =
-        [
-            Path.Combine(dataHome, "nautilus", "scripts", "Upload with XerahS"),
-            Path.Combine(dataHome, "nemo", "scripts", "Upload with XerahS"),
-            Path.Combine(dataHome, "caja", "scripts", "Upload with XerahS")
-        ];
-
-        _kdeSendToEntryPath = Path.Combine(dataHome, "kio", "servicemenus", "XerahS.desktop");
-        _thunarSendToEntryPath = Path.Combine(dataHome, "Thunar", "sendto", "XerahS.desktop");
+        _xdg = xdg;
+        _executable = executable;
+        _updateDatabases = updateDatabases;
     }
 
     public bool SupportsPluginExtensionRegistration => OperatingSystem.IsLinux();
     public bool SupportsContextMenuIntegration => OperatingSystem.IsLinux();
     public bool SupportsSendToIntegration => OperatingSystem.IsLinux();
+    public bool SupportsIntegration(ShellIntegrationKind kind) => OperatingSystem.IsLinux();
 
-    public bool IsPluginExtensionRegistered()
+    public bool IsPluginExtensionRegistered() => IsAssociationEnabled("xsdp");
+    public void SetPluginExtensionRegistration(bool register) => Apply(() => SetAssociation("xsdp", "application/x-xerahs-plugin", "XerahS plugin package", "", register));
+    public bool IsContextMenuIntegrationEnabled() => ScriptPaths("Upload with XerahS").Any(File.Exists) || File.Exists(Path.Combine(ServiceMenus, "xerahs-upload.desktop"));
+    public bool SetContextMenuIntegration(bool enable) => Apply(() => SetContextAction("upload", "Upload with XerahS", "", false, enable));
+    public bool IsSendToIntegrationEnabled() => IsOwnedSendTo(Path.Combine(ServiceMenus, "XerahS.desktop")) || IsOwnedSendTo(Path.Combine(_xdg.DataHome, "Thunar", "sendto", "XerahS.desktop"));
+
+    public bool SetSendToIntegration(bool enable) => Apply(() =>
     {
-        if (!SupportsPluginExtensionRegistration)
+        string kde = Path.Combine(ServiceMenus, "XerahS.desktop");
+        string thunar = Path.Combine(_xdg.DataHome, "Thunar", "sendto", "XerahS.desktop");
+        if (enable)
         {
-            return false;
+            Write(kde, BuildKdeEntry("SendToXerahS", "XerahS", AppContracts.Cli.SendToFlag, false, "X-KDE-Submenu=Send To\n"), true);
+            Write(thunar, $"[Desktop Entry]\nType=Application\nName=Send to XerahS\nExec={DesktopCommand} {AppContracts.Cli.SendToFlag} %F\nIcon=xerahs\nMimeType=all/allfiles;inode/directory;\nTerminal=false\n{Marker}\n{AppContracts.LinuxIntegration.SendToMarkerKey}=true\n");
         }
+        else
+        {
+            if (IsOwnedSendTo(kde)) File.Delete(kde);
+            if (IsOwnedSendTo(thunar)) File.Delete(thunar);
+        }
+    });
 
-        return File.Exists(_desktopEntryPath) &&
-               File.Exists(_mimeXmlPath) &&
-               MimeAppsContainsPluginAssociation();
+    public bool IsIntegrationEnabled(ShellIntegrationKind kind) => kind switch
+    {
+        ShellIntegrationKind.ImageEditor => File.Exists(Path.Combine(ServiceMenus, "xerahs-edit.desktop")) || ScriptPaths("Edit with XerahS").Any(File.Exists),
+        ShellIntegrationKind.CustomUploader => IsAssociationEnabled("sxcu"),
+        ShellIntegrationKind.ImageEffect => IsAssociationEnabled("sxie"),
+        ShellIntegrationKind.Chrome or ShellIntegrationKind.Firefox => BrowserManifests(kind).Any(IsOwnedManifest),
+        _ => false
+    };
+
+    public bool SetIntegrationEnabled(ShellIntegrationKind kind, bool enable) => Apply(() =>
+    {
+        switch (kind)
+        {
+            case ShellIntegrationKind.ImageEditor: SetContextAction("edit", "Edit with XerahS", "-ImageEditor", true, enable); break;
+            case ShellIntegrationKind.CustomUploader: SetAssociation("sxcu", "application/x-sharex-custom-uploader", "ShareX custom uploader", "-CustomUploader", enable); break;
+            case ShellIntegrationKind.ImageEffect: SetAssociation("sxie", "application/x-sharex-image-effect", "ShareX image effect", "-ImageEffect", enable); break;
+            case ShellIntegrationKind.Chrome:
+            case ShellIntegrationKind.Firefox: SetBrowserIntegration(kind, enable); break;
+            default: throw new ArgumentOutOfRangeException(nameof(kind));
+        }
+    });
+
+    /// <summary>Refresh installed entries after an upgrade or an AppImage move, without enabling new integrations.</summary>
+    public void RefreshRegisteredEntries()
+    {
+        if (IsContextMenuIntegrationEnabled()) SetContextMenuIntegration(true);
+        if (IsSendToIntegrationEnabled()) SetSendToIntegration(true);
+        if (IsPluginExtensionRegistered()) Apply(() => SetAssociation("xsdp", "application/x-xerahs-plugin", "XerahS plugin package", "", true, updateAssociation: false));
+        if (IsIntegrationEnabled(ShellIntegrationKind.ImageEditor)) SetIntegrationEnabled(ShellIntegrationKind.ImageEditor, true);
+        if (IsIntegrationEnabled(ShellIntegrationKind.CustomUploader)) Apply(() => SetAssociation("sxcu", "application/x-sharex-custom-uploader", "ShareX custom uploader", "-CustomUploader", true, updateAssociation: false));
+        if (IsIntegrationEnabled(ShellIntegrationKind.ImageEffect)) Apply(() => SetAssociation("sxie", "application/x-sharex-image-effect", "ShareX image effect", "-ImageEffect", true, updateAssociation: false));
+        foreach (ShellIntegrationKind kind in new[] { ShellIntegrationKind.Chrome, ShellIntegrationKind.Firefox })
+            if (IsIntegrationEnabled(kind)) Apply(() => SetBrowserIntegration(kind, true, refreshOnly: true));
     }
 
-    public void SetPluginExtensionRegistration(bool register)
+    private bool Apply(Action action)
     {
-        if (!SupportsPluginExtensionRegistration)
-        {
-            return;
-        }
-
         try
         {
-            if (register)
-            {
-                if (string.IsNullOrWhiteSpace(_processPath))
-                {
-                    return;
-                }
-
-                EnsureParentDirectory(_desktopEntryPath);
-                EnsureParentDirectory(_mimeXmlPath);
-                EnsureParentDirectory(_mimeAppsPath);
-
-                File.WriteAllText(_desktopEntryPath, BuildPluginDesktopEntry(), Encoding.UTF8);
-                File.WriteAllText(_mimeXmlPath, BuildPluginMimeXml(), Encoding.UTF8);
-                UpdateMimeAppsPluginAssociation(enable: true);
-            }
-            else
-            {
-                DeleteIfExists(_desktopEntryPath);
-                DeleteIfExists(_mimeXmlPath);
-                UpdateMimeAppsPluginAssociation(enable: false);
-            }
+            if (!OperatingSystem.IsLinux() || string.IsNullOrWhiteSpace(_executable)) return false;
+            action();
+            return true;
         }
         catch (Exception ex)
         {
-            DebugHelper.WriteException(ex, "LinuxShellIntegrationService: Failed to update plugin association.");
-        }
-    }
-
-    public bool IsContextMenuIntegrationEnabled()
-    {
-        if (!SupportsContextMenuIntegration)
-        {
+            DebugHelper.WriteException(ex, "Linux shell integration");
             return false;
         }
-
-        return _contextMenuScriptPaths.Any(File.Exists);
     }
 
-    public bool SetContextMenuIntegration(bool enable)
-    {
-        if (!SupportsContextMenuIntegration)
-        {
-            return !enable;
-        }
+    private IEnumerable<string> ScriptPaths(string name) => new[] { "nautilus", "nemo", "caja" }
+        .Select(manager => Path.Combine(_xdg.DataHome, manager, "scripts", name));
 
-        try
+    private void SetContextAction(string id, string name, string flag, bool imagesOnly, bool enable)
+    {
+        // Validate and preserve existing user actions before changing the other file managers.
+        UpdateThunarAction(id, name, flag, imagesOnly, enable);
+        foreach (string path in ScriptPaths(name))
         {
             if (enable)
             {
-                if (string.IsNullOrWhiteSpace(_processPath))
-                {
-                    return false;
-                }
-
-                string content = BuildContextMenuScript();
-                foreach (string path in _contextMenuScriptPaths)
-                {
-                    EnsureParentDirectory(path);
-                    File.WriteAllText(path, content, new UTF8Encoding(encoderShouldEmitUTF8Identifier: false));
-                    TryMakeExecutable(path);
-                }
+                // Nautilus may provide the selection through its environment instead of argv.
+                string script = $"#!/usr/bin/env bash\n# {Marker}\n" +
+                    "if [ \"$#\" -eq 0 ]; then\n" +
+                    "  selected=\"${NAUTILUS_SCRIPT_SELECTED_FILE_PATHS:-${NEMO_SCRIPT_SELECTED_FILE_PATHS:-${CAJA_SCRIPT_SELECTED_FILE_PATHS:-}}}\"\n" +
+                    "  while IFS= read -r path; do [ -z \"$path\" ] || set -- \"$@\" \"$path\"; done <<< \"$selected\"\nfi\n" +
+                    $"[ \"$#\" -gt 0 ] && exec {QuoteShell(_executable)} {flag} \"$@\"\n";
+                Write(path, script, true);
             }
-            else
+            else Delete(path);
+        }
+        string kde = Path.Combine(ServiceMenus, $"xerahs-{id}.desktop");
+        if (enable) Write(kde, BuildKdeEntry(id, name, flag, imagesOnly), true);
+        else Delete(kde);
+    }
+
+    private string BuildKdeEntry(string id, string name, string flag, bool imagesOnly, string extra = "") =>
+        $"[Desktop Entry]\nType=Service\nMimeType={(imagesOnly ? "image/*;" : "all/all;")}\nActions={id};\nX-KDE-Priority=TopLevel\n{extra}{Marker}\n{AppContracts.LinuxIntegration.SendToMarkerKey}=true\n\n[Desktop Action {id}]\nName={name}\nIcon=xerahs\nExec={DesktopCommand} {flag} %F\n";
+
+    private void UpdateThunarAction(string id, string name, string flag, bool imagesOnly, bool enable)
+    {
+        if (!enable && !File.Exists(ThunarActions)) return;
+        XDocument document = File.Exists(ThunarActions) ? XDocument.Load(ThunarActions) : new XDocument(new XElement("actions"));
+        XElement root = document.Root ?? throw new InvalidDataException("Thunar custom actions have no root element.");
+        if (root.Name != "actions") throw new InvalidDataException("Invalid Thunar custom actions file.");
+        string uniqueId = "xerahs-" + id;
+        root.Elements("action").Where(a => (string?)a.Element("unique-id") == uniqueId).Remove();
+        if (enable)
+        {
+            var action = new XElement("action", new XElement("icon", "xerahs"), new XElement("name", name),
+                new XElement("unique-id", uniqueId), new XElement("command", $"{QuoteShell(_executable).Replace("%", "%%")} {flag} %F"),
+                new XElement("description", name), new XElement("patterns", "*"), new XElement("startup-notify"), new XElement("image-files"));
+            if (!imagesOnly)
+                foreach (string type in new[] { "directories", "audio-files", "other-files", "text-files", "video-files" }) action.Add(new XElement(type));
+            root.Add(action);
+        }
+        Write(ThunarActions, document.ToString());
+    }
+
+    private bool IsAssociationEnabled(string extension) => File.Exists(Path.Combine(Applications, $"xerahs-{extension}.desktop")) &&
+        File.Exists(Path.Combine(_xdg.DataHome, "mime", "packages", $"xerahs-{extension}.xml"));
+
+    private void SetAssociation(string extension, string mime, string description, string flag, bool enable, bool updateAssociation = true)
+    {
+        string desktopName = $"xerahs-{extension}.desktop";
+        string desktop = Path.Combine(Applications, desktopName);
+        string xml = Path.Combine(_xdg.DataHome, "mime", "packages", $"xerahs-{extension}.xml");
+        bool changed;
+        if (enable)
+        {
+            changed = Write(desktop, $"[Desktop Entry]\nType=Application\nName={description}\nExec={DesktopCommand} {flag} %F\nIcon=xerahs\nNoDisplay=true\nTerminal=false\nMimeType={mime};\n{Marker}\n")
+                | Write(xml, $"<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<mime-info xmlns=\"http://www.freedesktop.org/standards/shared-mime-info\"><mime-type type=\"{mime}\"><comment>{description}</comment><glob pattern=\"*.{extension}\"/></mime-type></mime-info>");
+        }
+        else changed = Delete(desktop) | Delete(xml);
+        if (updateAssociation) UpdateMimeApps(mime, desktopName, enable);
+        // The startup refresh usually finds the entries unchanged; the caches are rebuilt only after a change.
+        if (_updateDatabases && changed)
+        {
+            RunCacheUpdate("update-mime-database", Path.Combine(_xdg.DataHome, "mime"));
+            RunCacheUpdate("update-desktop-database", Applications);
+        }
+    }
+
+    private void UpdateMimeApps(string mime, string desktop, bool enable)
+    {
+        string path = Path.Combine(_xdg.ConfigHome, "mimeapps.list");
+        if (!enable && !File.Exists(path)) return;
+        var lines = File.Exists(path) ? File.ReadAllLines(path).ToList() : new List<string>();
+        int section = lines.FindIndex(l => l.Trim() == "[Default Applications]");
+        if (section < 0)
+        {
+            if (!enable) return;
+            lines.Add("[Default Applications]");
+            section = lines.Count - 1;
+        }
+        int end = section + 1;
+        while (end < lines.Count && !lines[end].TrimStart().StartsWith('[')) end++;
+        int index = lines.FindIndex(section + 1, end - section - 1, l => l.StartsWith(mime + "=", StringComparison.Ordinal));
+        var entries = index < 0 ? new List<string>() : lines[index][(mime.Length + 1)..].Split(';', StringSplitOptions.RemoveEmptyEntries).ToList();
+        entries.RemoveAll(e => e == desktop);
+        if (enable) entries.Insert(0, desktop);
+        string line = mime + "=" + string.Join(';', entries) + ";";
+        if (index >= 0) { if (entries.Count == 0) lines.RemoveAt(index); else lines[index] = line; }
+        else if (enable) lines.Insert(end, line);
+        Write(path, string.Join(Environment.NewLine, lines) + Environment.NewLine);
+    }
+
+    private IEnumerable<string> BrowserManifests(ShellIntegrationKind kind) => kind == ShellIntegrationKind.Firefox
+        ? new[] { Path.Combine(_xdg.HomeDirectory, ".mozilla", "native-messaging-hosts", "ShareX.json") }
+        : new[] { "google-chrome", "chromium", "BraveSoftware/Brave-Browser", "microsoft-edge" }
+            .Select(browser => Path.Combine(_xdg.ConfigHome, browser, "NativeMessagingHosts", "com.getsharex.sharex.json"));
+
+    private void SetBrowserIntegration(ShellIntegrationKind kind, bool enable, bool refreshOnly = false)
+    {
+        if (enable)
+        {
+            Write(NativeHost, $"#!/bin/sh\n# {Marker}\nexec {QuoteShell(_executable)} --native-messaging-host \"$@\"\n", true);
+            var manifest = new Dictionary<string, object>
             {
-                foreach (string path in _contextMenuScriptPaths)
-                {
-                    DeleteIfExists(path);
-                }
-            }
-
-            return IsContextMenuIntegrationEnabled() == enable;
+                ["name"] = kind == ShellIntegrationKind.Firefox ? "ShareX" : "com.getsharex.sharex",
+                ["description"] = "XerahS browser integration", ["path"] = NativeHost, ["type"] = "stdio"
+            };
+            if (kind == ShellIntegrationKind.Firefox) manifest["allowed_extensions"] = new[] { "firefox@getsharex.com" };
+            else manifest["allowed_origins"] = new[] { "chrome-extension://nlkoigbdolhchiicbonbihbphgamnaoc/" };
+            foreach (string path in BrowserManifests(kind))
+                if (!refreshOnly || IsOwnedManifest(path)) Write(path, JsonSerializer.Serialize(manifest));
         }
-        catch (Exception ex)
+        else
         {
-            DebugHelper.WriteException(ex, "LinuxShellIntegrationService: Failed to update context menu integration.");
-            return false;
+            foreach (string path in BrowserManifests(kind)) if (IsOwnedManifest(path)) File.Delete(path);
+            if (!BrowserManifests(ShellIntegrationKind.Chrome).Concat(BrowserManifests(ShellIntegrationKind.Firefox)).Any(IsOwnedManifest)) Delete(NativeHost);
         }
     }
 
-    public bool IsSendToIntegrationEnabled()
-    {
-        if (!SupportsSendToIntegration)
-        {
-            return false;
-        }
-
-        return IsManagedSendToEntry(_kdeSendToEntryPath) || IsManagedSendToEntry(_thunarSendToEntryPath);
-    }
-
-    public bool SetSendToIntegration(bool enable)
-    {
-        if (!SupportsSendToIntegration)
-        {
-            return !enable;
-        }
-
-        try
-        {
-            if (enable)
-            {
-                if (string.IsNullOrWhiteSpace(_processPath))
-                {
-                    return false;
-                }
-
-                EnsureParentDirectory(_kdeSendToEntryPath);
-                File.WriteAllText(_kdeSendToEntryPath, BuildKdeSendToDesktopEntry(), new UTF8Encoding(encoderShouldEmitUTF8Identifier: false));
-
-                EnsureParentDirectory(_thunarSendToEntryPath);
-                File.WriteAllText(_thunarSendToEntryPath, BuildThunarSendToDesktopEntry(), new UTF8Encoding(encoderShouldEmitUTF8Identifier: false));
-            }
-            else
-            {
-                DeleteIfExists(_kdeSendToEntryPath);
-                DeleteIfExists(_thunarSendToEntryPath);
-            }
-
-            return IsSendToIntegrationEnabled() == enable;
-        }
-        catch (Exception ex)
-        {
-            DebugHelper.WriteException(ex, "LinuxShellIntegrationService: Failed to update send-to integration.");
-            return false;
-        }
-    }
-
-    private bool MimeAppsContainsPluginAssociation()
-    {
-        if (!File.Exists(_mimeAppsPath))
-        {
-            return false;
-        }
-
-        string[] lines = File.ReadAllLines(_mimeAppsPath);
-        string expected = $"{PluginMimeType}={PluginDesktopEntryFileName};";
-        return lines.Any(line => string.Equals(line.Trim(), expected, StringComparison.OrdinalIgnoreCase));
-    }
-
-    private void UpdateMimeAppsPluginAssociation(bool enable)
-    {
-        List<string> lines = File.Exists(_mimeAppsPath)
-            ? File.ReadAllLines(_mimeAppsPath).ToList()
-            : [];
-
-        const string defaultApplicationsSection = "[Default Applications]";
-        string targetLinePrefix = $"{PluginMimeType}=";
-        string replacementLine = $"{PluginMimeType}={PluginDesktopEntryFileName};";
-
-        int sectionIndex = lines.FindIndex(line => string.Equals(line.Trim(), defaultApplicationsSection, StringComparison.OrdinalIgnoreCase));
-        if (sectionIndex < 0 && enable)
-        {
-            lines.Add(defaultApplicationsSection);
-            lines.Add(replacementLine);
-        }
-        else if (sectionIndex >= 0)
-        {
-            int insertIndex = sectionIndex + 1;
-            int existingIndex = -1;
-            for (int i = sectionIndex + 1; i < lines.Count; i++)
-            {
-                string trimmed = lines[i].Trim();
-                if (trimmed.StartsWith("[", StringComparison.Ordinal) && trimmed.EndsWith(']'))
-                {
-                    break;
-                }
-
-                if (trimmed.StartsWith(targetLinePrefix, StringComparison.OrdinalIgnoreCase))
-                {
-                    existingIndex = i;
-                    break;
-                }
-
-                insertIndex = i + 1;
-            }
-
-            if (enable)
-            {
-                if (existingIndex >= 0)
-                {
-                    lines[existingIndex] = replacementLine;
-                }
-                else
-                {
-                    lines.Insert(insertIndex, replacementLine);
-                }
-            }
-            else if (existingIndex >= 0)
-            {
-                lines.RemoveAt(existingIndex);
-            }
-        }
-
-        EnsureParentDirectory(_mimeAppsPath);
-        File.WriteAllLines(_mimeAppsPath, lines);
-    }
-
-    private string BuildPluginDesktopEntry()
-    {
-        return
-$"""
-[Desktop Entry]
-Type=Application
-Name=XerahS Plugin Installer
-Exec="{_processPath}" "%f"
-NoDisplay=true
-MimeType={PluginMimeType};
-""";
-    }
-
-    private static string BuildPluginMimeXml()
-    {
-        return
-"""
-<?xml version="1.0" encoding="UTF-8"?>
-<mime-info xmlns="http://www.freedesktop.org/standards/shared-mime-info">
-  <mime-type type="application/x-xerahs-plugin">
-    <comment>XerahS plugin package</comment>
-    <glob pattern="*.xsdp"/>
-  </mime-type>
-</mime-info>
-""";
-    }
-
-    private string BuildContextMenuScript()
-    {
-        return
-$"""
-#!/usr/bin/env bash
-"{_processPath}" "$@"
-""";
-    }
-
-    private string BuildKdeSendToDesktopEntry()
-    {
-        return
-$"""
-[Desktop Entry]
-Type=Service
-ServiceTypes=KonqPopupMenu/Plugin
-MimeType=all/all;
-Actions=SendToXerahS
-X-KDE-Priority=TopLevel
-X-KDE-Submenu=Send To
-{SendToMarkerKey}={SendToMarkerValue}
-
-[Desktop Action SendToXerahS]
-Name=XerahS
-Exec="{_processPath}" {SendToFlag} %F
-Icon=xerahs
-""";
-    }
-
-    private string BuildThunarSendToDesktopEntry()
-    {
-        return
-$"""
-[Desktop Entry]
-Type=Application
-Name=Send to XerahS
-Exec="{_processPath}" {SendToFlag} %F
-Icon=xerahs
-MimeType=all/allfiles;
-NoDisplay=false
-Terminal=false
-{SendToMarkerKey}={SendToMarkerValue}
-""";
-    }
-
-    private bool IsManagedSendToEntry(string path)
-    {
-        if (!File.Exists(path))
-        {
-            return false;
-        }
-
-        try
-        {
-            string content = File.ReadAllText(path);
-            return content.Contains($"{SendToMarkerKey}={SendToMarkerValue}", StringComparison.OrdinalIgnoreCase) &&
-                   content.Contains(_processPath, StringComparison.OrdinalIgnoreCase) &&
-                   content.Contains(SendToFlag, StringComparison.OrdinalIgnoreCase);
-        }
-        catch
-        {
-            return false;
-        }
-    }
-
-    private static void EnsureParentDirectory(string path)
-    {
-        string? parent = Path.GetDirectoryName(path);
-        if (!string.IsNullOrWhiteSpace(parent))
-        {
-            Directory.CreateDirectory(parent);
-        }
-    }
-
-    private static void DeleteIfExists(string path)
-    {
-        if (File.Exists(path))
-        {
-            File.Delete(path);
-        }
-    }
-
-    private static void TryMakeExecutable(string path)
+    private bool IsOwnedManifest(string path)
     {
         try
         {
-            if (!OperatingSystem.IsLinux())
-            {
-                return;
-            }
+            using var doc = JsonDocument.Parse(File.ReadAllText(path));
+            return doc.RootElement.TryGetProperty("path", out var entry) && entry.GetString() == NativeHost;
+        }
+        catch { return false; }
+    }
 
-            File.SetUnixFileMode(
-                path,
-                UnixFileMode.UserRead |
-                UnixFileMode.UserWrite |
-                UnixFileMode.UserExecute |
-                UnixFileMode.GroupRead |
-                UnixFileMode.GroupExecute |
-                UnixFileMode.OtherRead |
-                UnixFileMode.OtherExecute);
-        }
-        catch
+    private static bool IsOwnedSendTo(string path)
+    {
+        try { return File.Exists(path) && File.ReadAllText(path).Contains(AppContracts.LinuxIntegration.SendToMarkerKey + "=true", StringComparison.Ordinal); }
+        catch (Exception ex) { DebugHelper.WriteException(ex, "Read Send To entry"); return false; }
+    }
+
+    internal static string QuoteShell(string value) => "'" + value.Replace("'", "'\"'\"'") + "'";
+    internal static string EscapeDesktopArgument(string value) => value.Replace("\\", "\\\\\\\\").Replace("\"", "\\\\\"")
+        .Replace("`", "\\\\`").Replace("$", "\\\\$").Replace("%", "%%").Replace("\n", "\\n").Replace("\r", "\\r");
+
+    /// <summary>Writes the file unless it already has this content; returns whether it changed.</summary>
+    private static bool Write(string path, string content, bool executable = false)
+    {
+        byte[] bytes = new UTF8Encoding(false).GetBytes(content);
+        bool unchanged = File.Exists(path) && File.ReadAllBytes(path).AsSpan().SequenceEqual(bytes);
+        if (!unchanged)
         {
-            // Ignore chmod failures: script may still be usable depending on file manager behavior.
+            Directory.CreateDirectory(Path.GetDirectoryName(path)!);
+            File.WriteAllBytes(path, bytes);
         }
+        if (executable && OperatingSystem.IsLinux())
+        {
+            const UnixFileMode mode = UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.UserExecute;
+            if (File.GetUnixFileMode(path) != mode) File.SetUnixFileMode(path, mode);
+        }
+        return !unchanged;
+    }
+    private static bool Delete(string path)
+    {
+        if (!File.Exists(path)) return false;
+        File.Delete(path);
+        return true;
+    }
+    private static void RunCacheUpdate(string command, string folder)
+    {
+        try
+        {
+            var info = new ProcessStartInfo(command) { UseShellExecute = false };
+            info.ArgumentList.Add(folder);
+            using var process = Process.Start(info);
+            process?.WaitForExit();
+        }
+        catch (Exception ex) { DebugHelper.WriteException(ex, "Refresh desktop integration cache"); }
     }
 }

@@ -25,49 +25,36 @@
 
 using System.Text;
 
-namespace XerahS.Common
+namespace XerahS.Common;
+
+/// <summary>Browser native messaging framing (a native-endian length followed by UTF-8 JSON).</summary>
+public class NativeMessagingHost
 {
-    public class NativeMessagingHost
+    public const int MaximumInputBytes = 64 * 1024 * 1024;
+    public const int MaximumOutputBytes = 1024 * 1024;
+    public string? Read() => Read(Console.OpenStandardInput());
+    public void Write(string data) => Write(Console.OpenStandardOutput(), data);
+
+    public static string? Read(Stream input)
     {
-        public string? Read()
-        {
-            string? input = null;
+        byte[] length = new byte[4];
+        int first = input.ReadByte();
+        if (first < 0) return null;
+        length[0] = (byte)first;
+        input.ReadExactly(length.AsSpan(1));
+        int count = BitConverter.ToInt32(length);
+        if (count <= 0 || count > MaximumInputBytes) throw new InvalidDataException("Invalid native message length.");
+        byte[] data = new byte[count];
+        input.ReadExactly(data);
+        return new UTF8Encoding(false, true).GetString(data);
+    }
 
-            Stream inputStream = Console.OpenStandardInput();
-
-            byte[] bytesLength = new byte[4];
-            int read = inputStream.Read(bytesLength);
-
-            if (read == 4)
-            {
-                int inputLength = BitConverter.ToInt32(bytesLength, 0);
-
-                if (inputLength > 0)
-                {
-                    byte[] bytesInput = new byte[inputLength];
-                    inputStream.ReadExactly(bytesInput);
-                    input = Encoding.UTF8.GetString(bytesInput);
-                }
-            }
-
-            return input;
-        }
-
-        public void Write(string data)
-        {
-            Stream outputStream = Console.OpenStandardOutput();
-
-            byte[] bytesData = Encoding.UTF8.GetBytes(data);
-            byte[] bytesLength = BitConverter.GetBytes(bytesData.Length);
-
-            outputStream.Write(bytesLength, 0, bytesLength.Length);
-
-            if (bytesData.Length > 0)
-            {
-                outputStream.Write(bytesData, 0, bytesData.Length);
-            }
-
-            outputStream.Flush();
-        }
+    public static void Write(Stream output, string data)
+    {
+        byte[] bytes = Encoding.UTF8.GetBytes(data);
+        if (bytes.Length > MaximumOutputBytes) throw new InvalidDataException("Native response exceeds the browser limit.");
+        output.Write(BitConverter.GetBytes(bytes.Length));
+        output.Write(bytes);
+        output.Flush();
     }
 }

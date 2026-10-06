@@ -48,7 +48,7 @@ public sealed class SettingsViewModelBackupRestoreTests
             Assert.Fail(error);
             return Task.CompletedTask;
         };
-        viewModel.SettingsBackupWriter = path =>
+        viewModel.SettingsBackupWriter = (path, _, _) =>
         {
             writerThreadId = Environment.CurrentManagedThreadId;
             return new PortableSettingsBackupResult(path, 0, 5, Array.Empty<string>());

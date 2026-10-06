@@ -481,9 +481,20 @@ public static partial class TaskHelpers
         var settings = SettingsManager.Settings;
 
         // Check if custom path is configured
-        if (settings.UseCustomScreenshotsPath && !string.IsNullOrEmpty(settings.CustomScreenshotsPath))
+        if (settings.UseCustomScreenshotsPath)
         {
-            return FileHelpers.GetAbsolutePath(settings.CustomScreenshotsPath);
+            string primary = settings.CustomScreenshotsPath;
+            string secondary = settings.CustomScreenshotsPath2;
+            if (!string.IsNullOrWhiteSpace(primary))
+            {
+                primary = FileHelpers.GetAbsolutePath(primary);
+                if (string.IsNullOrWhiteSpace(secondary) || Directory.Exists(primary)) return primary;
+            }
+            if (!string.IsNullOrWhiteSpace(secondary))
+            {
+                secondary = FileHelpers.GetAbsolutePath(secondary);
+                if (Directory.Exists(secondary)) return secondary;
+            }
         }
 
         // Determine folder based on job category

@@ -29,8 +29,10 @@ using XerahS.Core;
 
 namespace XerahS.Tests.Helpers;
 
+[NonParallelizable]
 public class TaskHelpersScreenshotsFolderTests
 {
+    private string _originalSecondaryPath = string.Empty;
     private bool _originalUseCustomScreenshotsPath;
     private string _originalCustomScreenshotsPath = string.Empty;
     private bool _originalUseSaveImageSubFolderPattern;
@@ -41,6 +43,8 @@ public class TaskHelpersScreenshotsFolderTests
     public void SetUp()
     {
         var settings = SettingsManager.Settings;
+        _originalSecondaryPath = settings.CustomScreenshotsPath2;
+        settings.CustomScreenshotsPath2 = string.Empty;
         _originalUseCustomScreenshotsPath = settings.UseCustomScreenshotsPath;
         _originalCustomScreenshotsPath = settings.CustomScreenshotsPath;
         _originalUseSaveImageSubFolderPattern = settings.UseSaveImageSubFolderPattern;
@@ -52,6 +56,7 @@ public class TaskHelpersScreenshotsFolderTests
     public void TearDown()
     {
         var settings = SettingsManager.Settings;
+        settings.CustomScreenshotsPath2 = _originalSecondaryPath;
         settings.UseCustomScreenshotsPath = _originalUseCustomScreenshotsPath;
         settings.CustomScreenshotsPath = _originalCustomScreenshotsPath;
         settings.UseSaveImageSubFolderPattern = _originalUseSaveImageSubFolderPattern;
@@ -134,5 +139,30 @@ public class TaskHelpersScreenshotsFolderTests
         string folder = TaskHelpers.GetScreenshotsParentFolder(taskSettings);
 
         Assert.That(folder, Is.EqualTo(PathsManager.ScreencastsFolder));
+    }
+    [Test]
+    public void SecondaryFolder_PreservesPatternAndPrimaryPrecedence()
+    {
+        string root = Path.Combine(Path.GetTempPath(), "xerahs-folders-" + Guid.NewGuid().ToString("N"));
+        string primary = Path.Combine(root, "primary"), secondary = Path.Combine(root, "secondary");
+        Directory.CreateDirectory(secondary);
+        try
+        {
+            var config = SettingsManager.Settings;
+            config.UseCustomScreenshotsPath = true;
+            config.CustomScreenshotsPath = primary;
+            config.CustomScreenshotsPath2 = secondary;
+            config.UseSaveImageSubFolderPattern = true;
+            config.SaveImageSubFolderPattern = "captures";
+            Assert.That(TaskHelpers.GetScreenshotsFolder(), Is.EqualTo(Path.Combine(secondary, "captures")));
+            Directory.CreateDirectory(primary);
+            Assert.That(TaskHelpers.GetScreenshotsFolder(), Is.EqualTo(Path.Combine(primary, "captures")));
+            Directory.Delete(primary);
+            Directory.Delete(secondary);
+            Assert.That(TaskHelpers.GetScreenshotsParentFolder(), Is.EqualTo(PathsManager.ScreenshotsFolder));
+            config.CustomScreenshotsPath2 = "";
+            Assert.That(TaskHelpers.GetScreenshotsParentFolder(), Is.EqualTo(primary), "Without a fallback, ShareX allows a new primary folder.");
+        }
+        finally { Directory.Delete(root, true); }
     }
 }

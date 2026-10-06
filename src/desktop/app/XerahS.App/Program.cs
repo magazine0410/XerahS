@@ -38,7 +38,7 @@ using XerahS.Services.Abstractions;
 
 namespace XerahS.App
 {
-    internal class Program
+    internal partial class Program
     {
         private static XerahS.Common.SingleInstanceManager? _singleInstanceManager;
         private static string[] _startupArguments = Array.Empty<string>();
@@ -64,6 +64,11 @@ namespace XerahS.App
         [STAThread]
         public static void Main(string[] args)
         {
+            if (args?.FirstOrDefault() == "--native-messaging-host")
+            {
+                BrowserNativeMessagingHost.Run();
+                return;
+            }
             try
             {
                 StartupOptions startupOptions = ParseStartupOptions(args ?? Array.Empty<string>());
@@ -880,9 +885,11 @@ namespace XerahS.App
             {
                 try
                 {
-                    // Bring the main window to the foreground
+                    // As in ShareX, a second start without arguments brings the main window forward (from the
+                    // tray too); with arguments (files from the file manager, a browser upload) it is only
+                    // activated when it is already shown.
                     if (Avalonia.Application.Current?.ApplicationLifetime is Avalonia.Controls.ApplicationLifetimes.IClassicDesktopStyleApplicationLifetime desktop &&
-                        desktop.MainWindow != null)
+                        desktop.MainWindow != null && (args.Length == 0 || desktop.MainWindow.IsVisible))
                     {
                         var mainWindow = desktop.MainWindow;
                         
@@ -902,8 +909,6 @@ namespace XerahS.App
                         mainWindow.Topmost = false;
                     }
 
-                    // TODO: Process arguments if needed (e.g., file paths to open, commands to execute)
-                    // For now, just activating the window is the primary behavior
                     if (args.Length > 0)
                     {
                         XerahS.Common.DebugHelper.WriteLine($"Processing {args.Length} argument(s) from secondary instance");
@@ -976,6 +981,10 @@ namespace XerahS.App
                 return;
             }
 
+            args = IntegrationArguments.Extract(args, out List<IntegrationRequest> integrationRequests);
+            if (integrationRequests.Count > 0) _ = ProcessIntegrationRequestsAsync(integrationRequests);
+            if (args.Length == 0) return;
+
             IncomingPluginPackageSet pluginPackages = ExtractIncomingPluginPackages(args);
             if (pluginPackages.PackagePaths.Count > 0)
             {
@@ -985,7 +994,7 @@ namespace XerahS.App
             }
 
             bool isSendToInvocation = IsSendToInvocation(args);
-            IncomingPathSet pathSet = ExtractIncomingPaths(args, includeDirectories: isSendToInvocation);
+            IncomingPathSet pathSet = ExtractIncomingPaths(args, includeDirectories: true);
 
             if (pathSet.Files.Count == 0 && pathSet.Folders.Count == 0)
             {
@@ -1014,7 +1023,7 @@ namespace XerahS.App
 
             XerahS.Common.DebugHelper.WriteLine(
                 $"Shell integration ({source}): Scheduling upload for {pathSet.Files.Count} file(s).");
-            _ = Task.Run(() => UploadFilesFromIntegrationAsync(pathSet.Files));
+            _ = UploadPathsFromIntegrationAsync(pathSet.Files, pathSet.Folders);
         }
 
         private static async Task ProcessCloudCallbackAsync(string callbackArgument, string source)

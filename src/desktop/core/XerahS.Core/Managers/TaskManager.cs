@@ -85,7 +85,8 @@ namespace XerahS.Core.Managers
             TaskStarted?.Invoke(this, task);
 
             XerahS.Common.TroubleshootingHelper.Log(task.Info?.TaskSettings?.Job.ToString() ?? "Unknown", "TASK_MANAGER", "Calling task.StartAsync...");
-            await task.StartAsync();
+            try { await task.StartAsync(); }
+            finally { await SaveSettingsAfterTasksAsync(); }
             XerahS.Common.TroubleshootingHelper.Log(task.Info?.TaskSettings?.Job.ToString() ?? "Unknown", "TASK_MANAGER", "task.StartAsync completed");
         }
 
@@ -124,7 +125,8 @@ namespace XerahS.Core.Managers
 
             TaskStarted?.Invoke(this, task);
 
-            await task.StartAsync();
+            try { await task.StartAsync(); }
+            finally { await SaveSettingsAfterTasksAsync(); }
         }
 
         public async Task StartImageUploadTask(TaskSettings? taskSettings, SkiaSharp.SKBitmap image)
@@ -161,7 +163,8 @@ namespace XerahS.Core.Managers
 
             TaskStarted?.Invoke(this, task);
 
-            await task.StartAsync();
+            try { await task.StartAsync(); }
+            finally { await SaveSettingsAfterTasksAsync(); }
         }
 
         public async Task StartTextTask(TaskSettings? taskSettings, string text)
@@ -209,7 +212,22 @@ namespace XerahS.Core.Managers
 
             TaskStarted?.Invoke(this, task);
 
-            await task.StartAsync();
+            try { await task.StartAsync(); }
+            finally { await SaveSettingsAfterTasksAsync(); }
+        }
+
+        private async Task SaveSettingsAfterTasksAsync()
+        {
+            if (!SettingsManager.Settings.SaveSettingsAfterTaskCompleted || Tasks.Any(t => !t.HasFinished)) return;
+            try
+            {
+                // Editor preferences contain Avalonia objects; serialize on their owning thread.
+                if (Avalonia.Application.Current != null)
+                    await Avalonia.Threading.Dispatcher.UIThread.InvokeAsync(SettingsManager.SaveAllSettings);
+                else
+                    SettingsManager.SaveAllSettings();
+            }
+            catch (Exception ex) { DebugHelper.WriteException(ex, "Save settings after task completed"); }
         }
 
         private void AddTask(WorkerTask task)

@@ -44,6 +44,18 @@ public sealed class AvaloniaDialogServiceAdapter : IDialogService
         return ShowPromptAsync(title, message, showCancel: true, isError: false, isWarning: false);
     }
 
+    public static async Task<bool?> ShowYesNoCancelAsync(string title, string message)
+    {
+        var vm = new SimplePromptViewModel
+        {
+            Title = title, Message = message, ShowCancel = true, ShowSecondary = true,
+            PrimaryButtonText = "Yes", SecondaryButtonText = "No", CancelButtonText = "Cancel"
+        };
+        bool yes = await ModalDialogHost.ShowAsync(vm, set => vm.CloseRequested = set,
+            dismissResult: false, debugSource: "YesNoCancel");
+        return yes ? true : vm.SecondaryChosen ? false : null;
+    }
+
     public Task ShowErrorAsync(string title, string error)
     {
         return ShowPromptAsync(title, error, showCancel: false, isError: true, isWarning: false);

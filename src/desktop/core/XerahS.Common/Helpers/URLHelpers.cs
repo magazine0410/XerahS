@@ -383,16 +383,33 @@ namespace XerahS.Common
                     throw new Exception("Invalid URL.");
                 }
 
-                System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
-                {
-                    FileName = url,
-                    UseShellExecute = true
-                });
+                using var process = System.Diagnostics.Process.Start(CreateBrowserStartInfo(url));
             }
             catch (Exception ex)
             {
                 System.Diagnostics.Debug.WriteLine(ex);
             }
+        }
+
+        /// <summary>
+        /// True when a web link goes to ShareX's custom browser path. Other links, such as mailto:, are left to
+        /// the desktop's opener, which knows their handlers.
+        /// </summary>
+        public static bool UsesCustomBrowser(string url) =>
+            HelpersOptions.SupportsCustomBrowser && !string.IsNullOrWhiteSpace(HelpersOptions.BrowserPath) &&
+            Uri.TryCreate(url, UriKind.Absolute, out Uri? uri) && (uri.Scheme == Uri.UriSchemeHttp || uri.Scheme == Uri.UriSchemeHttps);
+
+        /// <summary>Starts the custom browser with the URL as one argument, or opens the URL itself.</summary>
+        public static System.Diagnostics.ProcessStartInfo CreateBrowserStartInfo(string url)
+        {
+            var start = new System.Diagnostics.ProcessStartInfo { UseShellExecute = true };
+            if (!UsesCustomBrowser(url)) start.FileName = url;
+            else
+            {
+                start.FileName = HelpersOptions.BrowserPath;
+                start.ArgumentList.Add(url);
+            }
+            return start;
         }
 
         public static string URLEncode(string text, bool isPath = false, bool ignoreEmoji = false)

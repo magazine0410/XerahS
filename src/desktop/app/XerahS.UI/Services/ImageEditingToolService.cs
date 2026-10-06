@@ -170,7 +170,7 @@ internal static class ImageEditingToolService
         return true;
     }
 
-    internal static ImageEffectsToolWindow CreateImageEffectsWindow(SKBitmap image, string? path, TaskSettings? taskSettings,
+    internal static ImageEffectsToolWindow CreateImageEffectsWindow(SKBitmap? image, string? path, TaskSettings? taskSettings,
         IDesktopTaskManager taskManager)
     {
         var sourceSettings = taskSettings ?? SettingsManager.DefaultTaskSettings;
