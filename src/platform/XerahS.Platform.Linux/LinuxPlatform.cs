@@ -103,6 +103,7 @@ namespace XerahS.Platform.Linux
                 ? new WaylandPortalInputService()
                 : new LinuxInputService();
 
+            HelpersOptions.SupportsCustomBrowser = !environment.IsSandboxed;
             ISystemService systemService = usePortalServices
                 ? new WaylandPortalSystemService(allowNativeFallback: !environment.IsSandboxed)
                 : new LinuxSystemService();
@@ -111,6 +112,8 @@ namespace XerahS.Platform.Linux
             IShellIntegrationService shellIntegrationService = environment.IsSandboxed
                 ? new UnsupportedShellIntegrationService()
                 : new LinuxShellIntegrationService();
+            // Follow an AppImage move or an upgrade without delaying startup.
+            if (shellIntegrationService is LinuxShellIntegrationService linuxShell) _ = Task.Run(linuxShell.RefreshRegisteredEntries);
             var notificationService = CreateNotificationService(environment, usePortalServices);
 
             PlatformServices.Initialize(

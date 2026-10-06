@@ -33,6 +33,7 @@ using XerahS.Common;
 using XerahS.Common.Utilities;
 using XerahS.Core.Uploaders;
 using XerahS.Core.Security;
+using XerahS.History;
 using XerahS.Uploaders;
 using XerahS.Uploaders.PluginSystem;
 
@@ -62,30 +63,60 @@ public static class PortableSettingsBackupService
     private const string SecretsEntryName = "settings/secrets.json";
     private const string AdditionalPrefix = "settings/additional/";
     private const string CustomUploadersPrefix = "custom-uploaders/";
+    private const string HistoryEntryName = "history/History.db";
 
-    public static PortableSettingsBackupResult Create(string outputFilePath)
+    public static PortableSettingsBackupResult Create(string outputFilePath) =>
+        Create(outputFilePath, includeSettings: true, includeHistory: false);
+
+    /// <summary>ShareX's Export: the settings, the history, or both.</summary>
+    public static PortableSettingsBackupResult Create(string outputFilePath, bool includeSettings, bool includeHistory)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(outputFilePath);
+        if (!includeSettings && !includeHistory)
+        {
+            throw new ArgumentException("Choose the settings, the history, or both to export.");
+        }
+
         outputFilePath = NormalizeBackupFilePath(outputFilePath);
 
-        SettingsManager.SaveAllSettings();
-        SettingsManager.UploadersConfig.SyncPolymorphicSettingsFromLegacy();
-
-        ISecretStore secretStore = ProviderContextManager.EnsureProviderContext().Secrets;
         List<string> warnings = new();
-        List<PortableSecret> secrets = CollectSecrets(secretStore, warnings);
+        List<PortableSecret> secrets = new();
+        var content = new Dictionary<string, byte[]>(StringComparer.Ordinal);
 
-        var content = new Dictionary<string, byte[]>(StringComparer.Ordinal)
+        if (includeSettings)
         {
-            [ApplicationEntryName] = ReadAllBytes(SettingsManager.Settings.SaveToMemoryStream()),
-            [UploadersEntryName] = ReadAllBytes(SettingsManager.UploadersConfig.SaveToMemoryStream()),
-            [WorkflowsEntryName] = ReadAllBytes(SettingsManager.WorkflowsConfig.SaveToMemoryStream()),
-            [InstancesEntryName] = Encoding.UTF8.GetBytes(InstanceManager.Instance.ExportConfigurationJson()),
-            [SecretsEntryName] = Encoding.UTF8.GetBytes(JsonConvert.SerializeObject(secrets, Formatting.Indented))
-        };
+            SettingsManager.SaveAllSettings();
+            SettingsManager.UploadersConfig.SyncPolymorphicSettingsFromLegacy();
 
-        AddAdditionalSettingsFiles(content, outputFilePath);
-        AddCustomUploaderDefinitions(content);
+            ISecretStore secretStore = ProviderContextManager.EnsureProviderContext().Secrets;
+            secrets = CollectSecrets(secretStore, warnings);
+
+            content[ApplicationEntryName] = ReadAllBytes(SettingsManager.Settings.SaveToMemoryStream());
+            content[UploadersEntryName] = ReadAllBytes(SettingsManager.UploadersConfig.SaveToMemoryStream());
+            content[WorkflowsEntryName] = ReadAllBytes(SettingsManager.WorkflowsConfig.SaveToMemoryStream());
+            content[InstancesEntryName] = Encoding.UTF8.GetBytes(InstanceManager.Instance.ExportConfigurationJson());
+            content[SecretsEntryName] = Encoding.UTF8.GetBytes(JsonConvert.SerializeObject(secrets, Formatting.Indented));
+
+            AddAdditionalSettingsFiles(content, outputFilePath);
+            AddCustomUploaderDefinitions(content);
+        }
+
+        if (includeHistory)
+        {
+            string historyPath = SettingsManager.GetHistoryFilePath();
+            if (File.Exists(historyPath))
+            {
+                content[HistoryEntryName] = HistoryDatabaseBackup.Export(historyPath);
+            }
+            else if (!includeSettings)
+            {
+                throw new InvalidOperationException("There is no history to export.");
+            }
+            else
+            {
+                warnings.Add("There is no history to export; only the settings were exported.");
+            }
+        }
 
         var manifest = new BackupManifest
         {
@@ -93,7 +124,7 @@ public static class PortableSettingsBackupService
             FormatVersion = FormatVersion,
             CreatedAtUtc = DateTime.UtcNow,
             ApplicationVersion = SystemInfo.GetApplicationVersion(),
-            ContainsPlaintextSecrets = true,
+            ContainsPlaintextSecrets = includeSettings,
             SecretCount = secrets.Count,
             Warnings = warnings,
             Files = content
@@ -136,106 +167,146 @@ public static class PortableSettingsBackupService
         ArgumentException.ThrowIfNullOrWhiteSpace(inputFilePath);
 
         LoadedArchive archive = ReadAndValidateArchive(inputFilePath);
-        string applicationJson = GetRequiredText(archive, ApplicationEntryName);
-        string uploadersJson = GetRequiredText(archive, UploadersEntryName);
-        string workflowsJson = GetRequiredText(archive, WorkflowsEntryName);
-        string instancesJson = GetRequiredText(archive, InstancesEntryName);
-        string secretsJson = GetRequiredText(archive, SecretsEntryName);
-
-        JObject portableApplication = JObject.Parse(applicationJson);
-        portableApplication[nameof(ApplicationConfig.CustomUploadersConfigPath)] = string.Empty;
-        portableApplication[nameof(ApplicationConfig.CustomWorkflowsConfigPath)] = string.Empty;
-        applicationJson = portableApplication.ToString(Formatting.Indented);
-
-        ValidateSettings<ApplicationConfig>(applicationJson, "application settings");
-        ValidateSettings<UploadersConfig>(uploadersJson, "uploader settings");
-        ValidateSettings<WorkflowsConfig>(workflowsJson, "workflow settings");
-        _ = JsonConvert.DeserializeObject<InstanceConfiguration>(instancesJson)
-            ?? throw new InvalidDataException("Destination instance configuration is empty.");
-
-        List<PortableSecret> secrets = JsonConvert.DeserializeObject<List<PortableSecret>>(secretsJson)
-            ?? throw new InvalidDataException("Secret payload is empty.");
-        ValidateSecrets(secrets);
-
-        bool useMachineSpecificUploaders = portableApplication.Value<bool?>(nameof(ApplicationConfig.UseMachineSpecificUploadersConfig)) ?? false;
-        bool useMachineSpecificWorkflows = portableApplication.Value<bool?>(nameof(ApplicationConfig.UseMachineSpecificWorkflowsConfig)) ?? false;
-        string uploadersTargetPath = GetTargetConfigPath(
-            SettingsManager.SettingsFolder,
-            SettingsManager.UploadersConfigFileNamePrefix,
-            SettingsManager.UploadersConfigFileNameExtension,
-            SettingsManager.UploadersConfigFileName,
-            useMachineSpecificUploaders);
-        string workflowsTargetPath = GetTargetConfigPath(
-            SettingsManager.SettingsFolder,
-            SettingsManager.WorkflowsConfigFileNamePrefix,
-            SettingsManager.WorkflowsConfigFileNameExtension,
-            SettingsManager.WorkflowsConfigFileName,
-            useMachineSpecificWorkflows);
-
-        var replacements = new Dictionary<string, byte[]>(GetPathComparer())
+        // As in ShareX's Import, whatever the backup contains is restored: the settings, the history, or both.
+        bool hasSettings = archive.Entries.ContainsKey(ApplicationEntryName);
+        archive.Entries.TryGetValue(HistoryEntryName, out byte[]? historyDatabase);
+        if (!hasSettings && historyDatabase == null)
         {
-            [SettingsManager.ApplicationConfigFilePath] = Encoding.UTF8.GetBytes(applicationJson),
-            [Path.Combine(SettingsManager.SettingsFolder, SettingsManager.UploadersConfigFileName)] = Encoding.UTF8.GetBytes(uploadersJson),
-            [uploadersTargetPath] = Encoding.UTF8.GetBytes(uploadersJson),
-            [Path.Combine(SettingsManager.SettingsFolder, SettingsManager.WorkflowsConfigFileName)] = Encoding.UTF8.GetBytes(workflowsJson),
-            [workflowsTargetPath] = Encoding.UTF8.GetBytes(workflowsJson)
-        };
+            throw new InvalidDataException("Settings backup contains neither settings nor history.");
+        }
 
-        AddRestoredAuxiliaryFiles(archive, replacements);
+        string historyPath = SettingsManager.GetHistoryFilePath();
+        if (historyDatabase != null)
+        {
+            HistoryDatabaseBackup.Validate(historyDatabase, historyPath);
+        }
+
+        var replacements = new Dictionary<string, byte[]>(GetPathComparer());
+        string instancesJson = string.Empty;
+        List<PortableSecret> secrets = new();
+        if (hasSettings)
+        {
+            string applicationJson = GetRequiredText(archive, ApplicationEntryName);
+            string uploadersJson = GetRequiredText(archive, UploadersEntryName);
+            string workflowsJson = GetRequiredText(archive, WorkflowsEntryName);
+            instancesJson = GetRequiredText(archive, InstancesEntryName);
+            string secretsJson = GetRequiredText(archive, SecretsEntryName);
+
+            JObject portableApplication = JObject.Parse(applicationJson);
+            portableApplication[nameof(ApplicationConfig.CustomUploadersConfigPath)] = string.Empty;
+            portableApplication[nameof(ApplicationConfig.CustomWorkflowsConfigPath)] = string.Empty;
+            applicationJson = portableApplication.ToString(Formatting.Indented);
+
+            ValidateSettings<ApplicationConfig>(applicationJson, "application settings");
+            ValidateSettings<UploadersConfig>(uploadersJson, "uploader settings");
+            ValidateSettings<WorkflowsConfig>(workflowsJson, "workflow settings");
+            _ = JsonConvert.DeserializeObject<InstanceConfiguration>(instancesJson)
+                ?? throw new InvalidDataException("Destination instance configuration is empty.");
+
+            secrets = JsonConvert.DeserializeObject<List<PortableSecret>>(secretsJson)
+                ?? throw new InvalidDataException("Secret payload is empty.");
+            ValidateSecrets(secrets);
+
+            bool useMachineSpecificUploaders = portableApplication.Value<bool?>(nameof(ApplicationConfig.UseMachineSpecificUploadersConfig)) ?? false;
+            bool useMachineSpecificWorkflows = portableApplication.Value<bool?>(nameof(ApplicationConfig.UseMachineSpecificWorkflowsConfig)) ?? false;
+            string uploadersTargetPath = GetTargetConfigPath(
+                SettingsManager.SettingsFolder,
+                SettingsManager.UploadersConfigFileNamePrefix,
+                SettingsManager.UploadersConfigFileNameExtension,
+                SettingsManager.UploadersConfigFileName,
+                useMachineSpecificUploaders);
+            string workflowsTargetPath = GetTargetConfigPath(
+                SettingsManager.SettingsFolder,
+                SettingsManager.WorkflowsConfigFileNamePrefix,
+                SettingsManager.WorkflowsConfigFileNameExtension,
+                SettingsManager.WorkflowsConfigFileName,
+                useMachineSpecificWorkflows);
+
+            replacements[SettingsManager.ApplicationConfigFilePath] = Encoding.UTF8.GetBytes(applicationJson);
+            replacements[Path.Combine(SettingsManager.SettingsFolder, SettingsManager.UploadersConfigFileName)] = Encoding.UTF8.GetBytes(uploadersJson);
+            replacements[uploadersTargetPath] = Encoding.UTF8.GetBytes(uploadersJson);
+            replacements[Path.Combine(SettingsManager.SettingsFolder, SettingsManager.WorkflowsConfigFileName)] = Encoding.UTF8.GetBytes(workflowsJson);
+            replacements[workflowsTargetPath] = Encoding.UTF8.GetBytes(workflowsJson);
+
+            AddRestoredAuxiliaryFiles(archive, replacements);
+        }
 
         Dictionary<string, FileSnapshot> originalFiles = replacements.Keys
             .ToDictionary(path => path, CaptureFile, GetPathComparer());
-        string originalInstancesJson = InstanceManager.Instance.ExportConfigurationJson();
+        string originalInstancesJson = hasSettings ? InstanceManager.Instance.ExportConfigurationJson() : string.Empty;
+        byte[]? originalHistory = historyDatabase != null && File.Exists(historyPath) ? HistoryDatabaseBackup.Export(historyPath) : null;
+        bool historyReplaced = false;
         ISecretStore? restoredSecretStore = null;
         Dictionary<SecretIdentity, string?> originalSecretValues = new();
 
         try
         {
-            foreach ((string path, byte[] bytes) in replacements)
+            if (hasSettings)
             {
-                WriteFileAtomically(path, bytes);
+                foreach ((string path, byte[] bytes) in replacements)
+                {
+                    WriteFileAtomically(path, bytes);
+                }
+
+                InstanceManager.Instance.ImportConfigurationJson(instancesJson);
+                ProviderContextManager.ResetProviderContext();
+                SettingsManager.LoadAllSettings();
+                InstanceManager.Instance.ReloadConfiguration();
+
+                restoredSecretStore = ProviderContextManager.EnsureProviderContext().Secrets;
+                foreach (PortableSecret secret in secrets)
+                {
+                    var identity = new SecretIdentity(secret.ProviderId, secret.SecretKey, secret.Name);
+                    originalSecretValues[identity] = restoredSecretStore.GetSecret(secret.ProviderId, secret.SecretKey, secret.Name);
+                    restoredSecretStore.SetSecret(secret.ProviderId, secret.SecretKey, secret.Name, secret.Value);
+                    string? restoredValue = restoredSecretStore.GetSecret(secret.ProviderId, secret.SecretKey, secret.Name);
+                    if (!string.Equals(restoredValue, secret.Value, StringComparison.Ordinal))
+                    {
+                        throw new IOException($"The destination secret store rejected '{secret.ProviderId}:{secret.Name}'.");
+                    }
+                }
             }
 
-            InstanceManager.Instance.ImportConfigurationJson(instancesJson);
-            ProviderContextManager.ResetProviderContext();
-            SettingsManager.LoadAllSettings();
-            InstanceManager.Instance.ReloadConfiguration();
-
-            restoredSecretStore = ProviderContextManager.EnsureProviderContext().Secrets;
-            foreach (PortableSecret secret in secrets)
+            if (historyDatabase != null)
             {
-                var identity = new SecretIdentity(secret.ProviderId, secret.SecretKey, secret.Name);
-                originalSecretValues[identity] = restoredSecretStore.GetSecret(secret.ProviderId, secret.SecretKey, secret.Name);
-                restoredSecretStore.SetSecret(secret.ProviderId, secret.SecretKey, secret.Name, secret.Value);
-                string? restoredValue = restoredSecretStore.GetSecret(secret.ProviderId, secret.SecretKey, secret.Name);
-                if (!string.Equals(restoredValue, secret.Value, StringComparison.Ordinal))
-                {
-                    throw new IOException($"The destination secret store rejected '{secret.ProviderId}:{secret.Name}'.");
-                }
+                historyReplaced = true;
+                HistoryDatabaseBackup.Import(historyDatabase, historyPath);
             }
 
             return new PortableSettingsRestoreResult(
                 inputFilePath,
                 secrets.Count,
-                replacements.Count + 1,
-                archive.Manifest.Warnings);
+                replacements.Count + (hasSettings ? 1 : 0) + (historyDatabase != null ? 1 : 0),
+                archive.Manifest.Warnings,
+                hasSettings,
+                historyDatabase != null);
         }
         catch
         {
-            if (restoredSecretStore != null)
+            if (historyReplaced && originalHistory != null)
             {
-                RestoreSecrets(restoredSecretStore, originalSecretValues);
+                try { HistoryDatabaseBackup.Import(originalHistory, historyPath); }
+                catch (Exception ex) { DebugHelper.WriteException(ex, "Restore the history after a failed import"); }
             }
 
-            foreach ((string path, FileSnapshot snapshot) in originalFiles)
+            if (hasSettings)
             {
-                RestoreFile(path, snapshot);
+                if (restoredSecretStore != null)
+                {
+                    RestoreSecrets(restoredSecretStore, originalSecretValues);
+                }
+
+                foreach ((string path, FileSnapshot snapshot) in originalFiles)
+                {
+                    RestoreFile(path, snapshot);
+                }
+
+                InstanceManager.Instance.ImportConfigurationJson(originalInstancesJson);
+                ProviderContextManager.ResetProviderContext();
+                SettingsManager.LoadAllSettings();
+                InstanceManager.Instance.ReloadConfiguration();
             }
 
-            InstanceManager.Instance.ImportConfigurationJson(originalInstancesJson);
-            ProviderContextManager.ResetProviderContext();
-            SettingsManager.LoadAllSettings();
-            InstanceManager.Instance.ReloadConfiguration();
             throw;
         }
     }
@@ -450,7 +521,7 @@ public static class PortableSettingsBackupService
             throw new InvalidDataException("Settings backup format or version is not supported.");
         }
 
-        if (!manifest.ContainsPlaintextSecrets)
+        if (!manifest.ContainsPlaintextSecrets && entries.ContainsKey(SecretsEntryName))
         {
             throw new InvalidDataException("Settings backup secret handling declaration is invalid.");
         }
@@ -749,4 +820,6 @@ public sealed record PortableSettingsRestoreResult(
     string FilePath,
     int SecretCount,
     int FileCount,
-    IReadOnlyList<string> Warnings);
+    IReadOnlyList<string> Warnings,
+    bool RestoredSettings = true,
+    bool RestoredHistory = false);

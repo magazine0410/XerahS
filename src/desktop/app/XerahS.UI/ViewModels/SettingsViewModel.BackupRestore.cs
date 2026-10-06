@@ -43,21 +43,38 @@ public partial class SettingsViewModel
     private string _settingsBackupStatusText =
         "Create a portable settings file or restore one created on another computer.";
 
+    // ShareX's Export check boxes, both on by default.
+    [ObservableProperty]
+    [NotifyCanExecuteChangedFor(nameof(BackupSettingsToFileCommand))]
+    private bool _exportSettings = true;
+
+    [ObservableProperty]
+    [NotifyCanExecuteChangedFor(nameof(BackupSettingsToFileCommand))]
+    private bool _exportHistory = true;
+
     public Func<Task<string?>>? BackupSettingsFileRequester { get; set; }
     public Func<Task<string?>>? RestoreSettingsFileRequester { get; set; }
     public Func<string, string, Task<bool>>? SettingsBackupConfirmationRequester { get; set; }
     public Func<string, string, Task>? SettingsBackupMessageRequester { get; set; }
     public Func<string, string, Task>? SettingsBackupErrorRequester { get; set; }
-    internal Func<string, PortableSettingsBackupResult> SettingsBackupWriter { get; set; } = PortableSettingsBackupService.Create;
+    internal Func<string, bool, bool, PortableSettingsBackupResult> SettingsBackupWriter { get; set; } = PortableSettingsBackupService.Create;
     internal Func<string, PortableSettingsRestoreResult> SettingsBackupReader { get; set; } = PortableSettingsBackupService.Restore;
 
     private bool CanManageSettingsBackup() => !IsSettingsBackupBusy;
 
-    [RelayCommand(CanExecute = nameof(CanManageSettingsBackup))]
+    private bool CanExportSettingsBackup() => !IsSettingsBackupBusy && (ExportSettings || ExportHistory);
+
+    [RelayCommand(CanExecute = nameof(CanExportSettingsBackup))]
     private async Task BackupSettingsToFile()
     {
-        if (BackupSettingsFileRequester == null ||
-            SettingsBackupConfirmationRequester == null ||
+        bool includeSettings = ExportSettings, includeHistory = ExportHistory;
+        if (BackupSettingsFileRequester == null || SettingsBackupConfirmationRequester == null)
+        {
+            return;
+        }
+
+        // Only the settings contain credentials.
+        if (includeSettings &&
             !await SettingsBackupConfirmationRequester("Unencrypted Settings Backup", PlaintextBackupWarning + Environment.NewLine + Environment.NewLine + "Continue and choose a backup file?"))
         {
             return;
@@ -75,9 +92,15 @@ public partial class SettingsViewModel
         {
             // SettingsManager contains values owned by Avalonia's UI thread. Keep snapshotting
             // and serialization on that thread to avoid cross-thread access exceptions.
-            PortableSettingsBackupResult result = SettingsBackupWriter(filePath);
-            SettingsBackupStatusText = $"Backup created with {result.SecretCount} secret value(s).";
-            string message = $"Portable settings backup created:{Environment.NewLine}{result.FilePath}{Environment.NewLine}{Environment.NewLine}{PlaintextBackupWarning}";
+            PortableSettingsBackupResult result = SettingsBackupWriter(filePath, includeSettings, includeHistory);
+            SettingsBackupStatusText = includeSettings
+                ? $"Backup created with {result.SecretCount} secret value(s)."
+                : "History backup created.";
+            string message = $"Portable settings backup created:{Environment.NewLine}{result.FilePath}";
+            if (includeSettings)
+            {
+                message += Environment.NewLine + Environment.NewLine + PlaintextBackupWarning;
+            }
             if (result.Warnings.Count > 0)
             {
                 message += Environment.NewLine + Environment.NewLine + string.Join(Environment.NewLine, result.Warnings);
@@ -117,7 +140,7 @@ public partial class SettingsViewModel
         }
 
         string warning =
-            "Restoring replaces the current application, workflow, and destination settings. Destination credentials from the backup will be encrypted by this computer after import." +
+            "Restoring replaces what the backup contains: the application, workflow, and destination settings, the history, or both. Destination credentials from the backup will be encrypted by this computer after import." +
             Environment.NewLine + Environment.NewLine + PlaintextBackupWarning +
             Environment.NewLine + Environment.NewLine + "Continue with restore?";
         if (!await SettingsBackupConfirmationRequester("Restore Settings", warning))
@@ -131,8 +154,16 @@ public partial class SettingsViewModel
         {
             // Restoring replaces live settings bound to the UI, so it must run on their owner thread.
             PortableSettingsRestoreResult result = SettingsBackupReader(filePath);
-            SettingsBackupStatusText = $"Settings restored with {result.SecretCount} secret value(s). Restart XerahS.";
-            string message = "Settings were restored successfully. Restart XerahS before using the restored workflows or destinations.";
+            SettingsBackupStatusText = result.RestoredSettings
+                ? $"Settings restored with {result.SecretCount} secret value(s). Restart XerahS."
+                : "History restored.";
+            string message = result.RestoredSettings
+                ? "Settings were restored successfully. Restart XerahS before using the restored workflows or destinations."
+                : "The history was restored.";
+            if (result.RestoredSettings && result.RestoredHistory)
+            {
+                message += Environment.NewLine + Environment.NewLine + "The history was restored too.";
+            }
             if (result.Warnings.Count > 0)
             {
                 message += Environment.NewLine + Environment.NewLine + string.Join(Environment.NewLine, result.Warnings);

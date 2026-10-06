@@ -32,6 +32,7 @@ using XerahS.Common;
 using XerahS.Core;
 using XerahS.Core.Managers;
 using XerahS.Core.Uploaders;
+using XerahS.History;
 using XerahS.Uploaders.PluginSystem;
 
 namespace XerahS.Tests.Helpers;
@@ -229,6 +230,101 @@ public class PortableSettingsBackupServiceTests
         Assert.Throws<InvalidDataException>(() => PortableSettingsBackupService.Restore(archivePath));
         SettingsManager.LoadApplicationConfig(fallbackSupport: false);
         Assert.That(SettingsManager.Settings.ShowTray, Is.True);
+    }
+
+    [Test]
+    public void HistoryOnlyBackup_ReplacesTheOpenHistoryAndLeavesTheSettings()
+    {
+        string sourceRoot = Path.Combine(_testRoot, "source");
+        string targetRoot = Path.Combine(_testRoot, "target");
+        string archivePath = Path.Combine(_testRoot, "history.xsbak");
+
+        InitializeRoot(sourceRoot);
+        using (var history = new HistoryManagerSQLite(SettingsManager.GetHistoryFilePath()))
+        {
+            history.AppendHistoryItem(new HistoryItem { FileName = "source.png", FilePath = "/captures/source.png", DateTime = DateTime.Now, Type = "Image" });
+        }
+
+        PortableSettingsBackupService.Create(archivePath, includeSettings: false, includeHistory: true);
+        using (ZipArchive zip = ZipFile.OpenRead(archivePath))
+        {
+            Assert.That(zip.GetEntry("history/History.db"), Is.Not.Null);
+            Assert.That(zip.GetEntry("settings/application.json"), Is.Null, "As in ShareX, Settings off leaves the settings out.");
+        }
+
+        InitializeRoot(targetRoot);
+        SettingsManager.Settings.ShowTray = false;
+        SettingsManager.SaveApplicationConfig();
+        // XerahS keeps the history open while it runs.
+        using var openHistory = new HistoryManagerSQLite(SettingsManager.GetHistoryFilePath());
+        openHistory.AppendHistoryItem(new HistoryItem { FileName = "target.png", FilePath = "/captures/target.png", DateTime = DateTime.Now, Type = "Image" });
+
+        PortableSettingsRestoreResult restored = PortableSettingsBackupService.Restore(archivePath);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(restored.RestoredHistory, Is.True);
+            Assert.That(restored.RestoredSettings, Is.False);
+            Assert.That(openHistory.GetHistoryItems().Select(item => item.FileName), Is.EqualTo(new[] { "source.png" }));
+            Assert.That(SettingsManager.Settings.ShowTray, Is.False, "A history backup does not replace the settings.");
+        });
+    }
+
+    [Test]
+    public void SettingsAndHistoryBackup_ContainsBoth_AndNeitherIsRefused()
+    {
+        string archivePath = Path.Combine(_testRoot, "both.xsbak");
+        InitializeRoot(Path.Combine(_testRoot, "source"));
+        using (var history = new HistoryManagerSQLite(SettingsManager.GetHistoryFilePath()))
+        {
+            history.AppendHistoryItem(new HistoryItem { FileName = "both.png", FilePath = "/captures/both.png", DateTime = DateTime.Now, Type = "Image" });
+        }
+
+        PortableSettingsBackupService.Create(archivePath, includeSettings: true, includeHistory: true);
+        using (ZipArchive zip = ZipFile.OpenRead(archivePath))
+        {
+            Assert.That(zip.GetEntry("history/History.db"), Is.Not.Null);
+            Assert.That(zip.GetEntry("settings/application.json"), Is.Not.Null);
+        }
+
+        PortableSettingsRestoreResult restored = PortableSettingsBackupService.Restore(archivePath);
+        Assert.That(restored.RestoredSettings && restored.RestoredHistory, Is.True);
+        Assert.Throws<ArgumentException>(() => PortableSettingsBackupService.Create(
+            Path.Combine(_testRoot, "none.xsbak"), includeSettings: false, includeHistory: false));
+    }
+
+    [Test]
+    public void Restore_RejectsADamagedHistory_WithoutChangingTheCurrentOne()
+    {
+        string archivePath = Path.Combine(_testRoot, "damaged.xsbak");
+        InitializeRoot(Path.Combine(_testRoot, "source"));
+        using (var history = new HistoryManagerSQLite(SettingsManager.GetHistoryFilePath()))
+        {
+            history.AppendHistoryItem(new HistoryItem { FileName = "kept.png", FilePath = "/captures/kept.png", DateTime = DateTime.Now, Type = "Image" });
+        }
+        PortableSettingsBackupService.Create(archivePath, includeSettings: false, includeHistory: true);
+
+        // Replace the database with other bytes and update the manifest so only the database check can catch it.
+        byte[] damaged = Encoding.UTF8.GetBytes("not a database");
+        using (ZipArchive zip = ZipFile.Open(archivePath, ZipArchiveMode.Update))
+        {
+            zip.GetEntry("history/History.db")!.Delete();
+            using (var stream = zip.CreateEntry("history/History.db").Open()) stream.Write(damaged);
+            var manifestEntry = zip.GetEntry("manifest.json")!;
+            string manifest;
+            using (var reader = new StreamReader(manifestEntry.Open())) manifest = reader.ReadToEnd();
+            var json = Newtonsoft.Json.Linq.JObject.Parse(manifest);
+            var file = json["Files"]!.First(f => (string?)f["Path"] == "history/History.db");
+            file["Length"] = damaged.Length;
+            file["Sha256"] = Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(damaged));
+            manifestEntry.Delete();
+            using var writer = new StreamWriter(zip.CreateEntry("manifest.json").Open());
+            writer.Write(json.ToString());
+        }
+
+        Assert.Throws<InvalidDataException>(() => PortableSettingsBackupService.Restore(archivePath));
+        using var current = new HistoryManagerSQLite(SettingsManager.GetHistoryFilePath());
+        Assert.That(current.GetHistoryItems().Select(item => item.FileName), Is.EqualTo(new[] { "kept.png" }));
     }
 
     private static void InitializeRoot(string personalFolder)

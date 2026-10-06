@@ -261,6 +261,52 @@ public partial class DestinationSettingsViewModel : ViewModelBase
         }
     }
 
+    public async Task ImportCustomUploaderFileAsync(string sourcePath)
+    {
+        if (new FileInfo(sourcePath).Length > 8 * 1024 * 1024) throw new InvalidDataException("Custom uploader file is too large.");
+        var item = Newtonsoft.Json.JsonConvert.DeserializeObject<CustomUploaderItem>(await File.ReadAllTextAsync(sourcePath))
+            ?? throw new InvalidDataException("Invalid custom uploader file.");
+        var declaredDestinationType = item.DestinationType;
+        string? validationError = CustomUploaderRepository.ValidateItem(item);
+        if (validationError != null) throw new InvalidDataException(validationError);
+        item.CheckBackwardCompatibility();
+        bool activate = false;
+        if (declaredDestinationType == CustomUploaderDestinationType.None)
+        {
+            if (!await _coreDialogService.ShowConfirmationAsync("Custom uploader", $"Add custom uploader '{item.Name}'?")) return;
+        }
+        else
+        {
+            bool? answer = await AvaloniaDialogServiceAdapter.ShowYesNoCancelAsync("Custom uploader",
+                $"Add custom uploader '{item.Name}' and set it as the active destination for {item.DestinationType}?\nChoose No to add it without changing the active destination.");
+            if (answer == null) return;
+            activate = answer.Value;
+        }
+        Directory.CreateDirectory(PathsManager.PluginsFolder);
+        string filePath = ResolveCustomUploaderFilePath(PathsManager.PluginsFolder, MakeSafeFileName(item.Name), item, out bool duplicate);
+        if (!duplicate && !CustomUploaderRepository.SaveToFile(item, filePath)) throw new IOException("Could not save the custom uploader.");
+        var created = EnsureCustomUploaderInstances(filePath);
+        var provider = CustomUploaderDefinitionBindingService.GetProviderByFilePath(filePath)
+            ?? throw new InvalidDataException("Could not load the imported custom uploader.");
+        if (activate)
+        {
+            foreach (var category in provider.SupportedCategories)
+            {
+                var instance = InstanceManager.Instance.GetInstancesByCategory(category).First(i => i.ProviderId == provider.ProviderId);
+                InstanceManager.Instance.SetDefaultInstance(category, instance.InstanceId);
+                switch (category)
+                {
+                    case UploaderCategory.UrlShortener: SettingsManager.DefaultTaskSettings.UrlShortenerDestinationInstanceId = instance.InstanceId; break;
+                    case UploaderCategory.UrlSharing: SettingsManager.DefaultTaskSettings.UrlSharingDestinationInstanceId = instance.InstanceId; break;
+                    default: SettingsManager.DefaultTaskSettings.DestinationInstanceId = null; break;
+                }
+            }
+        }
+        RefreshCategories(created.AffectedCategories);
+        SettingsManager.SaveAllSettings();
+        await _coreDialogService.ShowMessageAsync("Custom uploader imported", $"Added '{item.Name}'.");
+    }
+
     [RelayCommand]
     private async Task AddCustomUploader()
     {

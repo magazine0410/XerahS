@@ -22,6 +22,7 @@
               Command="{Binding CancelCommand}"
               IsVisible="{Binding ShowCancel}"
               IsCancel="True"/>
+      <Button Content="{Binding SecondaryButtonText}" Command="{Binding SecondaryCommand}" IsVisible="{Binding ShowSecondary}"/>
       <Button Content="{Binding PrimaryButtonText}"
               Command="{Binding PrimaryCommand}"
               Classes="accent"

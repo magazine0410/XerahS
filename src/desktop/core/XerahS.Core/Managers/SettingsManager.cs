@@ -240,6 +240,7 @@ namespace XerahS.Core
             LoadApplicationConfig();
             LoadUploadersConfig();
             LoadWorkflowsConfig();
+            Managers.SettingsCleanupService.Cleanup(Settings, BackupFolder, PathsManager.LogsFolderBase, DebugHelper.Logger?.LogFilePath ?? PathsManager.GetMainLogFilePath());
             InitializeRecentTasks();
             XerahS.Core.Uploaders.ProviderContextManager.EnsureProviderContext();
         }
@@ -253,6 +254,7 @@ namespace XerahS.Core
                 LoadUploadersConfig();
                 LoadWorkflowsConfig();
             });
+            Managers.SettingsCleanupService.Cleanup(Settings, BackupFolder, PathsManager.LogsFolderBase, DebugHelper.Logger?.LogFilePath ?? PathsManager.GetMainLogFilePath());
             InitializeRecentTasks();
             XerahS.Core.Uploaders.ProviderContextManager.EnsureProviderContext();
         }
@@ -267,9 +269,11 @@ namespace XerahS.Core
             Settings = ApplicationConfig.Load(path, BackupFolder, fallbackSupport) ?? new ApplicationConfig();
             Settings.CreateBackup = true;
             Settings.CreateWeeklyBackup = true;
+            Settings.BackupRetentionDays = 0; // App cleanup is controlled by AutoCleanupBackupFiles and its file count.
 
             // Sync proxy settings to HelpersOptions
             HelpersOptions.SyncProxyFromConfig(Settings.ProxySettings);
+            HelpersOptions.BrowserPath = Settings.BrowserPath;
 
             DebugHelper.WriteLine($"ApplicationConfig load finished: {path}");
         }
@@ -319,6 +323,7 @@ namespace XerahS.Core
             UploadersConfig = UploadersConfig.Load(path, BackupFolder, fallbackSupport) ?? new UploadersConfig();
             UploadersConfig.CreateBackup = true;
             UploadersConfig.CreateWeeklyBackup = true;
+            UploadersConfig.BackupRetentionDays = 0; // App cleanup is controlled by AutoCleanupBackupFiles and its file count.
             UploadersConfig.SupportDPAPIEncryption = true;
             UploadersConfig.EnsurePolymorphicSettingsInitialized();
             // DebugHelper.WriteLine($"[SettingsManager] UploadersConfig load finished: {path}");
@@ -334,6 +339,7 @@ namespace XerahS.Core
             WorkflowsConfig = WorkflowsConfig.Load(path, BackupFolder, fallbackSupport) ?? new WorkflowsConfig();
             WorkflowsConfig.CreateBackup = true;
             WorkflowsConfig.CreateWeeklyBackup = true;
+            WorkflowsConfig.BackupRetentionDays = 0; // App cleanup is controlled by AutoCleanupBackupFiles and its file count.
 
             // Ensure all workflows have valid IDs
             WorkflowsConfig.EnsureWorkflowIds();
@@ -374,6 +380,7 @@ namespace XerahS.Core
         /// </summary>
         public static void SaveApplicationConfig()
         {
+            HelpersOptions.BrowserPath = Settings.BrowserPath;
             UpdateRecentTasks();
             Settings?.Save(ApplicationConfigFilePath);
             RaiseSettingsChanged();
@@ -666,6 +673,7 @@ namespace XerahS.Core
             LoadApplicationConfig();
             LoadUploadersConfig();
             LoadWorkflowsConfig();
+            Managers.SettingsCleanupService.Cleanup(Settings, BackupFolder, PathsManager.LogsFolderBase, DebugHelper.Logger?.LogFilePath ?? PathsManager.GetMainLogFilePath());
             InitializeRecentTasks();
             XerahS.Core.Uploaders.ProviderContextManager.EnsureProviderContext();
         }

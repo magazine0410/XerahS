@@ -46,7 +46,8 @@ public static class SettingsSearchCatalog
             App("app-history", "History", "History", ["recent", "ocr", "tasks"]),
             App("app-print", "Print", "Print", ["print", "printer", "paper", "cups"]),
             App("app-proxy", "Proxy", "Proxy", ["proxy", "network", "http", "socks"]),
-            App("app-advanced", "Advanced", "Advanced", ["capture", "engine", "linux", "macos", "wayland", "hotkey"]),
+            App("app-export-import", "Export / Import", "Export / Import", ["backup", "restore", "xsbak", "export", "import", "history", "settings", "cleanup", "logs"]),
+            App("app-advanced", "Advanced", "Advanced", ["capture", "engine", "linux", "macos", "wayland", "hotkey", "browser", "save settings"]),
 
             Dest("dest-root", "Destination Settings", null, ["upload", "destination", "uploader", "provider", "plugin"]),
             Dest("dest-image", "Image Uploaders", "Image Uploaders", ["image", "imgur", "immich", "screenshot upload"]),

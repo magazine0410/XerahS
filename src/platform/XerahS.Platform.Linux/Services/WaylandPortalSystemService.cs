@@ -106,6 +106,9 @@ public sealed class WaylandPortalSystemService : ISystemService, IDisposable
             return false;
         }
 
+        if (_allowNativeFallback && XerahS.Common.URLHelpers.UsesCustomBrowser(url))
+            return _fallback.OpenUrl(url);
+
         if (_portal != null)
         {
             if (TryPortalRequest(options => _portal.OpenURIAsync(string.Empty, url, options)))

@@ -28,8 +28,14 @@ namespace XerahS.Platform.Abstractions;
 /// <summary>
 /// Provides shell integration services such as file extension registration.
 /// </summary>
+public enum ShellIntegrationKind { ImageEditor, CustomUploader, ImageEffect, Chrome, Firefox }
+
 public interface IShellIntegrationService
 {
+    bool SupportsIntegration(ShellIntegrationKind kind) => false;
+    bool IsIntegrationEnabled(ShellIntegrationKind kind) => false;
+    bool SetIntegrationEnabled(ShellIntegrationKind kind, bool enable) => !enable;
+
     /// <summary>
     /// True when plugin file association registration is supported on this platform.
     /// </summary>

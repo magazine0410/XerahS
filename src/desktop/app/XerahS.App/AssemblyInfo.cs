@@ -23,24 +23,6 @@
 
 #endregion License Information (GPL v3)
 
-namespace XerahS.Common
-{
-    public static class HelpersOptions
-    {
-        public static ProxyInfo CurrentProxy { get; } = new ProxyInfo();
-        public static bool SupportsCustomBrowser { get; set; } = true;
-        public static string BrowserPath { get; set; } = string.Empty;
-        public static Dictionary<string, string> ShareXSpecialFolders { get; } = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+using System.Runtime.CompilerServices;
 
-        public static void SyncProxyFromConfig(ProxyInfo configProxy)
-        {
-            if (configProxy == null) return;
-
-            CurrentProxy.ProxyMethod = configProxy.ProxyMethod;
-            CurrentProxy.Host = configProxy.Host;
-            CurrentProxy.Port = configProxy.Port;
-            CurrentProxy.Username = configProxy.Username;
-            CurrentProxy.Password = configProxy.Password;
-        }
-    }
-}
+[assembly: InternalsVisibleTo("XerahS.Tests")]

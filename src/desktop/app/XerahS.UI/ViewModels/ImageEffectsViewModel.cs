@@ -829,6 +829,9 @@ namespace XerahS.UI.ViewModels
             }
         }
 
+        /// <summary>Replaces the preset with an imported one, as the Import button does.</summary>
+        internal void ApplyImportedPreset(ImageEffectPreset preset) => ApplyPreset(preset, updatePreview: true);
+
         [RelayCommand]
         public async Task ImportEffectsAsync()
         {

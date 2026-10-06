@@ -76,7 +76,8 @@ namespace XerahS.Platform.Linux.Services
 
             try
             {
-                Process.Start(CreateOpenStartInfo(url));
+                Process.Start(XerahS.Common.URLHelpers.UsesCustomBrowser(url)
+                    ? XerahS.Common.URLHelpers.CreateBrowserStartInfo(url) : CreateOpenStartInfo(url));
                 return true;
             }
             catch (Exception ex)
