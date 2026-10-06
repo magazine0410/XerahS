@@ -291,6 +291,7 @@ public sealed class UploadQueueService
         task.Info.FilePath = filePath;
         task.Info.DataType = EDataType.File;
         task.Info.Job = TaskJob.FileUpload;
+        TaskHelpers.ApplyFileUploadName(task.Info);
         return task;
     }
 

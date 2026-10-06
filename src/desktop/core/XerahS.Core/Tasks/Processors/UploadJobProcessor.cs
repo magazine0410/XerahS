@@ -701,6 +701,8 @@ namespace XerahS.Core.Tasks.Processors
                     return new UploadResult { IsSuccess = false, Response = "No content to upload." };
                 }
 
+                fileName = TaskHelpers.GetUploadFileName(fileName, info.TaskSettings);
+
                 long? length = content.CanSeek ? content.Length : null;
                 ProgressManager progressManager = new(length is > 0 ? length.Value : 1);
                 IProgress<UploadProgressReport> progress = new Progress<UploadProgressReport>(report =>

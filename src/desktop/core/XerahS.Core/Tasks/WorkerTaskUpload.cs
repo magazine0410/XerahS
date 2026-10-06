@@ -89,6 +89,7 @@ namespace XerahS.Core.Tasks
                     Info.FilePath = clipboardFiles[0];
                     Info.DataType = EDataType.File;
                     Info.Job = TaskJob.FileUpload;
+                    TaskHelpers.ApplyFileUploadName(Info);
                     return true;
             }
 
@@ -151,6 +152,7 @@ namespace XerahS.Core.Tasks
                     Job = TaskJob.FileUpload,
                     FilePath = filePath
                 };
+                TaskHelpers.ApplyFileUploadName(fileInfo);
 
                 await uploadProcessor.ProcessAsync(fileInfo, token);
                 lastInfo = fileInfo;

@@ -281,6 +281,7 @@ public static class UploadCommand
             else
             {
                 taskInfo.FilePath = filePath;
+                TaskHelpers.ApplyFileUploadName(taskInfo);
             }
 
             using var cts = new CancellationTokenSource(TimeSpan.FromMinutes(5));
