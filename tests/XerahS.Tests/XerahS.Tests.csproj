@@ -76,6 +76,7 @@
     <ProjectReference Include="..\..\src\desktop\plugins\Pushbullet.Plugin\XerahS.Pushbullet.Plugin.csproj" />
     <ProjectReference Include="..\..\src\desktop\plugins\BackblazeB2.Plugin\XerahS.BackblazeB2.Plugin.csproj" />
     <ProjectReference Include="..\..\src\desktop\plugins\Mega.Plugin\XerahS.Mega.Plugin.csproj" />
+    <ProjectReference Include="..\..\src\desktop\plugins\Filen.Plugin\XerahS.Filen.Plugin.csproj" />
     <ProjectReference Include="..\..\src\desktop\plugins\GoogleDrive.Plugin\XerahS.GoogleDrive.Plugin.csproj" />
     <ProjectReference Include="..\..\src\desktop\plugins\GoogleCloudStorage.Plugin\XerahS.GoogleCloudStorage.Plugin.csproj" />
     <ProjectReference Include="..\..\src\desktop\plugins\YouTube.Plugin\XerahS.YouTube.Plugin.csproj" />

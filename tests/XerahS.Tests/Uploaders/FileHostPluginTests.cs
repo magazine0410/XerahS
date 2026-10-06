@@ -32,6 +32,7 @@ using ShareX.BackblazeB2.Plugin;
 using ShareX.Box.Plugin;
 using ShareX.GoogleCloudStorage.Plugin;
 using ShareX.GoogleDrive.Plugin;
+using ShareX.Filen.Plugin;
 using ShareX.ImgFish.Plugin;
 using ShareX.Mega.Plugin;
 using ShareX.OneDrive.Plugin;
@@ -367,7 +368,7 @@ public class FileHostPluginTests
         var secrets = new InMemorySecretStore();
         foreach (UploaderProviderBase provider in new UploaderProviderBase[]
         {
-            new ImgFishProvider(), new SulProvider(), new PushbulletProvider(), new BackblazeB2Provider(), new MegaProvider(),
+            new ImgFishProvider(), new SulProvider(), new PushbulletProvider(), new BackblazeB2Provider(), new MegaProvider(), new FilenProvider(),
             new GoogleDriveProvider(), new GoogleCloudStorageProvider(), new YouTubeProvider(), new OneDriveProvider(), new BoxProvider()
         })
         {

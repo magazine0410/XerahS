@@ -34,6 +34,7 @@ using ShareX.ImgFish.Plugin;
 using ShareX.Sul.Plugin;
 using ShareX.Pushbullet.Plugin;
 using ShareX.BackblazeB2.Plugin;
+using ShareX.Filen.Plugin;
 using ShareX.Mega.Plugin;
 using ShareX.GoogleDrive.Plugin;
 using ShareX.GoogleCloudStorage.Plugin;
@@ -136,6 +137,7 @@ public class InstanceSecretBackupProviderTests
         yield return Case(new PushbulletProvider(), "pushbullet", "accessToken");
         yield return Case(new BackblazeB2Provider(), "backblazeb2", "applicationKeyId", "applicationKey");
         yield return Case(new MegaProvider(), "mega", "sessionId", "masterKey");
+        yield return Case(new FilenProvider(), "filen", "apiKey", "keys");
         yield return Case(new GoogleDriveProvider(), "googledrive", "clientId", "clientSecret", "oauthToken");
         yield return Case(new GoogleCloudStorageProvider(), "googlecloudstorage", "clientId", "clientSecret", "oauthToken");
         yield return Case(new YouTubeProvider(), "youtube", "clientId", "clientSecret", "oauthToken");
@@ -163,6 +165,7 @@ public class InstanceSecretBackupProviderTests
         yield return new PushbulletProvider();
         yield return new BackblazeB2Provider();
         yield return new MegaProvider();
+        yield return new FilenProvider();
         yield return new GoogleDriveProvider();
         yield return new GoogleCloudStorageProvider();
         yield return new YouTubeProvider();

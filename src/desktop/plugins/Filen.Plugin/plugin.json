@@ -1,0 +1,19 @@
+{
+  "pluginId": "filen",
+  "name": "Filen",
+  "version": "1.0.0",
+  "author": "ShareX Team",
+  "description": "Upload files to Filen",
+  "apiVersion": "1.0",
+  "entryPoint": "ShareX.Filen.Plugin.FilenProvider",
+  "assemblyFileName": "XerahS.Filen.Plugin.dll",
+  "supportedCategories": [
+    "Image",
+    "Text",
+    "File"
+  ],
+  "supportsExplorer": false,
+  "configViewId": "filen",
+  "dependencies": [],
+  "homepageUrl": "https://filen.io/"
+}

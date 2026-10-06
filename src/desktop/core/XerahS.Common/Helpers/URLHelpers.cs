@@ -496,6 +496,44 @@ namespace XerahS.Common
         private const string URLCharacters = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-_.~";
         private const string URLPathCharacters = URLCharacters + "!$&'()*+,;=:@/";
 
+        private static readonly char[] BidiControlCharacters = ['‎', '‏', '‪', '‫', '‬', '‭', '‮'];
+
+        /// <summary>ShareX's RemoveBidiControlCharacters: removes the characters that change the direction of text.</summary>
+        public static string RemoveBidiControlCharacters(string text)
+        {
+            return new string(text.Where(c => !BidiControlCharacters.Contains(c)).ToArray());
+        }
+
+        /// <summary>
+        /// ShareX's ReplaceReservedCharacters: replaces each run of characters that are not letters, digits, or "-._~" with
+        /// <paramref name="replace"/>.
+        /// </summary>
+        public static string ReplaceReservedCharacters(string text, string replace)
+        {
+            var sb = new StringBuilder();
+            string? last = null;
+
+            foreach (char c in text)
+            {
+                if (URLCharacters.Contains(c))
+                {
+                    last = c.ToString();
+                }
+                else if (last != replace)
+                {
+                    last = replace;
+                }
+                else
+                {
+                    continue;
+                }
+
+                sb.Append(last);
+            }
+
+            return sb.ToString();
+        }
+
         /// <summary>
         /// JSON encodes a string
         /// </summary>

@@ -314,6 +314,34 @@ public static partial class TaskHelpers
     }
 
     /// <summary>
+    /// ShareX's file upload naming: an uploaded file keeps its own name, unless "Use name pattern for file uploaders" is
+    /// on; then it is named by the name pattern, with the file's extension.
+    /// </summary>
+    public static void ApplyFileUploadName(TaskInfo info)
+    {
+        if (info.TaskSettings.UploadSettings.FileUploadUseNamePattern && !string.IsNullOrEmpty(info.FilePath))
+        {
+            info.SetFileName(GetFileName(info.TaskSettings, FileHelpers.GetFileNameExtension(info.FilePath), info.Metadata));
+        }
+    }
+
+    /// <summary>
+    /// ShareX's last step before an upload: bidirectional control characters are removed from the name, and with
+    /// "Replace potentially problematic characters" on, other characters that are not safe in a URL become underscores.
+    /// </summary>
+    public static string GetUploadFileName(string fileName, TaskSettings taskSettings)
+    {
+        fileName = URLHelpers.RemoveBidiControlCharacters(fileName);
+
+        if (taskSettings.UploadSettings.FileUploadReplaceProblematicCharacters)
+        {
+            fileName = URLHelpers.ReplaceReservedCharacters(fileName, "_");
+        }
+
+        return fileName;
+    }
+
+    /// <summary>
     /// Generate a file name with metadata
     /// </summary>
     public static string GetFileName(TaskSettings taskSettings, string extension, TaskMetadata? metadata)
