@@ -61,7 +61,7 @@ internal static class ImageEditingToolService
                         _ => "Open Image in Editor"
                     },
                     AllowMultiple = false,
-                    FileTypeFilter = [FilePickerFileTypes.ImageAll, FilePickerFileTypes.All]
+                    FileTypeFilter = [XerahS.UI.Helpers.ImageFilePickerTypes.Images, FilePickerFileTypes.All]
                 });
 
                 if (files.Count > 0 && files[0].TryGetLocalPath() is { } path)

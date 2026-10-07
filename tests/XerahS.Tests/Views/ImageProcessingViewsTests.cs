@@ -137,6 +137,18 @@ public class ImageProcessingViewsTests
         }
     }
 
+    [Test]
+    public void ImagePickers_ListTiffFiles()
+    {
+        // The Linux portal receives only the patterns, so TIFF must be listed there.
+        foreach (var type in new[] { XerahS.UI.Helpers.ImageFilePickerTypes.Images,
+            ShareX.ImageEditor.Presentation.Helpers.ImageFilePickerTypes.Images })
+        {
+            Assert.That(type.Patterns, Does.Contain("*.tif").And.Contain("*.tiff").And.Contain("*.jpg").And.Contain("*.webp"));
+            Assert.That(type.MimeTypes, Does.Contain("image/tiff"));
+        }
+    }
+
     [AvaloniaTest]
     public void ImageFileLoader_CopiesDecodedPixelsForEachColorType()
     {

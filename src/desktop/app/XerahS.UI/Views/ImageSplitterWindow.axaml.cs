@@ -58,7 +58,7 @@ public partial class ImageSplitterWindow : SurfaceWindow
             AllowMultiple = false,
             FileTypeFilter = new[]
             {
-                new FilePickerFileType("Image files") { Patterns = new[] { "*.png", "*.jpg", "*.jpeg", "*.bmp", "*.gif", "*.webp", "*.tiff" } },
+                XerahS.UI.Helpers.ImageFilePickerTypes.Images,
                 FilePickerFileTypes.All
             }
         });

@@ -100,7 +100,7 @@ public partial class ImageViewerWindow : Window
             {
                 Title = "Open image",
                 AllowMultiple = false,
-                FileTypeFilter = [FilePickerFileTypes.ImageAll]
+                FileTypeFilter = [XerahS.UI.Helpers.ImageFilePickerTypes.Images]
             });
 
             if (files.FirstOrDefault()?.TryGetLocalPath() is not { Length: > 0 } filePath) return;

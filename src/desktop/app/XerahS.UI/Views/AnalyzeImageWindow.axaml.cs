@@ -80,7 +80,7 @@ public partial class AnalyzeImageWindow : SurfaceWindow
         {
             Title = "Select image",
             AllowMultiple = false,
-            FileTypeFilter = [FilePickerFileTypes.ImageAll]
+            FileTypeFilter = [XerahS.UI.Helpers.ImageFilePickerTypes.Images]
         });
         return files.FirstOrDefault()?.TryGetLocalPath();
     }

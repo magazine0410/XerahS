@@ -38,11 +38,6 @@ namespace XerahS.UI.Services;
 
 public static class PinToScreenToolService
 {
-    private static readonly FilePickerFileType ImageFileType = new("Image files")
-    {
-        Patterns = new[] { "*.png", "*.jpg", "*.jpeg", "*.bmp", "*.gif", "*.webp", "*.tiff", "*.tif" }
-    };
-
     public static async Task HandleWorkflowAsync(WorkflowType job, Window? owner, TaskSettings? taskSettings = null)
     {
         bool done = job switch
@@ -294,7 +289,7 @@ public static class PinToScreenToolService
         {
             Title = "Select Image to Pin",
             AllowMultiple = false,
-            FileTypeFilter = new[] { ImageFileType }
+            FileTypeFilter = new[] { XerahS.UI.Helpers.ImageFilePickerTypes.Images }
         };
 
         var files = await storageProvider.OpenFilePickerAsync(options);

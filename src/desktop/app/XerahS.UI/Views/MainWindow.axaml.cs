@@ -280,10 +280,7 @@ namespace XerahS.UI.Views
                 AllowMultiple = false,
                 FileTypeFilter = new[]
                 {
-                    new FilePickerFileType("Image Files")
-                    {
-                        Patterns = new[] { "*.png", "*.jpg", "*.jpeg", "*.bmp", "*.gif", "*.webp", "*.tiff", "*.tif" }
-                    },
+                    XerahS.UI.Helpers.ImageFilePickerTypes.Images,
                     FilePickerFileTypes.All
                 }
             };
