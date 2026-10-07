@@ -180,7 +180,7 @@ public static class ImageBatchService
 
     public static SKBitmap Load(string path)
     {
-        SKBitmap? decoded = SKBitmap.Decode(path);
+        SKBitmap? decoded = XerahS.Common.ImageHelpers.LoadBitmap(path);
         if (decoded == null)
         {
             throw new InvalidOperationException($"'{Path.GetFileName(path)}' is not a supported image.");
@@ -359,7 +359,7 @@ public static class ImageBatchService
             return null;
         }
 
-        using SKBitmap? image = SKBitmap.Decode(options.ImagePath);
+        using SKBitmap? image = XerahS.Common.ImageHelpers.LoadBitmap(options.ImagePath);
         if (image == null || image.Width < 1 || image.Height < 1)
         {
             return null;

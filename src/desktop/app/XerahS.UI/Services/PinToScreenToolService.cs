@@ -99,14 +99,14 @@ public static class PinToScreenToolService
 
             try
             {
-                using SKBitmap? bitmap = SKBitmap.Decode(filePath);
+                using SKBitmap? bitmap = XerahS.Common.ImageHelpers.LoadBitmap(filePath);
                 if (bitmap == null)
                 {
                     skippedCount++;
                     continue;
                 }
 
-                if (!await HostedEditorAndPinService.TryPinFileAsync(filePath))
+                if (!await HostedEditorAndPinService.TryPinAsync(bitmap))
                 {
                     PinToScreenManager.PinImage(bitmap, null, GetOptions());
                 }
@@ -248,7 +248,7 @@ public static class PinToScreenToolService
             return true;
         }
 
-        using var bitmap = SKBitmap.Decode(path);
+        using var bitmap = XerahS.Common.ImageHelpers.LoadBitmap(path);
         if (bitmap == null)
         {
             ShowToast("Pin to Screen", "Failed to load image file.");

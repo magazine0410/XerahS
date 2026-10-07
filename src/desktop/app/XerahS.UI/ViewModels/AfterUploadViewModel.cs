@@ -176,7 +176,7 @@ public sealed partial class AfterUploadViewModel : ViewModelBase, IDisposable
             {
                 try
                 {
-                    PreviewImage = new Bitmap(FilePath);
+                    PreviewImage = XerahS.UI.Services.ImageFileLoader.Load(FilePath);
                     PreviewFallbackTitle = "Preview ready";
                     PreviewFallbackDescription = "Image preview loaded from local file.";
                     return;
@@ -342,7 +342,7 @@ public sealed partial class AfterUploadViewModel : ViewModelBase, IDisposable
 
         try
         {
-            using var bitmap = SKBitmap.Decode(FilePath);
+            using var bitmap = XerahS.Common.ImageHelpers.LoadBitmap(FilePath);
             if (bitmap != null)
             {
                 PlatformServices.Clipboard.SetImage(bitmap);

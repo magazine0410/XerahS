@@ -313,6 +313,7 @@ public partial class App : Application
 
             // Wire up Editor clipboard to platform implementation
             EditorServices.Clipboard = new Services.EditorClipboardAdapter();
+            EditorServices.ImageDecoder = stream => XerahS.Common.ImageHelpers.LoadBitmap(stream);
 
             _workflowOrchestrator = new WorkflowOrchestrator(taskManager, screenRecordingCoordinator);
             _trayIconController = new TrayIconController();

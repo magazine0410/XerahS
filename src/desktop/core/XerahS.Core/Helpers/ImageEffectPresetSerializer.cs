@@ -80,6 +80,13 @@ public static class ImageEffectPresetSerializer
         }
     }
 
+    public static ImageEffectPreset ClonePreset(ImageEffectPreset preset)
+    {
+        var settings = CreateSerializerSettings();
+        return JsonConvert.DeserializeObject<ImageEffectPreset>(JsonConvert.SerializeObject(preset, settings), settings)
+            ?? throw new JsonSerializationException("Could not copy image effects preset.");
+    }
+
     internal static JsonSerializerSettings CreateSerializerSettings()
     {
         return new JsonSerializerSettings

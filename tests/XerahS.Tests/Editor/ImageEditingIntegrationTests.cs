@@ -325,6 +325,53 @@ public class ImageEditingIntegrationTests
     }
 
     [AvaloniaTest]
+    public async Task AfterCaptureEffectsDialog_SavesPresetSelection_AndCancellationClosesIt()
+    {
+        UiViewModelFactoryAccessor.Configure(new FakeUiViewModelFactory());
+        var saved = AddWorkflow("effects-dialog");
+        saved.UseDefaultImageSettings = false;
+        var execution = TaskSettings.GetSafeTaskSettings(saved);
+        using var source = new SKBitmap(4, 3);
+        var info = new TaskInfo(execution) { Metadata = new TaskMetadata(source) };
+        ImageEffectsToolWindow? opened = null;
+        using var subscription = Window.WindowOpenedEvent.AddClassHandler<ImageEffectsToolWindow>((window, _) => opened = window);
+        try
+        {
+            var task = AfterCaptureInteractionService.ShowImageEffectsAsync(info, CancellationToken.None);
+            Dispatcher.UIThread.RunJobs();
+            Assert.That(opened, Is.Not.Null);
+            Assert.That(task.IsCompleted, Is.False);
+            opened!.ViewModel.NewPresetCommand.Execute(null);
+            opened.ViewModel.Name = "Selected after capture";
+            opened.ViewModel.TryAddFlipHorizontalEffect();
+            opened.Close();
+            await task;
+            Assert.That(saved.ImageSettings.SelectedImageEffectPreset, Is.EqualTo(1));
+            Assert.That(saved.ImageSettings.ImageEffectsPreset.Name, Is.EqualTo("Selected after capture"));
+            Assert.That(saved.ImageSettings.ImageEffectsPreset.Effects, Has.Count.EqualTo(1));
+            Assert.That(File.ReadAllText(SettingsManager.WorkflowsConfigFilePath), Does.Contain("Selected after capture"));
+
+            opened = null;
+            using var cancel = new CancellationTokenSource();
+            var cancelledTask = AfterCaptureInteractionService.ShowImageEffectsAsync(info, cancel.Token);
+            Dispatcher.UIThread.RunJobs();
+            Assert.That(opened, Is.Not.Null);
+            cancel.Cancel();
+            bool cancelled = false;
+            try { await cancelledTask; }
+            catch (OperationCanceledException) { cancelled = true; }
+            Assert.That(cancelled, Is.True);
+            Assert.That(opened!.IsVisible, Is.False);
+            Assert.That(source.Width, Is.EqualTo(4), "The capture is still owned by its task.");
+        }
+        finally
+        {
+            opened?.Close();
+            UiViewModelFactoryAccessor.Reset();
+        }
+    }
+
+    [AvaloniaTest]
     public async Task ImageEffectsJob_OpensThePresetWindow_AndReturnsWhenItCloses()
     {
         UiViewModelFactoryAccessor.Configure(new FakeUiViewModelFactory());

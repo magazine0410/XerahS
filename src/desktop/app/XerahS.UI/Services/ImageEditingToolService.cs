@@ -121,7 +121,7 @@ internal static class ImageEditingToolService
             return false;
         }
 
-        using var bitmap = SKBitmap.Decode(path);
+        using var bitmap = XerahS.Common.ImageHelpers.LoadBitmap(path);
         if (bitmap == null)
         {
             DebugHelper.WriteLine($"Cannot decode image for editor: {path}");
@@ -151,7 +151,7 @@ internal static class ImageEditingToolService
     /// </summary>
     internal static async Task<bool> OpenImageEffectsAsync(string path, TaskSettings? taskSettings, IDesktopTaskManager taskManager)
     {
-        using var bitmap = File.Exists(path) ? SKBitmap.Decode(path) : null;
+        using var bitmap = File.Exists(path) ? XerahS.Common.ImageHelpers.LoadBitmap(path) : null;
         if (bitmap == null)
         {
             DebugHelper.WriteLine($"Cannot decode image for image effects: {path}");

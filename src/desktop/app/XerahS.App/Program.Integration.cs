@@ -55,7 +55,7 @@ internal partial class Program
                     switch (request.Action)
                     {
                         case IntegrationAction.ImageEditor:
-                            using (var image = SKBitmap.Decode(request.Path) ?? throw new InvalidDataException("The selected file is not a supported image."))
+                            using (var image = XerahS.Common.ImageHelpers.LoadBitmap(request.Path) ?? throw new InvalidDataException("The selected file is not a supported image."))
                             using (await PlatformServices.UI.ShowEditorAsync(image, request.Path)) { }
                             break;
                         case IntegrationAction.CustomUploader:

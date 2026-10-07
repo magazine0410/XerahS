@@ -109,6 +109,42 @@ namespace XerahS.UI.ViewModels
             }
         }
 
+        public bool ImageAutoUseJPEG
+        {
+            get => ImageSource.ImageSettings.ImageAutoUseJPEG;
+            set { ImageSource.ImageSettings.ImageAutoUseJPEG = value; OnPropertyChanged(); }
+        }
+
+        public int ImageAutoUseJPEGSize
+        {
+            get => ImageSource.ImageSettings.ImageAutoUseJPEGSize;
+            set { ImageSource.ImageSettings.ImageAutoUseJPEGSize = value; OnPropertyChanged(); }
+        }
+
+        public bool ImageAutoJPEGQuality
+        {
+            get => ImageSource.ImageSettings.ImageAutoJPEGQuality;
+            set { ImageSource.ImageSettings.ImageAutoJPEGQuality = value; OnPropertyChanged(); }
+        }
+
+        public bool ShowImageEffectsWindowAfterCapture
+        {
+            get => ImageSource.ImageSettings.ShowImageEffectsWindowAfterCapture;
+            set { ImageSource.ImageSettings.ShowImageEffectsWindowAfterCapture = value; OnPropertyChanged(); }
+        }
+
+        public bool ImageEffectOnlyRegionCapture
+        {
+            get => ImageSource.ImageSettings.ImageEffectOnlyRegionCapture;
+            set { ImageSource.ImageSettings.ImageEffectOnlyRegionCapture = value; OnPropertyChanged(); }
+        }
+
+        public bool UseRandomImageEffect
+        {
+            get => ImageSource.ImageSettings.UseRandomImageEffect;
+            set { ImageSource.ImageSettings.UseRandomImageEffect = value; OnPropertyChanged(); }
+        }
+
         #endregion
     }
 }

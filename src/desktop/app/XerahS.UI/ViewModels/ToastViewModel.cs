@@ -140,7 +140,7 @@ public partial class ToastViewModel : ObservableObject, IDisposable
         {
             try
             {
-                Image = new Bitmap(config.ImagePath);
+                Image = XerahS.UI.Services.ImageFileLoader.Load(config.ImagePath);
             }
             catch (Exception ex)
             {
@@ -560,7 +560,7 @@ public partial class ToastViewModel : ObservableObject, IDisposable
         {
             try
             {
-                using var bitmap = SKBitmap.Decode(_config.FilePath);
+                using var bitmap = XerahS.Common.ImageHelpers.LoadBitmap(_config.FilePath);
                 if (bitmap != null)
                 {
                     PlatformServices.Clipboard.SetImage(bitmap);
@@ -677,7 +677,7 @@ public partial class ToastViewModel : ObservableObject, IDisposable
         {
             if (FileHelpers.IsImageFile(_config.FilePath))
             {
-                using var bitmap = SKBitmap.Decode(_config.FilePath);
+                using var bitmap = XerahS.Common.ImageHelpers.LoadBitmap(_config.FilePath);
                 if (bitmap != null)
                 {
                     await PlatformServices.UI.ShowEditorAsync(bitmap, sourceFilePath: _config.FilePath);
@@ -747,7 +747,7 @@ public partial class ToastViewModel : ObservableObject, IDisposable
         {
             try
             {
-                using var bitmap = SKBitmap.Decode(_config.FilePath);
+                using var bitmap = XerahS.Common.ImageHelpers.LoadBitmap(_config.FilePath);
                 if (bitmap != null)
                 {
                     var options = SettingsManager.DefaultTaskSettings?.ToolsSettings?.PinToScreenOptions

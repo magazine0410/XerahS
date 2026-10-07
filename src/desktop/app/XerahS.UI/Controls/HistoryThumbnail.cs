@@ -83,8 +83,7 @@ public sealed class HistoryThumbnail : Image
             if (!_attached || version != _version) return;
             bitmap = await Task.Run(() =>
             {
-                using var stream = File.OpenRead(path);
-                return Bitmap.DecodeToWidth(stream, width);
+                return XerahS.UI.Services.ImageFileLoader.Load(path, width);
             });
         }
         catch (Exception)

@@ -140,7 +140,7 @@ public static class LegacyImageEffectExporter
         var effectObject = new JObject
         {
             ["$type"] = $"ShareX.ImageEffectsLib.{mapping.LegacyTypeName}, ShareX.ImageEffectsLib",
-            ["Enabled"] = true
+            ["Enabled"] = GetMemberValue(effect, "Enabled") as bool? ?? true
         };
 
         foreach (var propertyMap in mapping.PropertyMappings)
@@ -166,7 +166,7 @@ public static class LegacyImageEffectExporter
         return new JObject
         {
             ["$type"] = "ShareX.ImageEffectsLib.Flip, ShareX.ImageEffectsLib",
-            ["Enabled"] = true,
+            ["Enabled"] = GetMemberValue(effect, "Enabled") as bool? ?? true,
             ["Horizontally"] = horizontal,
             ["Vertically"] = vertical
         };
@@ -180,7 +180,7 @@ public static class LegacyImageEffectExporter
         return new JObject
         {
             ["$type"] = "ShareX.ImageEffectsLib.Rotate, ShareX.ImageEffectsLib",
-            ["Enabled"] = true,
+            ["Enabled"] = GetMemberValue(effect, "Enabled") as bool? ?? true,
             ["Angle"] = JToken.FromObject(ConvertLegacyValue(angle))
         };
     }
@@ -195,7 +195,7 @@ public static class LegacyImageEffectExporter
         return new JObject
         {
             ["$type"] = "ShareX.ImageEffectsLib.Resize, ShareX.ImageEffectsLib",
-            ["Enabled"] = true,
+            ["Enabled"] = GetMemberValue(effect, "Enabled") as bool? ?? true,
             ["Width"] = JToken.FromObject(ConvertLegacyValue(width)),
             ["Height"] = JToken.FromObject(ConvertLegacyValue(height))
         };

@@ -9,6 +9,7 @@
   <ItemGroup>
     <PackageReference Include="Newtonsoft.Json" />
     <PackageReference Include="SkiaSharp" />
+    <PackageReference Include="BitMiracle.LibTiff.NET" />
     <PackageReference Include="System.Drawing.Common" />
     <PackageReference Include="System.Security.Cryptography.ProtectedData" />
   </ItemGroup>

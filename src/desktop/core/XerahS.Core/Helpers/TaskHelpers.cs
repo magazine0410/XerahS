@@ -591,6 +591,52 @@ public static partial class TaskHelpers
     /// <summary>
     /// Save image to stream with specified format
     /// </summary>
+    public static PreparedImage PrepareImage(SkiaSharp.SKBitmap bmp, TaskSettings settings)
+    {
+        if (settings.ImageSettings.ImageFormat == EImageFormat.AVIF)
+            throw new NotSupportedException("AVIF preparation requires PrepareImageAsync.");
+        var stream = SaveImageAsStream(bmp, settings.ImageSettings.ImageFormat, settings)
+            ?? throw new NotSupportedException($"The configured {settings.ImageSettings.ImageFormat} image format could not be encoded.");
+        return ConvertPreparedImage(bmp, stream, settings);
+    }
+
+    public static async Task<PreparedImage> PrepareImageAsync(SkiaSharp.SKBitmap bmp, TaskSettings settings)
+    {
+        if (settings.ImageSettings.ImageFormat != EImageFormat.AVIF) return PrepareImage(bmp, settings);
+        string path = Path.Combine(Path.GetTempPath(), $"xerahs-{Guid.NewGuid():N}.avif");
+        try
+        {
+            await XerahS.Platform.Abstractions.PlatformServices.ImageEncoder.EncodeAsync(bmp, path,
+                EImageFormat.AVIF, settings.ImageSettings.ImageJPEGQuality).ConfigureAwait(false);
+            var stream = new MemoryStream(await File.ReadAllBytesAsync(path).ConfigureAwait(false));
+            return ConvertPreparedImage(bmp, stream, settings);
+        }
+        finally
+        {
+            if (File.Exists(path)) File.Delete(path);
+        }
+    }
+
+    private static PreparedImage ConvertPreparedImage(SkiaSharp.SKBitmap bmp, MemoryStream stream, TaskSettings settings)
+    {
+        var image = settings.ImageSettings;
+        long sizeLimit = Math.Max(0L, image.ImageAutoUseJPEGSize) * 1000;
+        if (!image.ImageAutoUseJPEG || image.ImageFormat == EImageFormat.JPEG || stream.Length <= sizeLimit)
+            return new PreparedImage(stream, image.ImageFormat);
+        stream.Dispose();
+        // ShareX starts at quality 100 and decrements by two, stopping at 70 even if still oversized.
+        int quality = image.ImageAutoJPEGQuality ? 100 : image.ImageJPEGQuality;
+        while (true)
+        {
+            var jpeg = SaveImageAsStream(bmp, EImageFormat.JPEG, jpegQuality: quality)
+                ?? throw new InvalidOperationException("Could not encode JPEG image.");
+            if (!image.ImageAutoJPEGQuality || jpeg.Length <= sizeLimit || quality <= 70)
+                return new PreparedImage(jpeg, EImageFormat.JPEG);
+            jpeg.Dispose();
+            quality -= 2;
+        }
+    }
+
     public static MemoryStream? SaveImageAsStream(SkiaSharp.SKBitmap bmp, EImageFormat imageFormat, TaskSettings taskSettings)
     {
         return SaveImageAsStream(bmp, imageFormat,
@@ -650,6 +696,12 @@ public static partial class TaskHelpers
 
             data.SaveTo(ms);
             ms.Position = 0;
+            if (imageFormat == EImageFormat.PNG && SettingsManager.Settings.PNGStripColorSpaceInformation)
+            {
+                var stripped = ImageHelpers.PNGStripColorSpaceInformation(ms);
+                ms.Dispose();
+                return stripped;
+            }
             return ms;
         }
         catch (Exception ex)
@@ -708,7 +760,7 @@ public static partial class TaskHelpers
         WriteImageStreamToFile(encoded, filePath, overwrite: true);
     }
 
-    internal static void WriteImageStreamToFile(Stream encoded, string filePath, bool overwrite)
+    public static void WriteImageStreamToFile(Stream encoded, string filePath, bool overwrite)
     {
         string folder = Path.GetDirectoryName(Path.GetFullPath(filePath))!;
         Directory.CreateDirectory(folder);
@@ -730,7 +782,8 @@ public static partial class TaskHelpers
         string screenshotsFolder = GetScreenshotsFolder(taskSettings);
         FileHelpers.CreateDirectory(screenshotsFolder);
 
-        string extension = EnumExtensions.GetDescription(taskSettings.ImageSettings.ImageFormat);
+        using var prepared = await PrepareImageAsync(bmp, taskSettings).ConfigureAwait(false);
+        string extension = EnumExtensions.GetDescription(prepared.Format);
         string fileName = GetFileName(taskSettings, extension, bmp);
         string filePath = Path.Combine(screenshotsFolder, fileName);
 
@@ -741,7 +794,7 @@ public static partial class TaskHelpers
         }
 
         // As in ShareX, the image settings' format and JPEG quality are used, as for Save As and uploads.
-        await SaveImageToPathAsync(bmp, filePath, taskSettings).ConfigureAwait(false);
+        WriteImageStreamToFile(prepared.Stream, filePath, overwrite: true);
         return filePath;
     }
 
@@ -760,7 +813,17 @@ public static partial class TaskHelpers
             return bmp;
         }
 
-        var preset = taskSettingsImage.ImageEffectsPreset;
+        var presets = taskSettingsImage.ImageEffectPresets;
+        var preset = presets is not { Count: > 0 } ? null
+            : taskSettingsImage.UseRandomImageEffect ? presets[Random.Shared.Next(presets.Count)]
+            : taskSettingsImage.SelectedImageEffectPreset >= 0 && taskSettingsImage.SelectedImageEffectPreset < presets.Count
+                ? presets[taskSettingsImage.SelectedImageEffectPreset] : null;
+        return ApplyImageEffectPreset(bmp, preset);
+    }
+
+    /// <summary>Applies a preset without taking ownership of the caller's source image.</summary>
+    public static SkiaSharp.SKBitmap ApplyImageEffectPreset(SkiaSharp.SKBitmap bmp, ImageEffectPreset? preset)
+    {
         
         if (preset == null || preset.Effects == null || preset.Effects.Count == 0)
         {
@@ -770,22 +833,25 @@ public static partial class TaskHelpers
         var result = bmp;
         var usingOriginal = true;
 
-        foreach (var effect in preset.Effects)
+        try
         {
-            var processed = effect.Apply(result);
-            if (!ReferenceEquals(processed, result))
+            foreach (var effect in preset.Effects.Where(effect => effect.Enabled))
             {
-                if (!usingOriginal)
+                var processed = effect.Apply(result);
+                if (!ReferenceEquals(processed, result))
                 {
-                    result.Dispose();
+                    if (!usingOriginal) result.Dispose();
+                    result = processed;
+                    usingOriginal = false;
                 }
-
-                result = processed;
-                usingOriginal = false;
             }
+            return result;
         }
-
-        return result;
+        catch
+        {
+            if (!usingOriginal) result.Dispose();
+            throw;
+        }
     }
 
     /// <summary>
@@ -818,19 +884,6 @@ public static partial class TaskHelpers
         int newHeight = (int)(bmp.Height * ratio);
 
         return ImageHelpers.ResizeImage(bmp, newWidth, newHeight);
-    }
-
-    /// <summary>
-    /// Check if file should be auto-converted to JPEG
-    /// </summary>
-    public static bool ShouldUseJpeg(SkiaSharp.SKBitmap bmp, TaskSettings taskSettings)
-    {
-        if (!taskSettings.ImageSettings.ImageAutoUseJPEG) return false;
-
-        long imageSize = (long)bmp.Width * (long)bmp.Height;
-        long threshold = (long)taskSettings.ImageSettings.ImageAutoUseJPEGSize * 1024;
-
-        return imageSize > threshold;
     }
 
     #endregion

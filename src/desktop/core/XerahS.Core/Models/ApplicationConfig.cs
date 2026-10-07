@@ -298,7 +298,7 @@ public class ApplicationConfig : SettingsBase<ApplicationConfig>
     public bool ShowClipboardContentViewer { get; set; } = false;
 
     [Category("Clipboard"), DefaultValue(true), Description("Fill white background for clipboard copy.")]
-    public bool DefaultClipboardCopyImageFillBackground { get; set; }
+    public bool DefaultClipboardCopyImageFillBackground { get; set; } = true;
 
     [Category("Clipboard"), DefaultValue(false), Description("Use alternative clipboard copy image method.")]
     public bool UseAlternativeClipboardCopyImage { get; set; }
@@ -307,7 +307,7 @@ public class ApplicationConfig : SettingsBase<ApplicationConfig>
     public bool UseAlternativeClipboardGetImage { get; set; }
 
     [Category("Image"), DefaultValue(true), Description("Rotate image by EXIF orientation.")]
-    public bool RotateImageByExifOrientationData { get; set; }
+    public bool RotateImageByExifOrientationData { get; set; } = true;
 
     [Category("Image"), DefaultValue(false), Description("Strip PNG color space information.")]
     public bool PNGStripColorSpaceInformation { get; set; }

@@ -99,7 +99,8 @@ public sealed partial class AvaloniaClipboardService : IClipboardService
             return;
 
         using var stream = new MemoryStream();
-        image.Encode(stream, SKEncodedImageFormat.Png, 100);
+        using var background = XerahS.Common.ImageHelpers.CreateClipboardBackground(image);
+        (background ?? image).Encode(stream, SKEncodedImageFormat.Png, 100);
         byte[] bytes = stream.ToArray();
         WaitWithoutBlockingUI(RunOnUIThreadAsync(async () =>
         {

@@ -166,17 +166,13 @@ public static class LegacyImageEffectImporter
 
                 // Check if enabled (default true)
                 var enabled = effectObj["Enabled"]?.Value<bool>() ?? true;
-                if (!enabled)
-                {
-                    result.SkippedEffects.Add($"{className} (disabled)");
-                    continue;
-                }
 
                 if (CustomMappers.TryGetValue(className, out var customMapper))
                 {
                     var mappedEffect = customMapper(effectObj);
                     if (mappedEffect != null)
                     {
+                        mappedEffect.Enabled = enabled;
                         result.MappedEffects.Add(mappedEffect);
                     }
                     else
@@ -189,6 +185,7 @@ public static class LegacyImageEffectImporter
                     var mappedEffect = MapEffect(effectObj, className, mapping);
                     if (mappedEffect != null)
                     {
+                        mappedEffect.Enabled = enabled;
                         result.MappedEffects.Add(mappedEffect);
                     }
                 }
@@ -390,6 +387,7 @@ public class LegacyPresetImportResult
 /// </summary>
 public class MappedEffect
 {
+    public bool Enabled { get; set; } = true;
     public string TargetTypeName { get; set; } = "";
     public Dictionary<string, object?> Properties { get; set; } = new();
 }

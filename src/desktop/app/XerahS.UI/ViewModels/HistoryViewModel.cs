@@ -487,7 +487,7 @@ namespace XerahS.UI.ViewModels
         private static SKBitmap? DecodeImageFile(string filePath)
         {
             using var stream = new FileStream(filePath, FileMode.Open, FileAccess.Read, FileShare.Read);
-            return SKBitmap.Decode(stream);
+            return XerahS.Common.ImageHelpers.LoadBitmap(stream);
         }
 
         private static string? ResolveAnnotationSidecarPath(HistoryItem item)
@@ -752,7 +752,7 @@ namespace XerahS.UI.ViewModels
 
             try
             {
-                using var bitmap = SKBitmap.Decode(item.FilePath);
+                using var bitmap = XerahS.Common.ImageHelpers.LoadBitmap(item.FilePath);
                 if (bitmap != null)
                 {
                     PlatformServices.Clipboard.SetImage(bitmap);

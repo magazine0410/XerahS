@@ -41,16 +41,6 @@ public static class ImageEffectsImportService
         TaskSettings settings = SettingsManager.DefaultTaskSettings;
         var dialogs = new AvaloniaDialogServiceAdapter();
 
-        // ShareX adds the import to its list of presets. XerahS keeps one preset per workflow, so the
-        // current one would be lost: ask first when it has effects.
-        var current = settings.ImageSettings.ImageEffectsPreset;
-        if (current?.Effects is { Count: > 0 } effects &&
-            !await dialogs.ShowConfirmationAsync("Import image effects",
-                $"XerahS keeps one image effects preset per workflow. Replace \"{current.Name}\" ({effects.Count} effects) with \"{preset.Name}\"?"))
-        {
-            return;
-        }
-
         if (skipped.Count > 0)
         {
             await dialogs.ShowWarningAsync("Import image effects", "Unsupported effects were skipped: " + string.Join(", ", skipped));

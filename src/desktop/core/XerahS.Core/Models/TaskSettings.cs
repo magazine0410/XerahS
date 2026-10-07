@@ -467,7 +467,29 @@ public class TaskSettingsImage
 
     #region Image / Effects
     
-    public ImageEffectPreset ImageEffectsPreset = ImageEffectPreset.GetDefaultPreset();
+    [JsonProperty(ObjectCreationHandling = ObjectCreationHandling.Replace)]
+    public List<ImageEffectPreset> ImageEffectPresets { get; set; } = [ImageEffectPreset.GetDefaultPreset()];
+    public int SelectedImageEffectPreset { get; set; }
+    public bool UseRandomImageEffect { get; set; }
+
+    public ImageEffectPreset ImageEffectsPreset
+    {
+        get
+        {
+            ImageEffectPresets ??= [];
+            if (ImageEffectPresets.Count == 0) ImageEffectPresets.Add(ImageEffectPreset.GetDefaultPreset());
+            return ImageEffectPresets[Math.Clamp(SelectedImageEffectPreset, 0, ImageEffectPresets.Count - 1)];
+        }
+        set
+        {
+            ImageEffectPresets ??= [];
+            if (ImageEffectPresets.Count == 0) ImageEffectPresets.Add(value ?? ImageEffectPreset.GetDefaultPreset());
+            else ImageEffectPresets[Math.Clamp(SelectedImageEffectPreset, 0, ImageEffectPresets.Count - 1)] = value ?? ImageEffectPreset.GetDefaultPreset();
+        }
+    }
+
+    // Deserialize the former single-preset field without writing a duplicate copy of the selected preset.
+    public bool ShouldSerializeImageEffectsPreset() => false;
     public bool ShowImageEffectsWindowAfterCapture = false;
     public bool ImageEffectOnlyRegionCapture = false;
 

@@ -648,7 +648,7 @@ namespace XerahS.UI.Services
                 return;
             }
 
-            using SKBitmap? bitmap = SkiaSharp.SKBitmap.Decode(filePath);
+            using SKBitmap? bitmap = XerahS.Common.ImageHelpers.LoadBitmap(filePath);
             if (bitmap == null)
             {
                 return;

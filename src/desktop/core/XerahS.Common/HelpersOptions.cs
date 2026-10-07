@@ -27,6 +27,9 @@ namespace XerahS.Common
 {
     public static class HelpersOptions
     {
+        public static bool RotateImageByExifOrientationData { get; set; } = true;
+        public static bool DefaultCopyImageFillBackground { get; set; } = true;
+        public static bool UseAlternativeClipboardCopyImage { get; set; }
         public static ProxyInfo CurrentProxy { get; } = new ProxyInfo();
         public static bool SupportsCustomBrowser { get; set; } = true;
         public static string BrowserPath { get; set; } = string.Empty;

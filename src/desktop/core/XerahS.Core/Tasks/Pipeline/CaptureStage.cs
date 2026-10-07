@@ -511,6 +511,7 @@ namespace XerahS.Core.Tasks.Pipeline
             if (image != null)
             {
                 metadata.Image = image;
+                if (taskSettings != null) Processors.CaptureJobProcessor.RestrictImageEffectsForCapture(taskSettings);
                 DebugHelper.WriteLine($"Captured image: {image.Width}x{image.Height} in {captureStopwatch.ElapsedMilliseconds}ms");
                 // As in ShareX's AfterCapture, before the after capture tasks.
                 NotificationSoundService.Play(NotificationSound.Capture, taskSettings);

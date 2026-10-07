@@ -695,7 +695,10 @@ namespace XerahS.Core.Tasks.Processors
 
             try
             {
-                await using Stream? content = OpenUploadContent(info, out string fileName, out UploaderCategory category);
+                var uploadContent = await OpenUploadContentAsync(info);
+                await using Stream? content = uploadContent.Content;
+                string fileName = uploadContent.FileName;
+                UploaderCategory category = uploadContent.Category;
                 if (content == null)
                 {
                     return new UploadResult { IsSuccess = false, Response = "No content to upload." };
@@ -757,48 +760,42 @@ namespace XerahS.Core.Tasks.Processors
             }
         }
 
-        private static Stream? OpenUploadContent(TaskInfo info, out string fileName, out UploaderCategory category)
+        internal static async Task<(Stream? Content, string FileName, UploaderCategory Category)> OpenUploadContentAsync(TaskInfo info)
         {
             if (!string.IsNullOrEmpty(info.FilePath))
             {
-                fileName = string.IsNullOrWhiteSpace(info.FileName) ? Path.GetFileName(info.FilePath) : info.FileName;
-                category = info.DataType switch
+                string name = string.IsNullOrWhiteSpace(info.FileName) ? Path.GetFileName(info.FilePath) : info.FileName;
+                var category = info.DataType switch
                 {
                     EDataType.Image => UploaderCategory.Image,
                     EDataType.Text => UploaderCategory.Text,
                     _ => UploaderCategory.File
                 };
-                return new FileStream(info.FilePath, FileMode.Open, FileAccess.Read, FileShare.Read, 8192, FileOptions.Asynchronous | FileOptions.SequentialScan);
+                return (new FileStream(info.FilePath, FileMode.Open, FileAccess.Read, FileShare.Read, 8192,
+                    FileOptions.Asynchronous | FileOptions.SequentialScan), name, category);
             }
 
             if (info.DataType == EDataType.Text && !string.IsNullOrEmpty(info.TextContent))
             {
                 string extension = info.TaskSettings.AdvancedSettings.TextFileExtension;
-                fileName = string.IsNullOrWhiteSpace(info.FileName)
-                    ? TaskHelpers.GetFileName(info.TaskSettings, extension, info.Metadata)
-                    : info.FileName;
-                category = UploaderCategory.Text;
-                DebugHelper.WriteLine(
-                    $"[UploadContentDebug] Text upload dispatch: textLength={info.TextContent.Length}, fileName=\"{fileName}\"");
-                return new MemoryStream(Encoding.UTF8.GetBytes(info.TextContent));
+                string name = string.IsNullOrWhiteSpace(info.FileName)
+                    ? TaskHelpers.GetFileName(info.TaskSettings, extension, info.Metadata) : info.FileName;
+                return (new MemoryStream(Encoding.UTF8.GetBytes(info.TextContent)), name, UploaderCategory.Text);
             }
 
             if (info.Metadata?.Image != null)
             {
-                fileName = info.FileName;
-                category = UploaderCategory.Image;
-                MemoryStream? ms = TaskHelpers.SaveImageAsStream(info.Metadata.Image, info.TaskSettings.ImageSettings.ImageFormat, info.TaskSettings);
-                if (ms != null)
-                {
-                    ms.Position = 0;
-                }
-
-                return ms;
+                var prepared = await TaskHelpers.PrepareImageAsync(info.Metadata.Image, info.TaskSettings);
+                string extension = EnumExtensions.GetDescription(prepared.Format);
+                string name = string.IsNullOrWhiteSpace(info.FileName)
+                    ? TaskHelpers.GetFileName(info.TaskSettings, extension, info.Metadata)
+                    : Path.ChangeExtension(info.FileName, extension);
+                info.SetFileName(name);
+                // Ownership of the stream transfers to the caller.
+                return (prepared.Stream, name, UploaderCategory.Image);
             }
 
-            fileName = info.FileName ?? "upload";
-            category = UploaderCategory.File;
-            return null;
+            return (null, info.FileName ?? "upload", UploaderCategory.File);
         }
 
         internal static void ApplyResolvedUploaderHost(TaskInfo info, UploaderInstance instance, UploadResult? result)

@@ -86,7 +86,7 @@ public partial class PinToScreenStartupDialog : UserControl
         var path = await BrowseFileRequested();
         if (string.IsNullOrEmpty(path)) return;
 
-        using var bitmap = SKBitmap.Decode(path);
+        using var bitmap = XerahS.Common.ImageHelpers.LoadBitmap(path);
         if (bitmap == null)
         {
             ShowToast("Failed to load image file.");

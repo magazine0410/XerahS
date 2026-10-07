@@ -49,7 +49,7 @@ public partial class HistoryViewModel
             if (format == HistoryCopyFormat.Image)
             {
                 if (items.Count != 1 || !File.Exists(item.FilePath) || !FileHelpers.IsImageFile(item.FilePath)) return;
-                using var bitmap = await Task.Run(() => SKBitmap.Decode(item.FilePath));
+                using var bitmap = await Task.Run(() => XerahS.Common.ImageHelpers.LoadBitmap(item.FilePath));
                 if (bitmap == null) throw new InvalidDataException("Could not read the image.");
                 PlatformServices.Clipboard.SetImage(bitmap);
                 return;

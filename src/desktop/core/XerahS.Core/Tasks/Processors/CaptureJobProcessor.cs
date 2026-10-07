@@ -54,6 +54,8 @@ namespace XerahS.Core.Tasks.Processors
         /// </summary>
         public static Func<SKBitmap, Task>? PrintImageCallback { get; set; }
 
+        public static Func<TaskInfo, CancellationToken, Task>? ShowImageEffectsCallback { get; set; }
+
         public static Func<TaskSettings, CancellationToken, Task<QuickTaskMenuResult>>? ShowQuickTaskMenuCallback { get; set; }
         public static Func<TaskInfo, CancellationToken, Task<string?>>? SaveImageWithDialogCallback { get; set; }
 
@@ -140,6 +142,13 @@ namespace XerahS.Core.Tasks.Processors
                 {
                     if (info.Metadata?.Image != null)
                     {
+                        if (settings.ImageSettings.ShowImageEffectsWindowAfterCapture)
+                        {
+                            var showEffects = ShowImageEffectsCallback
+                                ?? throw new InvalidOperationException("The image effects window is unavailable in this host.");
+                            await showEffects(info, token);
+                            token.ThrowIfCancellationRequested();
+                        }
                         var processed = TaskHelpers.ApplyImageEffects(info.Metadata.Image, settings.ImageSettings);
                         if (processed == null)
                         {
@@ -412,6 +421,18 @@ namespace XerahS.Core.Tasks.Processors
             {
                 editorResult?.SourceImage?.Dispose();
             }
+        }
+
+        internal static bool ShouldApplyImageEffects(TaskSettings settings) =>
+            !settings.ImageSettings.ImageEffectOnlyRegionCapture ||
+            settings.Job is not (WorkflowType.PrintScreen or WorkflowType.ActiveWindow or WorkflowType.CustomWindow or
+                WorkflowType.ActiveMonitor or WorkflowType.CustomRegion);
+
+        internal static void RestrictImageEffectsForCapture(TaskSettings settings)
+        {
+            // ShareX applies this in CaptureBase before the quick-task/after-capture menus.
+            // Scrolling and auto capture submit images directly and do not go through that filter.
+            if (!ShouldApplyImageEffects(settings)) settings.AfterCaptureJob &= ~AfterCaptureTasks.AddImageEffects;
         }
 
         public static void EnsureImageFileName(TaskInfo info)

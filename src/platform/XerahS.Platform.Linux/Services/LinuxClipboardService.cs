@@ -87,7 +87,8 @@ public sealed class LinuxClipboardService : IClipboardService
     public void SetImage(SKBitmap image)
     {
         using var stream = new MemoryStream();
-        image.Encode(stream, SKEncodedImageFormat.Png, 100);
+        using var background = XerahS.Common.ImageHelpers.CreateClipboardBackground(image);
+        (background ?? image).Encode(stream, SKEncodedImageFormat.Png, 100);
         stream.Position = 0;
         SetImageAsync(stream.ToArray()).GetAwaiter().GetResult();
     }

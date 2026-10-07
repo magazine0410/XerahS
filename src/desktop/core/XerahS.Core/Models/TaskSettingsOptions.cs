@@ -61,7 +61,7 @@ public class ImageEffectPreset
 
     public override string ToString()
     {
-        return Name;
+        return string.IsNullOrEmpty(Name) ? "Name" : Name;
     }
 }
 

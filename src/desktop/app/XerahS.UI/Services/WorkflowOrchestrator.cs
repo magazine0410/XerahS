@@ -87,6 +87,7 @@ public sealed class WorkflowOrchestrator : IWorkflowOrchestrator
 
     private void ConfigureWorkerTaskCallbacks()
     {
+        Core.Tasks.Processors.CaptureJobProcessor.ShowImageEffectsCallback = AfterCaptureInteractionService.ShowImageEffectsAsync;
         Core.Tasks.Processors.CaptureJobProcessor.ShowQuickTaskMenuCallback = AfterCaptureInteractionService.ShowQuickTaskMenuAsync;
         Core.Tasks.Processors.CaptureJobProcessor.SaveImageWithDialogCallback = AfterCaptureInteractionService.SaveImageWithDialogAsync;
         Core.Tasks.Processors.UploadJobProcessor.ShowBeforeUploadCallback = AfterCaptureInteractionService.ShowBeforeUploadAsync;

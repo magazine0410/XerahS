@@ -73,10 +73,18 @@ namespace XerahS.Core
         public static event EventHandler? SettingsChanged;
 
         /// <summary>
-        /// Raises the SettingsChanged event
+        /// Applies image preferences shared with the decoders and Linux clipboard backends.
         /// </summary>
+        private static void SyncImageOptions()
+        {
+            HelpersOptions.RotateImageByExifOrientationData = Settings.RotateImageByExifOrientationData;
+            HelpersOptions.DefaultCopyImageFillBackground = Settings.DefaultClipboardCopyImageFillBackground;
+            HelpersOptions.UseAlternativeClipboardCopyImage = Settings.UseAlternativeClipboardCopyImage;
+        }
+
         public static void RaiseSettingsChanged()
         {
+            SyncImageOptions();
             SettingsChanged?.Invoke(null, EventArgs.Empty);
         }
 
@@ -270,6 +278,8 @@ namespace XerahS.Core
             Settings.CreateBackup = true;
             Settings.CreateWeeklyBackup = true;
             Settings.BackupRetentionDays = 0; // App cleanup is controlled by AutoCleanupBackupFiles and its file count.
+
+            SyncImageOptions();
 
             // Sync proxy settings to HelpersOptions
             HelpersOptions.SyncProxyFromConfig(Settings.ProxySettings);

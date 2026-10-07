@@ -130,7 +130,10 @@ public static class HostedEditorAndPinService
             return false;
         }
 
-        return await engine.PinAsync(imagePath, GetHostUploadCommand(), cancellationToken).ConfigureAwait(false);
+        // Pin the decoded pixels so TIFF and EXIF orientation match the viewer even when the
+        // external pin tool has different format support or orientation defaults.
+        using var image = ImageHelpers.LoadBitmap(imagePath);
+        return image != null && await TryPinAsync(image, cancellationToken).ConfigureAwait(false);
     }
 
     /// <summary>The bundled omaxerahs next to XerahS, or null when it is not shipped.</summary>

@@ -164,7 +164,7 @@ public sealed class ImageViewerViewModel : INotifyPropertyChanged, IDisposable
         try
         {
             using MemoryStream stream = new(imageData, writable: false);
-            ReplaceImage(new Bitmap(stream));
+            ReplaceImage(XerahS.UI.Services.ImageFileLoader.Load(stream));
             _images = [];
             _currentImageIndex = 0;
             CurrentImageFilePath = displayName;
@@ -212,7 +212,7 @@ public sealed class ImageViewerViewModel : INotifyPropertyChanged, IDisposable
         try
         {
             string path = _images[_currentImageIndex];
-            var image = new Bitmap(path);
+            var image = XerahS.UI.Services.ImageFileLoader.Load(path);
             CurrentImageFilePath = path;
             ReplaceImage(image);
             UpdateStatus();

@@ -62,7 +62,7 @@ internal static class UploadWorkflowService
             using var stream = new MemoryStream();
             bitmap.Save(stream, PngBitmapEncoderOptions.Default);
             stream.Position = 0;
-            using var image = SKBitmap.Decode(stream);
+            using var image = XerahS.Common.ImageHelpers.LoadBitmap(stream);
             if (image == null) throw new IOException("The dropped image could not be read.");
             await taskManager.StartTask(UploadWorkflowService.CreateExecutionSettings(settings, WorkflowType.PrintScreen), image);
             return;

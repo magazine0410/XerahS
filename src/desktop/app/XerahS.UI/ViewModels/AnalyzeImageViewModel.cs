@@ -186,7 +186,7 @@ public sealed partial class AnalyzeImageViewModel : ViewModelBase, IDisposable
     {
         try
         {
-            var image = SKBitmap.Decode(filePath) ?? throw new InvalidDataException($"\"{Path.GetFileName(filePath)}\" is not a supported image.");
+            var image = XerahS.Common.ImageHelpers.LoadBitmap(filePath) ?? throw new InvalidDataException($"\"{Path.GetFileName(filePath)}\" is not a supported image.");
             SetImage(image, filePath);
             return true;
         }

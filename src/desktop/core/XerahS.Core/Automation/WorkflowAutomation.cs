@@ -183,7 +183,7 @@ public static class WorkflowAutomation
 
     /// <summary>
     /// Replaces the workflow's image effects with the preset in <paramref name="presetPath"/>
-    /// (.xsie or ShareX .sxie), like Import in the Image Effects dialog.
+    /// (.xsie or ShareX .sxie). This CLI operation replaces the whole list.
     /// </summary>
     public static IReadOnlyList<string> ImportImageEffects(WorkflowSettings workflow, string presetPath, bool enable)
     {
@@ -204,7 +204,8 @@ public static class WorkflowAutomation
                 $"Could not read image effects from '{presetPath}'. See the XerahS log for details.");
 
         OverrideImageEffectSections(workflow);
-        workflow.TaskSettings.ImageSettings.ImageEffectsPreset = preset;
+        workflow.TaskSettings.ImageSettings.ImageEffectPresets = [preset];
+        workflow.TaskSettings.ImageSettings.SelectedImageEffectPreset = 0;
         if (enable)
         {
             workflow.TaskSettings.AfterCaptureJob |= AfterCaptureTasks.AddImageEffects;
@@ -216,7 +217,8 @@ public static class WorkflowAutomation
     public static void ClearImageEffects(WorkflowSettings workflow)
     {
         OverrideImageEffectSections(workflow);
-        workflow.TaskSettings.ImageSettings.ImageEffectsPreset = ImageEffectPreset.GetDefaultPreset();
+        workflow.TaskSettings.ImageSettings.ImageEffectPresets = [ImageEffectPreset.GetDefaultPreset()];
+        workflow.TaskSettings.ImageSettings.SelectedImageEffectPreset = 0;
         workflow.TaskSettings.AfterCaptureJob &= ~AfterCaptureTasks.AddImageEffects;
     }
 

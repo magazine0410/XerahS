@@ -29,7 +29,7 @@ using SkiaSharp;
 
 namespace XerahS.Common;
 
-public static class ImageHelpers
+public static partial class ImageHelpers
 {
     public static SKBitmap? LoadBitmap(string filePath)
     {
@@ -40,7 +40,8 @@ public static class ImageHelpers
 
         try
         {
-            return SKBitmap.Decode(filePath);
+            using var stream = File.OpenRead(filePath);
+            return LoadBitmap(stream);
         }
         catch
         {

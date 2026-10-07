@@ -54,6 +54,93 @@ namespace XerahS.UI.ViewModels
         private bool isSyncSuspended;
         private readonly IViewDialogService _dialogService;
 
+        public ObservableCollection<string> PresetNames { get; } = new();
+        private int selectedPresetIndex;
+        public int SelectedPresetIndex
+        {
+            get => selectedPresetIndex;
+            set
+            {
+                if (isSyncSuspended || value < 0 || value >= settings.ImageEffectPresets.Count || value == selectedPresetIndex) return;
+                SyncToSettings();
+                selectedPresetIndex = value;
+                settings.SelectedImageEffectPreset = value;
+                OnPropertyChanged();
+                ApplyPreset(settings.ImageEffectPresets[value], updatePreview: true);
+            }
+        }
+
+        [RelayCommand]
+        private void NewPreset() => AddPreset(new ImageEffectPreset());
+
+        [RelayCommand]
+        private void DuplicatePreset()
+        {
+            SyncToSettings();
+            var copy = ImageEffectPresetSerializer.ClonePreset(settings.ImageEffectsPreset);
+            AddPreset(copy);
+        }
+
+        private void AddPreset(ImageEffectPreset preset)
+        {
+            SyncToSettings();
+            settings.ImageEffectPresets.Add(preset);
+            PresetNames.Add(preset.ToString());
+            SelectedPresetIndex = settings.ImageEffectPresets.Count - 1;
+        }
+
+        [RelayCommand]
+        private void RemovePreset()
+        {
+            settings.ImageEffectPresets.RemoveAt(selectedPresetIndex);
+            if (settings.ImageEffectPresets.Count == 0) settings.ImageEffectPresets.Add(new ImageEffectPreset());
+            selectedPresetIndex = Math.Min(selectedPresetIndex, settings.ImageEffectPresets.Count - 1);
+            settings.SelectedImageEffectPreset = selectedPresetIndex;
+            RefreshPresetNames();
+            ApplyPreset(settings.ImageEffectPresets[selectedPresetIndex], updatePreview: true);
+            OnPropertyChanged(nameof(SelectedPresetIndex));
+        }
+
+        [RelayCommand] private void MovePresetUp() => MovePreset(-1);
+        [RelayCommand] private void MovePresetDown() => MovePreset(1);
+        private void MovePreset(int delta)
+        {
+            int target = selectedPresetIndex + delta;
+            if (target < 0 || target >= settings.ImageEffectPresets.Count) return;
+            SyncToSettings();
+            var preset = settings.ImageEffectPresets[selectedPresetIndex];
+            settings.ImageEffectPresets.RemoveAt(selectedPresetIndex);
+            settings.ImageEffectPresets.Insert(target, preset);
+            selectedPresetIndex = target;
+            settings.SelectedImageEffectPreset = target;
+            RefreshPresetNames();
+            OnPropertyChanged(nameof(SelectedPresetIndex));
+        }
+
+        private void RefreshPresetNames()
+        {
+            bool suspended = isSyncSuspended;
+            isSyncSuspended = true;
+            try
+            {
+                PresetNames.Clear();
+                foreach (var preset in settings.ImageEffectPresets) PresetNames.Add(preset.ToString());
+            }
+            finally { isSyncSuspended = suspended; }
+        }
+
+        [RelayCommand] private void MoveEffectUp() => MoveEffect(-1);
+        [RelayCommand] private void MoveEffectDown() => MoveEffect(1);
+        private void MoveEffect(int delta)
+        {
+            if (SelectedEffect == null) return;
+            int index = Effects.IndexOf(SelectedEffect);
+            int target = index + delta;
+            if (target < 0 || target >= Effects.Count) return;
+            Effects.Move(index, target);
+            UpdatePreview();
+        }
+
         private bool canUndo;
         public bool CanUndo
         {
@@ -92,6 +179,17 @@ namespace XerahS.UI.ViewModels
 
         public List<EffectCategory> AvailableEffects { get; private set; } = new();
 
+        private string? previewError;
+        public string? PreviewError
+        {
+            get => previewError;
+            private set
+            {
+                if (SetProperty(ref previewError, value)) OnPropertyChanged(nameof(HasPreviewError));
+            }
+        }
+        public bool HasPreviewError => !string.IsNullOrEmpty(PreviewError);
+
         private Bitmap? previewBitmap;
         public Bitmap? PreviewBitmap
         {
@@ -108,11 +206,14 @@ namespace XerahS.UI.ViewModels
             InitializeAvailableEffects();
             GeneratePreviewImage();
 
-            var preset = settings.ImageEffectsPreset ?? ImageEffectPreset.GetDefaultPreset();
+            var preset = settings.ImageEffectsPreset;
+            selectedPresetIndex = Math.Clamp(settings.SelectedImageEffectPreset, 0, settings.ImageEffectPresets.Count - 1);
+            settings.SelectedImageEffectPreset = selectedPresetIndex;
+            RefreshPresetNames();
             isSyncSuspended = true;
             try
             {
-                Name = string.IsNullOrWhiteSpace(preset.Name) ? "Preset" : preset.Name;
+                Name = preset.Name;
                 Effects.Clear();
                 foreach (var effect in preset.Effects ?? new List<ImageEffect>())
                 {
@@ -176,31 +277,29 @@ namespace XerahS.UI.ViewModels
             var preset = settings.ImageEffectsPreset;
             preset.Name = Name;
             preset.Effects = Effects.ToList();
+            if (selectedPresetIndex >= 0 && selectedPresetIndex < PresetNames.Count && PresetNames[selectedPresetIndex] != preset.ToString())
+            {
+                isSyncSuspended = true;
+                try { PresetNames[selectedPresetIndex] = preset.ToString(); }
+                finally { isSyncSuspended = false; }
+                OnPropertyChanged(nameof(SelectedPresetIndex));
+            }
         }
 
         private void ApplyPreset(ImageEffectPreset preset, bool updatePreview)
         {
-            var effects = preset.Effects ?? new List<ImageEffect>();
+            var effects = (preset.Effects ?? []).ToList();
             isSyncSuspended = true;
             try
             {
-                Name = string.IsNullOrWhiteSpace(preset.Name) ? "Preset" : preset.Name;
+                Name = preset.Name;
+                Effects.Clear();
+                foreach (var effect in effects) Effects.Add(effect);
+                SelectedEffect = Effects.FirstOrDefault();
             }
-            finally
-            {
-                isSyncSuspended = false;
-            }
-            Effects.Clear();
-            foreach (var effect in effects)
-            {
-                Effects.Add(effect);
-            }
-            SelectedEffect = Effects.FirstOrDefault();
+            finally { isSyncSuspended = false; }
             SyncToSettings();
-            if (updatePreview)
-            {
-                UpdatePreview();
-            }
+            if (updatePreview) UpdatePreview();
         }
 
         private void InitializeAvailableEffects()
@@ -280,7 +379,7 @@ namespace XerahS.UI.ViewModels
 
             try
             {
-                foreach (var effect in Effects)
+                foreach (var effect in Effects.Where(effect => effect.Enabled))
                 {
                     var processed = effect.Apply(result);
                     if (processed != result)
@@ -295,7 +394,18 @@ namespace XerahS.UI.ViewModels
                 using var stream = new MemoryStream();
                 data.SaveTo(stream);
                 stream.Position = 0;
+                var previous = PreviewBitmap;
                 PreviewBitmap = new Bitmap(stream);
+                previous?.Dispose();
+                PreviewError = null;
+            }
+            catch (Exception ex)
+            {
+                var previous = PreviewBitmap;
+                PreviewBitmap = null;
+                previous?.Dispose();
+                PreviewError = "Could not preview image effects: " + ex.Message;
+                DebugHelper.WriteException(ex, "Could not preview image effects.");
             }
             finally
             {
@@ -330,13 +440,17 @@ namespace XerahS.UI.ViewModels
         public SKBitmap ApplyEffects(SKBitmap source)
         {
             var copy = source.Copy();
-            var result = XerahS.Core.TaskHelpers.ApplyImageEffects(copy, settings) ?? copy;
-            if (!ReferenceEquals(result, copy))
+            try
+            {
+                var result = XerahS.Core.TaskHelpers.ApplyImageEffectPreset(copy, settings.ImageEffectsPreset);
+                if (!ReferenceEquals(result, copy)) copy.Dispose();
+                return result;
+            }
+            catch
             {
                 copy.Dispose();
+                throw;
             }
-
-            return result;
         }
 
         /// <summary>Releases the preview bitmaps when the view that shows them closes.</summary>
@@ -344,6 +458,7 @@ namespace XerahS.UI.ViewModels
         {
             sourcePreviewBitmap?.Dispose();
             sourcePreviewBitmap = null;
+            PreviewBitmap?.Dispose();
             PreviewBitmap = null;
         }
 
@@ -383,8 +498,8 @@ namespace XerahS.UI.ViewModels
         {
             if (TryCreateEffectInstance(effectType, out var effect) && effect != null)
             {
-                Effects.Add(effect);
-                SelectedEffect = Effects.LastOrDefault();
+                Effects.Insert(SelectedEffect == null ? Effects.Count : Effects.IndexOf(SelectedEffect) + 1, effect);
+                SelectedEffect = effect;
                 UpdatePreview();
                 SyncToSettings();
                 return true;
@@ -396,8 +511,8 @@ namespace XerahS.UI.ViewModels
         private bool TryAddEffect(ImageEffect effect)
         {
             EnsurePreviewVisibleDefaults(effect);
-            Effects.Add(effect);
-            SelectedEffect = Effects.LastOrDefault();
+            Effects.Insert(SelectedEffect == null ? Effects.Count : Effects.IndexOf(SelectedEffect) + 1, effect);
+            SelectedEffect = effect;
             UpdatePreview();
             SyncToSettings();
             return true;
@@ -829,8 +944,8 @@ namespace XerahS.UI.ViewModels
             }
         }
 
-        /// <summary>Replaces the preset with an imported one, as the Import button does.</summary>
-        internal void ApplyImportedPreset(ImageEffectPreset preset) => ApplyPreset(preset, updatePreview: true);
+        /// <summary>Adds and selects an imported preset, as the Import button does.</summary>
+        internal void ApplyImportedPreset(ImageEffectPreset preset) => AddPreset(preset);
 
         [RelayCommand]
         public async Task ImportEffectsAsync()
@@ -839,7 +954,7 @@ namespace XerahS.UI.ViewModels
             if (preset == null)
                 return;
 
-            ApplyPreset(preset, updatePreview: true);
+            AddPreset(preset);
         }
 
         private async Task<ImageEffectPreset?> LoadPresetFromPickerAsync(string title)
@@ -903,4 +1018,3 @@ namespace XerahS.UI.ViewModels
         }
     }
 }
-

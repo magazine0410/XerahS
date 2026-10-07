@@ -55,7 +55,7 @@ public static class VideoEditorWatermarkMapper
 
         VideoWatermarkSettings? result = null;
 
-        foreach (ImageEffect effect in effects)
+        foreach (ImageEffect effect in effects.Where(effect => effect.Enabled))
         {
             switch (effect)
             {

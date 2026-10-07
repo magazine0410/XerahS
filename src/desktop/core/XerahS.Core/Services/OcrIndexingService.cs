@@ -146,7 +146,7 @@ public static class OcrIndexingService
                 return;
             }
 
-            using SKBitmap? bitmap = SKBitmap.Decode(item.FilePath);
+            using SKBitmap? bitmap = XerahS.Common.ImageHelpers.LoadBitmap(item.FilePath);
             if (bitmap == null)
             {
                 CreateStore().MarkStatus(item.Id, item.FilePath, "decode_failed");

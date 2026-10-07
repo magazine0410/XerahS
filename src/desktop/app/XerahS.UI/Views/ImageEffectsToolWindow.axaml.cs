@@ -78,6 +78,14 @@ public partial class ImageEffectsToolWindow : SurfaceWindow
 
     internal ImageEffectsViewModel ViewModel => _viewModel;
 
+    internal void UseAfterCaptureMode()
+    {
+        OpenButton.IsVisible = ClipboardButton.IsVisible = SaveButton.IsVisible = UploadButton.IsVisible = false;
+        CloseButton.Content = "Continue";
+        DragDrop.SetAllowDrop(this, false);
+        Title = "Image effects";
+    }
+
     /// <summary>Takes ownership of <paramref name="image"/>.</summary>
     internal void SetSource(SKBitmap? image, string? filePath)
     {
@@ -97,7 +105,7 @@ public partial class ImageEffectsToolWindow : SurfaceWindow
 
     internal bool LoadImageFile(string path)
     {
-        var image = File.Exists(path) ? SKBitmap.Decode(path) : null;
+        var image = File.Exists(path) ? XerahS.Common.ImageHelpers.LoadBitmap(path) : null;
         if (image == null) return false;
         SetSource(image, path);
         return true;

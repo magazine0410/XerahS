@@ -37,6 +37,17 @@
                                     </Grid>
                                 </StackPanel>
                             </Border>
+                            <TextBlock Text="Automatic JPEG" FontWeight="SemiBold" Margin="0,8,0,0"/>
+                            <CheckBox IsChecked="{Binding ImageAutoUseJPEG}">
+                                <TextBlock Text="Use JPEG if image size is bigger than the specified size" TextWrapping="Wrap"/>
+                            </CheckBox>
+                            <StackPanel IsEnabled="{Binding ImageAutoUseJPEG}" Spacing="8">
+                                <TextBlock Text="Size limit (kB):"/>
+                                <NumericUpDown Value="{Binding ImageAutoUseJPEGSize}" Minimum="0" Maximum="2147483647" AutomationProperties.Name="Automatic JPEG size limit in KB"/>
+                                <CheckBox IsChecked="{Binding ImageAutoJPEGQuality}">
+                                    <TextBlock Text="Adjust JPEG quality automatically to keep image size near the specified size" TextWrapping="Wrap"/>
+                                </CheckBox>
+                            </StackPanel>
                         </StackPanel>
 
                         <!-- Thumbnail -->
@@ -66,7 +77,15 @@
 
             <!-- Effects Tab -->
             <TabItem Header="Effects">
-                <views:ImageEffectsEditorPanel DataContext="{Binding ImageEffects}" IsEnabled="{Binding $parent[views:TaskImageSettingsPanel].((vm:TaskSettingsViewModel)DataContext).ImageSettingsEnabled}"/>
+                <Grid RowDefinitions="Auto,*" IsEnabled="{Binding ImageSettingsEnabled}">
+                    <StackPanel Spacing="4" Margin="8">
+                        <CheckBox Content="Show image effects window after capture" IsChecked="{Binding ShowImageEffectsWindowAfterCapture}"/>
+                        <CheckBox Content="Only apply effects to region capture" IsChecked="{Binding ImageEffectOnlyRegionCapture}"/>
+                        <CheckBox Content="Use random image effect" IsChecked="{Binding UseRandomImageEffect}"/>
+                        <TextBlock Text="Enable image effects in After capture tasks > Add image effects." TextWrapping="Wrap"/>
+                    </StackPanel>
+                    <views:ImageEffectsEditorPanel Grid.Row="1" DataContext="{Binding ImageEffects}"/>
+                </Grid>
             </TabItem>
         </TabControl>
       </DockPanel>

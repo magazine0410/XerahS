@@ -168,7 +168,7 @@ namespace XerahS.Media
                 {
                     if (System.IO.File.Exists(path))
                     {
-                        var bmp = SKBitmap.Decode(path);
+                        var bmp = XerahS.Common.ImageHelpers.LoadBitmap(path);
                         if (bmp != null)
                         {
                             bitmaps.Add(bmp);

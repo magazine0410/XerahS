@@ -466,7 +466,7 @@ public sealed class AssistantService : IAssistantService
             return AssistantResponse.Error("File no longer available. It may have been moved or deleted.");
         }
 
-        using SKBitmap? bitmap = SKBitmap.Decode(filePath);
+        using SKBitmap? bitmap = XerahS.Common.ImageHelpers.LoadBitmap(filePath);
         if (bitmap == null)
         {
             return AssistantResponse.Error("File no longer available. It may have been moved or deleted.");
@@ -530,7 +530,7 @@ public sealed class AssistantService : IAssistantService
             return AssistantResponse.Error("File no longer available. It may have been moved or deleted.");
         }
 
-        using SKBitmap? bitmap = SKBitmap.Decode(action.FilePath);
+        using SKBitmap? bitmap = XerahS.Common.ImageHelpers.LoadBitmap(action.FilePath);
         if (bitmap == null)
         {
             return AssistantResponse.Error("File no longer available. It may have been moved or deleted.");

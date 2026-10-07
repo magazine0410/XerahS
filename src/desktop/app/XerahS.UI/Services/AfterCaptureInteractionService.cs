@@ -37,6 +37,28 @@ namespace XerahS.UI.Services;
 
 internal static class AfterCaptureInteractionService
 {
+    public static Task ShowImageEffectsAsync(TaskInfo info, CancellationToken token) =>
+        Dispatcher.UIThread.InvokeAsync(() => ShowImageEffectsCoreAsync(info, token));
+
+    private static async Task ShowImageEffectsCoreAsync(TaskInfo info, CancellationToken token)
+    {
+        token.ThrowIfCancellationRequested();
+        var model = UiViewModelFactoryAccessor.GetRequired().CreateImageEffectsViewModel(info.TaskSettings.ImageSettings);
+        var window = new ImageEffectsToolWindow(model, info.Metadata.Image, null, null);
+        window.UseAfterCaptureMode();
+        var completion = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        window.Closed += (_, _) => completion.TrySetResult();
+        window.Show();
+        window.Activate();
+        using var registration = token.Register(() => Dispatcher.UIThread.Post(window.Close));
+        await completion.Task;
+        token.ThrowIfCancellationRequested();
+        var target = info.TaskSettings.ImageSettingsReference;
+        target.ImageEffectPresets = info.TaskSettings.ImageSettings.ImageEffectPresets;
+        target.SelectedImageEffectPreset = info.TaskSettings.ImageSettings.SelectedImageEffectPreset;
+        await ImageEditorOptionsStore.PersistAsync();
+    }
+
     public static Task<bool> ShowBeforeUploadAsync(TaskInfo info, CancellationToken token) =>
         Dispatcher.UIThread.InvokeAsync(() => new BeforeUploadWindow(info).ShowAsync(token));
 
@@ -108,7 +130,9 @@ internal static class AfterCaptureInteractionService
     private static async Task<string?> SaveImageWithDialogCoreAsync(TaskInfo info, CancellationToken token)
     {
         var storage = StorageProviderResolver.Resolve() ?? throw new InvalidOperationException("The file picker is unavailable.");
+        using var prepared = await Task.Run(() => TaskHelpers.PrepareImageAsync(info.Metadata.Image!, info.TaskSettings), token);
         CaptureJobProcessor.EnsureImageFileName(info);
+        info.SetFileName(Path.ChangeExtension(info.FileName, EnumExtensions.GetDescription(prepared.Format)));
         string folder = SettingsManager.Settings.LastImageSaveDirectory;
         if (!Directory.Exists(folder)) folder = TaskHelpers.GetScreenshotsFolder(info.TaskSettings);
         string extension = Path.GetExtension(info.FileName).TrimStart('.');
@@ -129,7 +153,8 @@ internal static class AfterCaptureInteractionService
             string path = file.TryGetLocalPath() ?? throw new IOException("Choose a local folder to save the image.");
             try
             {
-                await Task.Run(() => TaskHelpers.SaveImageToPathAsync(info.Metadata.Image!, path, info.TaskSettings), token);
+                prepared.Stream.Position = 0;
+                await Task.Run(() => TaskHelpers.WriteImageStreamToFile(prepared.Stream, path, overwrite: true), token);
                 SettingsManager.Settings.LastImageSaveDirectory = Path.GetDirectoryName(path) ?? string.Empty;
                 await SettingsManager.SaveApplicationConfigAsync();
                 return path;

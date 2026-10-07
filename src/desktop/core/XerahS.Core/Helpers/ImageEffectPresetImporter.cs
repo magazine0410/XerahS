@@ -110,6 +110,7 @@ public static class ImageEffectPresetImporter
             var effect = CreateEffectFromMapped(mapped);
             if (effect != null)
             {
+                effect.Enabled = mapped.Enabled;
                 preset.Effects.Add(effect);
             }
         }

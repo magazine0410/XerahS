@@ -323,7 +323,7 @@ namespace XerahS.UI.Views
 
             try
             {
-                bitmap = SKBitmap.Decode(path);
+                bitmap = XerahS.Common.ImageHelpers.LoadBitmap(path);
                 if (bitmap == null || bitmap.Handle == IntPtr.Zero)
                 {
                     bitmap?.Dispose();
@@ -358,7 +358,7 @@ namespace XerahS.UI.Views
 
                 // XIP0039 Guardrail 6: Call the now-public InsertImageAnnotation directly
                 // instead of using reflection (BindingFlags.NonPublic).
-                var bitmap = SKBitmap.Decode(path);
+                var bitmap = XerahS.Common.ImageHelpers.LoadBitmap(path);
                 if (bitmap == null || bitmap.Handle == IntPtr.Zero)
                 {
                     bitmap?.Dispose();
