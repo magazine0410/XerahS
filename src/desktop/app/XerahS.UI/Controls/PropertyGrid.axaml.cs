@@ -152,7 +152,13 @@ namespace XerahS.UI.Controls
             {
                 var checkBox = new CheckBox();
                 checkBox.Bind(CheckBox.IsCheckedProperty, binding);
-                checkBox.IsCheckedChanged += (s, e) => PropertyValueChanged?.Invoke(this, EventArgs.Empty);
+                checkBox.IsCheckedChanged += (s, e) =>
+                {
+                    // IsCheckedChanged is raised before the binding writes the value back, so
+                    // listeners that save or apply settings would otherwise read the old value.
+                    prop.SetValue(obj, checkBox.IsChecked == true);
+                    PropertyValueChanged?.Invoke(this, EventArgs.Empty);
+                };
                 return checkBox;
             }
             if (type.IsEnum)
