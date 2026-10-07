@@ -338,7 +338,10 @@ public static class MainViewModelHelper
             var options = SettingsManager.DefaultTaskSettings?.ToolsSettings?.PinToScreenOptions
                 ?? new PinToScreenOptions();
 
-            PinToScreenManager.PinImage(imageToPin, null, options);
+            using (imageToPin)
+            {
+                PinToScreenManager.PinImage(imageToPin, null, options);
+            }
             Core.Services.NotificationSoundService.PlayActionCompleted();
         }
         catch (Exception ex)

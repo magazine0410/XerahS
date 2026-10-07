@@ -94,27 +94,11 @@ public sealed class WorkflowOrchestrator : IWorkflowOrchestrator
         Core.Tasks.WorkerTask.ShowWindowSelectorCallback = ShowWindowSelectorAsync;
         Core.Tasks.WorkerTask.ShowOpenFileDialogCallback = ShowOpenFileDialogAsync;
         Core.Tasks.WorkerTask.HandleToolWorkflowCallback = HandleToolWorkflowAsync;
-        Core.Tasks.Processors.CaptureJobProcessor.PinToScreenCallback = async (bitmap, location, options) =>
+        Core.Tasks.Processors.CaptureJobProcessor.PinToScreenCallback = (bitmap, location, options) =>
         {
-            // Pin windows outlive the worker completion callback; give them their own native pixels.
-            var pinnedImage = bitmap.Copy();
-            if (pinnedImage == null)
-            {
-                DebugHelper.WriteLine("PinToScreen skipped: failed to clone image for pinned window.");
-                return;
-            }
-            try
-            {
-                await Dispatcher.UIThread.InvokeAsync(() =>
-                {
-                    PinToScreenManager.PinImage(pinnedImage, location == null ? null : (Avalonia.PixelPoint?)location, options);
-                });
-            }
-            catch
-            {
-                pinnedImage.Dispose();
-                throw;
-            }
+            // PinImage copies the pixels before returning, so the worker can dispose its bitmap.
+            PinToScreenManager.PinImage(bitmap, location == null ? null : (Avalonia.PixelPoint?)location, options);
+            return Task.CompletedTask;
         };
         Core.Tasks.Processors.CaptureJobProcessor.PrintImageCallback = image => ImagePrintService.PrintImageAsync(image);
         // URL sharing services open share pages through the desktop portal and ask for emails in the compose window.

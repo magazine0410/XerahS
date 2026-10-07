@@ -43,17 +43,35 @@ public static class PinToScreenManager
         get { lock (_lock) { return _windows.Count; } }
     }
 
+    /// <summary>
+    /// Pins a copy of <paramref name="bitmap"/>. The caller keeps ownership of the bitmap and may
+    /// dispose it as soon as this returns; the pinned window owns and disposes its copy.
+    /// </summary>
     public static void PinImage(SKBitmap bitmap, PixelPoint? location, PinToScreenOptions options)
     {
-        if (!Dispatcher.UIThread.CheckAccess())
+        var pinnedBitmap = bitmap.Copy();
+        if (pinnedBitmap == null)
         {
-            Dispatcher.UIThread.Post(() => PinImage(bitmap, location, options));
+            DebugHelper.WriteLine("PinToScreen skipped: failed to copy image for pinned window.");
             return;
         }
 
+        if (Dispatcher.UIThread.CheckAccess())
+        {
+            ShowPinnedImage(pinnedBitmap, location, options);
+        }
+        else
+        {
+            Dispatcher.UIThread.Post(() => ShowPinnedImage(pinnedBitmap, location, options));
+        }
+    }
+
+    private static void ShowPinnedImage(SKBitmap bitmap, PixelPoint? location, PinToScreenOptions options)
+    {
+        PinnedImageViewModel? viewModel = null;
         try
         {
-            var viewModel = new PinnedImageViewModel(bitmap, options);
+            viewModel = new PinnedImageViewModel(bitmap, options);
             var window = new PinnedImageWindow();
             window.Initialize(viewModel, location, options);
 
@@ -71,6 +89,8 @@ public static class PinToScreenManager
         catch (Exception ex)
         {
             DebugHelper.WriteException(ex, "PinToScreen pin image");
+            if (viewModel != null) viewModel.Dispose();
+            else bitmap.Dispose();
         }
     }
 
