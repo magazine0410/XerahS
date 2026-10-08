@@ -447,7 +447,9 @@ public sealed class WindowDetectionService
 
     internal static WindowPointQueryResult TryGetDirectWindowAtPoint(PixelPoint physicalPoint)
     {
-        if (!OperatingSystem.IsLinux() || !MonitorEnumerationService.IsAvaloniaWaylandBackend())
+        // On XWayland, X11 only lists XWayland windows; on Sway the compositor's query also finds native ones.
+        if (!OperatingSystem.IsLinux() ||
+            !(MonitorEnumerationService.IsAvaloniaWaylandBackend() || MonitorEnumerationService.IsXWaylandOnSway()))
             return default;
 
         // Pointer tracking runs per mouse move; skip the query instead of throwing when the

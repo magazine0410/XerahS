@@ -158,6 +158,10 @@ public sealed class OverlayManager : IDisposable
                 WindowDetectionService.ExcludeHandle(handle);
             }
 
+            // Sway puts every new XWayland window on the focused output; move each overlay onto its monitor.
+            if (_overlays.Count > 1 && MonitorEnumerationService.IsXWaylandOnSway())
+                await Task.WhenAll(_overlays.Select(overlay => overlay.PlaceOnMonitorAsync()));
+
             if (_activeMonitorCoordinator?.ActiveOverlay is { } activeOverlay && _overlays.Count > 1)
                 activeOverlay.FocusOverlay();
 

@@ -216,6 +216,15 @@ public static class MonitorEnumerationService
         return mainWindow.TryGetPlatformHandle()?.HandleDescriptor == "WAYLAND";
     }
 
+    /// <summary>
+    /// True when XerahS runs on XWayland in a Sway session. Sway's IPC sees both native Wayland and XWayland
+    /// windows, and XWayland's coordinates are Sway's layout coordinates.
+    /// </summary>
+    internal static bool IsXWaylandOnSway() =>
+        OperatingSystem.IsLinux() &&
+        !string.IsNullOrWhiteSpace(Environment.GetEnvironmentVariable("SWAYSOCK")) &&
+        !IsAvaloniaWaylandBackend();
+
 #if WINDOWS
     private static IReadOnlyList<MonitorInfo> GetWindowsMonitors()
     {

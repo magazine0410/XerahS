@@ -29,6 +29,7 @@ using System.Runtime.InteropServices;
 using System.Text;
 using XerahS.Platform.Linux.Wayland.WindowQuery;
 using XerahS.Platform.Linux.Services.Kde;
+using XerahS.Platform.Linux.Capture.Detection;
 
 namespace XerahS.Platform.Linux
 {
@@ -480,8 +481,31 @@ namespace XerahS.Platform.Linux
         public bool SetWindowPos(IntPtr handle, IntPtr handleInsertAfter, int x, int y, int width, int height, uint flags)
         {
             if (_display == IntPtr.Zero || IsKWinHandle(handle)) return false;
+            if (IsSwaySession.Value) return SetSwayWindowPos(handle, x, y, width, height);
             NativeMethods.XMoveResizeWindow(_display, handle, x, y, width, height);
             return true;
+        }
+
+        // Sway places a new XWayland window on the focused output and ignores X11 moves of managed windows;
+        // its IPC moves a window by X11 window id, in layout coordinates, which XWayland's coordinates are.
+        private static readonly Lazy<bool> IsSwaySession = new(() =>
+            CompositorDetector.Detect(LinuxScreenCaptureService.IsWayland, DesktopEnvironmentDetector.Detect()) == "SWAY" &&
+            WaylandWindowPointQueryCommandRunner.CommandExists("swaymsg"));
+
+        internal static string GetSwayWindowPosCommand(IntPtr handle, int x, int y, int width, int height) =>
+            string.Create(System.Globalization.CultureInfo.InvariantCulture,
+                $"[id={handle.ToInt64()}] floating enable, move absolute position {x} {y}, resize set width {width} px height {height} px");
+
+        private static bool SetSwayWindowPos(IntPtr handle, int x, int y, int width, int height)
+        {
+            string command = GetSwayWindowPosCommand(handle, x, y, width, height);
+            CommandRunResult result = WaylandWindowPointQueryCommandRunner.Run("swaymsg", "\"" + command + "\"");
+            if (!result.Success)
+            {
+                DebugHelper.WriteLine($"LinuxWindowService: swaymsg {command} failed: {result.FailureReason} {result.StandardOutput.Trim()}");
+            }
+
+            return result.Success;
         }
 
         public WindowInfo[] GetAllWindows()

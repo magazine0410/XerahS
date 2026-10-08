@@ -270,6 +270,32 @@ public partial class OverlayWindow : Window
     }
 
     /// <summary>
+    /// Moves the overlay onto its monitor through the window service. Sway places every new XWayland window on
+    /// the focused output instead of where it asks to be, and its IPC finds a window only once Sway has mapped it.
+    /// </summary>
+    internal async Task PlaceOnMonitorAsync()
+    {
+        if (!PlatformServices.IsWindowServiceInitialized || TryGetPlatformHandle()?.Handle is not { } handle || handle == IntPtr.Zero)
+            return;
+
+        var position = _targetPosition;
+        int width = (int)Math.Round((double)_monitor.PhysicalBounds.Width);
+        int height = (int)Math.Round((double)_monitor.PhysicalBounds.Height);
+        for (int attempt = 0; attempt < 10; attempt++)
+        {
+            if (await Task.Run(() => PlatformServices.Window.SetWindowPos(handle, IntPtr.Zero, position.X, position.Y, width, height, 0)))
+            {
+                DebugHelper.WriteLine($"[OverlayWindow] {_monitor.DeviceName}: placed at ({position.X},{position.Y}) {width}x{height} by the window manager");
+                return;
+            }
+
+            await Task.Delay(50);
+        }
+
+        DebugHelper.WriteLine($"[OverlayWindow] {_monitor.DeviceName}: the window manager did not place the overlay on its monitor");
+    }
+
+    /// <summary>
     /// Clears window ownership so Show() does not set X11 transient-for on a non-viewable MainWindow.
     /// Owner's setter is protected on WindowBase; expose clearing for OverlayManager.
     /// </summary>

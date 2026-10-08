@@ -80,6 +80,13 @@ public class LinuxWindowServiceTests
     }
 
     [Test]
+    public void SwayWindowPosCommand_MovesTheXWaylandWindowByItsX11Id()
+    {
+        Assert.That(LinuxWindowService.GetSwayWindowPosCommand(new IntPtr(12582966), -1920, 0, 1920, 1080),
+            Is.EqualTo("[id=12582966] floating enable, move absolute position -1920 0, resize set width 1920 px height 1080 px"));
+    }
+
+    [Test]
     public void ContainsExcludedWindowStateName_SkipsPagerSuppressedWindowsButNotMinimizedOnes()
     {
         Assert.Multiple(() =>
