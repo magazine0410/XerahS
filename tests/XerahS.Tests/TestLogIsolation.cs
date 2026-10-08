@@ -32,14 +32,23 @@ namespace XerahS.Tests;
 /// Redirects every log file written during a test run into a private temporary folder, so tests
 /// that exercise failure paths never append entries to the user's real XerahS error log
 /// (XIP0088 Phase 0 item 2). A module initializer runs before any test or static constructor.
+/// The personal folder is also moved into a temporary folder, so tests that save settings never
+/// overwrite the user's real settings.
 /// </summary>
 internal static class TestLogIsolation
 {
     internal static string LogsFolder { get; private set; } = string.Empty;
+    internal static string PersonalFolder { get; private set; } = string.Empty;
 
     [ModuleInitializer]
     internal static void Initialize()
     {
+        // Without an explicit personal folder, Linux uses ~/.config/xerahs and ~/.local/share/xerahs. Tests that
+        // restore the folder they found would otherwise switch back to those folders for the tests after them.
+        PersonalFolder = Path.Combine(Path.GetTempPath(), $"xerahs-test-personal-{Environment.ProcessId}");
+        Directory.CreateDirectory(PersonalFolder);
+        PathsManager.PersonalFolder = PersonalFolder;
+
         string? existing = Environment.GetEnvironmentVariable(PathsManager.LogsFolderOverrideVariable);
         if (!string.IsNullOrWhiteSpace(existing))
         {

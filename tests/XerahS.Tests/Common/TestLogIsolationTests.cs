@@ -46,4 +46,15 @@ public class TestLogIsolationTests
         Assert.That(PathsManager.GetMainLogFilePath(), Does.StartWith(PathsManager.LogsFolderBase));
         Assert.That(PathsManager.LogsFolderBase, Is.EqualTo(Environment.GetEnvironmentVariable(PathsManager.LogsFolderOverrideVariable)));
     }
+
+    [Test]
+    public void Settings_ResolveInsideTheTestPersonalFolder()
+    {
+        Assert.That(TestLogIsolation.PersonalFolder, Is.Not.Empty);
+        Assert.Multiple(() =>
+        {
+            Assert.That(PathsManager.SettingsFolder, Does.StartWith(TestLogIsolation.PersonalFolder));
+            Assert.That(PathsManager.HistoryFolder, Does.StartWith(TestLogIsolation.PersonalFolder));
+        });
+    }
 }
