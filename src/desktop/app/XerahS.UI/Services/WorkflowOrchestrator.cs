@@ -104,6 +104,8 @@ public sealed class WorkflowOrchestrator : IWorkflowOrchestrator
         // URL sharing services open share pages through the desktop portal and ask for emails in the compose window.
         Uploaders.SharingServices.UrlSharingHost.OpenUrl = url => PlatformServices.System.OpenUrl(url);
         Uploaders.SharingServices.UrlSharingHost.ComposeEmailAsync = Views.EmailComposeWindow.ShowAsync;
+        Core.Tasks.Processors.CaptureJobProcessor.ShowQrCodeScanCallback = image =>
+            Dispatcher.UIThread.InvokeAsync(() => QrCodeToolService.DecodeAndShowAsync(image, null));
         Core.Tasks.Processors.CaptureJobProcessor.ShowAnalyzeImageCallback = (filePath, taskSettings) =>
             Dispatcher.UIThread.InvokeAsync(() => AnalyzeImageToolService.Show(null, taskSettings, filePath, null)).GetTask();
 
@@ -245,7 +247,7 @@ public sealed class WorkflowOrchestrator : IWorkflowOrchestrator
         }
     }
 
-    private void ToggleHotkeys()
+    private void ToggleHotkeys(TaskSettings taskSettings)
     {
         var config = Core.SettingsManager.Settings;
         if (config == null)
@@ -255,7 +257,46 @@ public sealed class WorkflowOrchestrator : IWorkflowOrchestrator
 
         config.DisableHotkeys = !config.DisableHotkeys;
         _workflowManager?.ToggleHotkeys(config.DisableHotkeys);
-        DebugHelper.WriteLine($"Hotkeys {(config.DisableHotkeys ? "disabled" : "enabled")}");
+        string message = config.DisableHotkeys ? "Hotkeys disabled." : "Hotkeys enabled.";
+        DebugHelper.WriteLine(message);
+
+        // As in ShareX's TaskHelpers.ToggleHotkeys.
+        if (taskSettings.GeneralSettings.ShowToastNotificationAfterTaskCompleted)
+        {
+            ShowMessageToast(message, taskSettings.GeneralSettings);
+        }
+    }
+
+    private static void ShowMessageToast(string text, TaskSettingsGeneral generalSettings)
+    {
+        Dispatcher.UIThread.Post(() =>
+        {
+            try
+            {
+                if (PlatformServices.IsToastServiceInitialized)
+                {
+                    PlatformServices.Toast.ShowToast(new ToastConfig
+                    {
+                        Title = "XerahS",
+                        Text = text,
+                        Duration = generalSettings.ToastWindowDuration,
+                        FadeDuration = generalSettings.ToastWindowFadeDuration,
+                        Placement = generalSettings.ToastWindowPlacement,
+                        Size = new SizeI(400, 120),
+                        AutoHide = generalSettings.ToastWindowAutoHide,
+                        LeftClickAction = ToastClickAction.CloseNotification
+                    });
+                }
+                else
+                {
+                    PlatformServices.Notification.ShowNotification("XerahS", text);
+                }
+            }
+            catch (Exception ex)
+            {
+                DebugHelper.WriteException(ex, "Failed to show notification");
+            }
+        });
     }
 
     /// <summary>
@@ -303,7 +344,9 @@ public sealed class WorkflowOrchestrator : IWorkflowOrchestrator
             }
 
             _workflowManager.UpdateHotkeys(hotkeys);
-            DebugHelper.WriteLine($"Initialized hotkey manager with {hotkeys.Count} hotkeys from configuration");
+            // As in ShareX, hotkeys disabled before the last exit stay disabled.
+            _workflowManager.ToggleHotkeys(Core.SettingsManager.Settings?.DisableHotkeys == true);
+            DebugHelper.WriteLine($"Initialized hotkey manager with {hotkeys.Count} hotkeys from configuration{(_workflowManager.HotkeysDisabled ? " (hotkeys disabled)" : "")}");
         }
         catch (Exception ex)
         {
@@ -550,6 +593,12 @@ public sealed class WorkflowOrchestrator : IWorkflowOrchestrator
                 {
                     title = "Upload Completed";
                     text = url;
+                }
+                else if (string.IsNullOrEmpty(filePath))
+                {
+                    // As in ShareX's TaskManager, a task that ends without a URL or a file, such as a capture that is
+                    // only copied or scanned for a QR code, shows no completion notification.
+                    return;
                 }
                 else
                 {

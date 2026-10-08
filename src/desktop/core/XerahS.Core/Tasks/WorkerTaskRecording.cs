@@ -316,6 +316,7 @@ namespace XerahS.Core.Tasks
                     {
                         Title = "Recording Failed",
                         Text = errorMessage,
+                        ErrorDetails = ex.ToString(),
                         Duration = 8f,
                         Size = new SizeI(450, 140),
                         AutoHide = true,
@@ -327,6 +328,8 @@ namespace XerahS.Core.Tasks
                     // Ignore toast errors
                 }
 
+                // The task's own failure notification would repeat this one.
+                _failureNotificationShown = true;
                 throw;
             }
         }

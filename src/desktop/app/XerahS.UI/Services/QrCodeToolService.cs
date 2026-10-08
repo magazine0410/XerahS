@@ -110,7 +110,8 @@ public static class QrCodeToolService
         };
     }
 
-    private static async Task DecodeAndShowAsync(SKBitmap bitmap, Window? owner)
+    /// <summary>Decodes the image, which it disposes, and shows the results window.</summary>
+    internal static async Task DecodeAndShowAsync(SKBitmap bitmap, Window? owner)
     {
         try
         {

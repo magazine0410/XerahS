@@ -49,10 +49,11 @@ namespace XerahS.Platform.Linux
         ];
         private static readonly string[] ExcludedWindowStateNames =
         [
-            "_NET_WM_STATE_HIDDEN",
             "_NET_WM_STATE_SKIP_PAGER",
             "_NET_WM_STATE_SKIP_TASKBAR"
         ];
+        // The window manager marks a minimized (iconified) window hidden and unmaps it.
+        private static readonly string[] MinimizedWindowStateNames = ["_NET_WM_STATE_HIDDEN"];
         private readonly IntPtr _display;
         private readonly IntPtr _rootWindow;
         private readonly System.Collections.Concurrent.ConcurrentDictionary<string, IntPtr> _atomCache = new(StringComparer.Ordinal);
@@ -420,7 +421,15 @@ namespace XerahS.Platform.Linux
         {
             if (IsKWinHandle(handle))
                 return GetKWinWindow(handle) is { } kwinWindow ? KWinWindowManager.ToX11(kwinWindow.ClientGeometry, KWinWindowManager.X11Scale) : Rectangle.Empty;
-            return GetWindowBounds(handle);
+
+            // An application's X11 window is its client area; the window manager draws its frame around it,
+            // which GetWindowBounds adds from _NET_FRAME_EXTENTS.
+            if (_display == IntPtr.Zero) return Rectangle.Empty;
+            var attributes = new XWindowAttributes();
+            if (NativeMethods.XGetWindowAttributes(_display, handle, ref attributes) == 0) return Rectangle.Empty;
+            return NativeMethods.XTranslateCoordinates(_display, handle, _rootWindow, 0, 0, out int x, out int y, out _) != 0
+                ? new Rectangle(x, y, attributes.width, attributes.height)
+                : Rectangle.Empty;
         }
 
         public bool IsWindowVisible(IntPtr handle)
@@ -448,8 +457,7 @@ namespace XerahS.Platform.Linux
         {
             if (IsKWinHandle(handle))
                 return GetKWinWindow(handle)?.Minimized == true;
-            // Not implemented in MVP
-            return false;
+            return _display != IntPtr.Zero && HasAnyPropertyAtom(handle, "_NET_WM_STATE", MinimizedWindowStateNames);
         }
 
         public bool ShowWindow(IntPtr handle, int cmdShow)
@@ -459,8 +467,10 @@ namespace XerahS.Platform.Linux
                 return KWin?.SetMinimized(handle, cmdShow is 0 or 2 or 6) == true;
             if (_display == IntPtr.Zero) return false;
 
-            if (cmdShow == 0)
+            if (cmdShow is 0 or 2 or 6)
                 NativeMethods.XIconifyWindow(_display, handle, 0);
+            else if (IsWindowMinimized(handle))
+                NativeMethods.XMapRaised(_display, handle); // ICCCM: mapping an iconic window asks the window manager to restore it
             else
                 NativeMethods.XRaiseWindow(_display, handle);
 
@@ -560,7 +570,9 @@ namespace XerahS.Platform.Linux
             if (!TryGetWindowAttributes(handle, out var attrs))
                 return false;
 
-            if (attrs.map_state != NativeMethods.IsViewable || attrs.override_redirect)
+            // As in ShareX, minimized windows are listed too; they are not viewable while minimized.
+            bool minimized = HasAnyPropertyAtom(handle, "_NET_WM_STATE", MinimizedWindowStateNames);
+            if ((attrs.map_state != NativeMethods.IsViewable && !minimized) || attrs.override_redirect)
                 return false;
 
             if (HasAnyPropertyAtom(handle, "_NET_WM_WINDOW_TYPE", ExcludedWindowTypeNames) ||
@@ -583,7 +595,8 @@ namespace XerahS.Platform.Linux
                 Title = title,
                 ClassName = GetWindowClassName(handle),
                 Bounds = bounds,
-                IsVisible = true
+                IsVisible = true,
+                IsMinimized = minimized
             };
 
             return true;

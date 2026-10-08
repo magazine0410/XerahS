@@ -54,6 +54,29 @@ public class UploadersConfigImporterTests
     }
 
     [Test]
+    public void DestinationsWithOnlyShareXsDefaults_AreNotListed()
+    {
+        // Missing values take ShareX's defaults: an ImageShack settings object, hastebin.com, and YOURLS's example URL.
+        File.WriteAllText(_path, """{"SulAPIKey":"plain-key","HastebinCustomDomain":"https://hastebin.com","YourlsAPIURL":"http://yoursite.com/yourls-api.php"}""");
+        var target = new UploadersConfig();
+
+        ImportResult result = UploadersConfigImporter.ImportFromFile(_path, target);
+
+        Assert.That(result.ImportedUploaders, Is.EqualTo(new[] { "s-ul" }));
+    }
+
+    [Test]
+    public void DestinationsThatWereSetUp_AreListed()
+    {
+        File.WriteAllText(_path, """{"ImageShackSettings":{"Username":"name"},"HastebinCustomDomain":"https://paste.example","YourlsAPIURL":"https://s.example/yourls-api.php"}""");
+        var target = new UploadersConfig();
+
+        ImportResult result = UploadersConfigImporter.ImportFromFile(_path, target);
+
+        Assert.That(result.ImportedUploaders, Is.EquivalentTo(new[] { "ImageShack", "Hastebin", "YOURLS" }));
+    }
+
+    [Test]
     public void EncryptedValuesThatCannotBeDecrypted_AreLeftEmpty_AndListed()
     {
         // Not valid DPAPI data on any system, as on Linux for every encrypted value.

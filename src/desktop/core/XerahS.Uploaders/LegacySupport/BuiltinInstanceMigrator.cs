@@ -538,7 +538,7 @@ public static class BuiltinInstanceMigrator
     private static void CollectSkippedProviders(UploadersConfig source, BuiltinMigrationResult result)
     {
         // ImageShack's login now needs a reCAPTCHA answer, so XerahS has no ImageShack destination.
-        if (!string.IsNullOrEmpty(source.ImageShackSettings?.Auth_token))
+        if (UploadersConfigImporter.IsImageShackSetUp(source))
             result.SkippedProviders.Add("ImageShack");
 
         if (source.PhotobucketOAuthInfo != null)
@@ -550,9 +550,7 @@ public static class BuiltinInstanceMigrator
         if (!string.IsNullOrEmpty(source.Paste_eeUserKey))
             result.SkippedProviders.Add("Paste.ee");
 
-        // HastebinCustomDomain defaults to "https://hastebin.com" so only report if customized.
-        if (!string.IsNullOrEmpty(source.HastebinCustomDomain) &&
-            source.HastebinCustomDomain != "https://hastebin.com")
+        if (UploadersConfigImporter.IsHastebinSetUp(source))
             result.SkippedProviders.Add("Hastebin (custom domain)");
 
         if (!string.IsNullOrEmpty(source.OneTimeSecretAPIKey))
@@ -583,7 +581,7 @@ public static class BuiltinInstanceMigrator
         if (source.BitlyOAuth2Info != null)
             result.SkippedProviders.Add("bit.ly");
 
-        if (!string.IsNullOrEmpty(source.YourlsAPIURL))
+        if (UploadersConfigImporter.IsYourlsSetUp(source))
             result.SkippedProviders.Add("YOURLS");
 
         if (!string.IsNullOrEmpty(source.PolrAPIHostname))

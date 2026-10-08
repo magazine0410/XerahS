@@ -106,8 +106,12 @@ public static partial class ImageHelpers
             return new SKBitmap();
         }
 
-        SKBitmap subset = new SKBitmap(bounded.Width, bounded.Height);
-        return bitmap.ExtractSubset(subset, bounded) ? subset : new SKBitmap();
+        // ExtractSubset shares the source's pixels and keeps its row stride. Copy the area into its own bitmap,
+        // as ShareX's CropBitmap (Bitmap.Clone) does: code that reads the pixels directly, such as the QR code
+        // reader, expects packed rows, and the crop should not keep a whole screenshot in memory.
+        using SKBitmap subset = new SKBitmap();
+        if (!bitmap.ExtractSubset(subset, bounded)) return new SKBitmap();
+        return subset.Copy() ?? new SKBitmap();
     }
 
     public static SKBitmap Crop(SKBitmap bitmap, int x, int y, int width, int height)

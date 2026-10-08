@@ -24,13 +24,14 @@
 #endregion License Information (GPL v3)
 
 using System.Globalization;
+using System.Text.RegularExpressions;
 using XerahS.Common;
 using XerahS.Media;
 
 namespace XerahS.RegionCapture.ScreenRecording;
 
 /// <summary>ShareX encoding options shared by X11, PipeWire and the lossless second stage.</summary>
-public static class RecordingEncoding
+public static partial class RecordingEncoding
 {
     public static string Quote(string value)
     {
@@ -50,12 +51,35 @@ public static class RecordingEncoding
     public const string EvenSizeFilter = "crop=trunc(iw/2)*2:trunc(ih/2)*2";
 
     /// <summary>The first line of a message and the last lines of the tool output after it, for a notification.</summary>
+    /// <summary>
+    /// The first line of a failure message and FFmpeg's error lines from its output, for a notification.
+    /// FFmpeg ends a failed run with general lines ("Conversion failed!"), so its last lines rarely say why it failed.
+    /// </summary>
     public static string Summarize(string message, int outputLines = 3)
     {
         string[] lines = message.Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
-        if (lines.Length <= outputLines + 1) return string.Join(" ", lines);
-        return lines[0] + " " + string.Join(" ", lines[^outputLines..]);
+        if (lines.Length <= outputLines + 1) return string.Join(" ", lines.Select(SimplifyFFmpegLine));
+        string[] errors = lines.Skip(1)
+            .Where(line => FFmpegErrorLine().IsMatch(line) && !FFmpegGeneralFailureLine().IsMatch(line))
+            .Select(SimplifyFFmpegLine)
+            .Distinct()
+            .Take(outputLines)
+            .ToArray();
+        if (errors.Length == 0) errors = lines[^outputLines..];
+        return lines[0] + " " + string.Join(" ", errors);
     }
+
+    // "[h264_amf @ 0x5636613ec040] Failed ..." -> "[h264_amf] Failed ..."
+    private static string SimplifyFFmpegLine(string line) => FFmpegContextAddress().Replace(line, "]");
+
+    [GeneratedRegex(@"error|fail|invalid|cannot|could not|not found|no such|unknown|unsupported|denied|unable", RegexOptions.IgnoreCase)]
+    private static partial Regex FFmpegErrorLine();
+
+    [GeneratedRegex(@"^(Conversion failed!|\[out#\d+/.*Nothing was written into output file|Error opening output files?|.*Terminating thread with return code|.*Task finished with error code)", RegexOptions.IgnoreCase)]
+    private static partial Regex FFmpegGeneralFailureLine();
+
+    [GeneratedRegex(@" @ 0x[0-9a-f]+\]")]
+    private static partial Regex FFmpegContextAddress();
 
     public static string Extension(RecordingOptions options) => options.IsLossless ? "mp4" : options.FFmpegOptions?.Extension ?? "mp4";
 

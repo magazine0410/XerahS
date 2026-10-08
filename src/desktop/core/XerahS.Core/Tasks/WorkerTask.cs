@@ -95,6 +95,7 @@ namespace XerahS.Core.Tasks
 
         private CancellationTokenSource _cancellationTokenSource;
         private bool _hasImageOutput;
+        private bool _failureNotificationShown;
         private bool _disposeRequested;
         private bool _disposed;
         private readonly object _lifetimeLock = new();
@@ -125,8 +126,8 @@ namespace XerahS.Core.Tasks
         /// <summary>Callback to exit the application from the UI layer.</summary>
         public static Action? ExitApplicationCallback { get; set; }
 
-        /// <summary>Callback to toggle hotkey registration from the UI layer.</summary>
-        public static Action? ToggleHotkeysCallback { get; set; }
+        /// <summary>Callback to toggle hotkeys from the UI layer, with the settings of the workflow that toggled them.</summary>
+        public static Action<TaskSettings>? ToggleHotkeysCallback { get; set; }
 
         /// <summary>
         /// Screen recording abstraction used by recording workflows.
@@ -181,32 +182,35 @@ namespace XerahS.Core.Tasks
                 Error = ex;
                 DebugHelper.WriteLine($"Task failed: {ex.Message}");
 
-                // Show error toast to user for any task failure
-                try
+                // Show error toast to user for any task failure, unless the failing step has shown one.
+                if (!_failureNotificationShown)
                 {
-                    var errorMessage = ex.InnerException?.Message ?? ex.Message;
-                    if (errorMessage.Length > 150)
+                    try
                     {
-                        // Truncate at word boundary to avoid cutting mid-word
-                        int cutoff = errorMessage.LastIndexOf(' ', 147);
-                        if (cutoff <= 0) cutoff = 147; // Fallback if no space found
-                        errorMessage = errorMessage.Substring(0, cutoff) + "...";
-                    }
+                        var errorMessage = ex.InnerException?.Message ?? ex.Message;
+                        if (errorMessage.Length > 150)
+                        {
+                            // Truncate at word boundary to avoid cutting mid-word
+                            int cutoff = errorMessage.LastIndexOf(' ', 147);
+                            if (cutoff <= 0) cutoff = 147; // Fallback if no space found
+                            errorMessage = errorMessage.Substring(0, cutoff) + "...";
+                        }
 
-                    PlatformServices.Toast?.ShowToast(new Platform.Abstractions.ToastConfig
+                        PlatformServices.Toast?.ShowToast(new Platform.Abstractions.ToastConfig
+                        {
+                            Title = $"{Info.TaskSettings.Job} Failed",
+                            Text = errorMessage,
+                            ErrorDetails = ex.ToString(),
+                            Duration = 5f,
+                            Size = new SizeI(400, 120),
+                            AutoHide = true,
+                            LeftClickAction = Platform.Abstractions.ToastClickAction.CloseNotification
+                        });
+                    }
+                    catch
                     {
-                        Title = $"{Info.TaskSettings.Job} Failed",
-                        Text = errorMessage,
-                        ErrorDetails = ex.ToString(),
-                        Duration = 5f,
-                        Size = new SizeI(400, 120),
-                        AutoHide = true,
-                        LeftClickAction = Platform.Abstractions.ToastClickAction.CloseNotification
-                    });
-                }
-                catch
-                {
-                    // Ignore toast errors
+                        // Ignore toast errors
+                    }
                 }
             }
             finally
@@ -276,7 +280,7 @@ namespace XerahS.Core.Tasks
             var result = await pipeline.ExecuteAsync(pipelineContext, token);
 
             // Sync state back from pipeline context
-            Status = pipelineContext.Status;
+            Status = ResolvePipelineStatus(Status, pipelineContext.Status);
             Error = pipelineContext.Error;
 
             if (result == PipelineStageResult.Failed && Error != null)
@@ -288,6 +292,14 @@ namespace XerahS.Core.Tasks
                 // Let the finally block in ProcessAsync handle other exceptions and toasts
             }
         }
+
+        /// <summary>
+        /// The task's status after the pipeline. Work inside a stage can stop the task itself, as an aborted screen
+        /// recording does; that must not become "Completed", which shows the completion notification and plays the
+        /// task completed sound for a file that was never written.
+        /// </summary>
+        internal static TaskStatus ResolvePipelineStatus(TaskStatus taskStatus, TaskStatus pipelineStatus) =>
+            taskStatus == TaskStatus.Stopped ? TaskStatus.Stopped : pipelineStatus;
 
         public void Stop()
         {

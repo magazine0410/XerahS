@@ -45,6 +45,18 @@ namespace XerahS.Uploaders
         private static string DefaultShareXConfigPath =>
             Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments), "ShareX");
 
+        // ShareX writes every destination's settings, with its default values for those never set up.
+        private static readonly UploadersConfig ShareXDefaults = new();
+
+        internal static bool IsImageShackSetUp(UploadersConfig config) =>
+            !string.IsNullOrEmpty(config.ImageShackSettings?.Username) || !string.IsNullOrEmpty(config.ImageShackSettings?.Auth_token);
+
+        internal static bool IsHastebinSetUp(UploadersConfig config) =>
+            !string.IsNullOrEmpty(config.HastebinCustomDomain) && config.HastebinCustomDomain != ShareXDefaults.HastebinCustomDomain;
+
+        internal static bool IsYourlsSetUp(UploadersConfig config) =>
+            !string.IsNullOrEmpty(config.YourlsAPIURL) && config.YourlsAPIURL != ShareXDefaults.YourlsAPIURL;
+
         /// <summary>
         /// Locate ShareX UploadersConfig.json file.
         /// </summary>
@@ -168,7 +180,7 @@ namespace XerahS.Uploaders
                 result.AddImported("Imgur");
             }
 
-            if (source.ImageShackSettings != null)
+            if (IsImageShackSetUp(source))
             {
                 target.ImageShackSettings = source.ImageShackSettings;
                 result.AddImported("ImageShack");
@@ -233,7 +245,7 @@ namespace XerahS.Uploaders
                 result.AddImported("uPaste");
             }
 
-            if (!string.IsNullOrEmpty(source.HastebinCustomDomain))
+            if (IsHastebinSetUp(source))
             {
                 target.HastebinCustomDomain = source.HastebinCustomDomain;
                 target.HastebinSyntaxHighlighting = source.HastebinSyntaxHighlighting;
@@ -353,7 +365,7 @@ namespace XerahS.Uploaders
                 result.AddImported("bit.ly");
             }
 
-            if (!string.IsNullOrEmpty(source.YourlsAPIURL))
+            if (IsYourlsSetUp(source))
             {
                 target.YourlsAPIURL = source.YourlsAPIURL;
                 target.YourlsSignature = source.YourlsSignature;

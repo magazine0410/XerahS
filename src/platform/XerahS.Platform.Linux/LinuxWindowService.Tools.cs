@@ -127,7 +127,7 @@ public partial class LinuxWindowService
         if (!SupportsWindowInspection) return IntPtr.Zero;
         // Enumeration is in stacking order. X11 controls are often drawn within the client,
         // so only top-level picking is advertised on this platform.
-        return GetAllWindows().FirstOrDefault(w => w.Bounds.Contains(point))?.Handle ?? IntPtr.Zero;
+        return GetAllWindows().FirstOrDefault(w => !w.IsMinimized && w.Bounds.Contains(point))?.Handle ?? IntPtr.Zero;
     }
 
     public bool SetWindowTopmost(IntPtr handle, bool topmost) => IsKWinHandle(handle)

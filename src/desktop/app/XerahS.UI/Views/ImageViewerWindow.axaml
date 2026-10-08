@@ -11,7 +11,6 @@
         Title="Image viewer"
         WindowState="FullScreen"
         WindowDecorations="None"
-        CanResize="False"
         CanMaximize="False"
         Topmost="True">
 

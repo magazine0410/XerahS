@@ -86,6 +86,8 @@ public class ViewLocator : IDataTemplate
         if (TryCreateControl(vmType, out Control? mapped) && mapped != null)
         {
             mapped.DataContext = data;
+            // Lets the theme give XerahS dialogs a card in the image editor's modal overlay (ThemeResources.axaml).
+            mapped.Classes.Add("xerahs-view");
             return mapped;
         }
 

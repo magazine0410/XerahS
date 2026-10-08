@@ -548,4 +548,14 @@
     <Setter Property="BorderBrush" Value="{DynamicResource AccentFillColorDefaultBrush}" />
     <Setter Property="BorderThickness" Value="1" />
   </Style>
+
+  <!-- XerahS dialogs on the Editor page are shown in the image editor's own modal overlay, which has no card;
+       give them the card of the main window's overlay (MainWindow.axaml). -->
+  <Style Selector="Border.modal-scrim > Grid > ContentControl > :is(UserControl).xerahs-view">
+    <Setter Property="Background" Value="{DynamicResource SolidBackgroundFillColorBaseBrush}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource SurfaceStrokeColorDefaultBrush}" />
+    <Setter Property="BorderThickness" Value="1" />
+    <Setter Property="CornerRadius" Value="8" />
+    <Setter Property="Margin" Value="20" />
+  </Style>
 </Styles>

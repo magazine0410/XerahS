@@ -80,13 +80,14 @@ public class LinuxWindowServiceTests
     }
 
     [Test]
-    public void ContainsExcludedWindowStateName_SkipsHiddenAndPagerSuppressedWindows()
+    public void ContainsExcludedWindowStateName_SkipsPagerSuppressedWindowsButNotMinimizedOnes()
     {
         Assert.Multiple(() =>
         {
+            // As in ShareX, minimized windows are listed.
             Assert.That(
                 LinuxWindowService.ContainsExcludedWindowStateName(["_NET_WM_STATE_HIDDEN"]),
-                Is.True);
+                Is.False);
             Assert.That(
                 LinuxWindowService.ContainsExcludedWindowStateName(["_NET_WM_STATE_SKIP_TASKBAR"]),
                 Is.True);

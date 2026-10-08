@@ -29,6 +29,7 @@ using Avalonia.Input.Platform;
 using Avalonia.Media.Imaging;
 using Avalonia.Platform.Storage;
 using Avalonia.Threading;
+using ShareX.ImageEditor.Presentation.Helpers;
 using SkiaSharp;
 using XerahS.Platform.Abstractions;
 
@@ -110,8 +111,8 @@ public sealed partial class AvaloniaClipboardService : IClipboardService
     }
 
     /// <summary>
-    /// Same Avalonia clipboard pattern as ShareX.ImageEditor.Loader App.axaml.cs (lines 65–81):
-    /// bytes → MemoryStream → Bitmap → DataTransfer + DataTransferItem → SetDataAsync.
+    /// Puts the image on the clipboard with the same data as the image editor's Copy (<see cref="ClipboardImageData.Create"/>):
+    /// each request gets its own bitmap, because readers dispose it.
     /// Using SetDataAsync (and DataTransfer) ensures the same code path works on all OSes (Windows, macOS, Linux).
     /// </summary>
     internal static async Task SetImageBytesAsync(IClipboard clipboard, byte[] bytes)
@@ -119,15 +120,7 @@ public sealed partial class AvaloniaClipboardService : IClipboardService
         if (clipboard == null || bytes == null || bytes.Length == 0)
             return;
 
-        using (var stream = new MemoryStream(bytes))
-        {
-            var bitmap = new Bitmap(stream);
-            var data = new DataTransfer();
-            var item = new DataTransferItem();
-            item.SetBitmap(bitmap);
-            data.Add(item);
-            await clipboard.SetDataAsync(data);
-        }
+        await clipboard.SetDataAsync(ClipboardImageData.Create(bytes));
     }
 
     public string[]? GetFileDropList()

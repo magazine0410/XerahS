@@ -384,6 +384,33 @@ public class WorkflowManagerTests
         });
     }
 
+    [Test]
+    public void ToggleHotkeys_KeepsTheDisableHotkeysHotkeyWorking()
+    {
+        var service = new FakeHotkeyService();
+        using var manager = new WorkflowManager(service);
+        var region = new WorkflowSettings(WorkflowType.RectangleRegion, new HotkeyInfo(Key.X, KeyModifiers.Control));
+        var toggle = new WorkflowSettings(WorkflowType.DisableHotkeys, new HotkeyInfo(Key.Q, KeyModifiers.Control));
+        manager.UpdateHotkeys([region, toggle]);
+        var triggered = new List<WorkflowSettings>();
+        manager.HotkeyTriggered += (_, workflow) => triggered.Add(workflow);
+
+        manager.ToggleHotkeys(true);
+        service.RaiseHotkeyTriggered(region.HotkeyInfo);
+        service.RaiseHotkeyTriggered(toggle.HotkeyInfo);
+        manager.ToggleHotkeys(false);
+        service.RaiseHotkeyTriggered(region.HotkeyInfo);
+
+        Assert.Multiple(() =>
+        {
+            // As in ShareX, only the Disable hotkeys hotkey works while hotkeys are disabled.
+            Assert.That(triggered, Is.EqualTo(new[] { toggle, region }));
+            Assert.That(manager.HotkeysDisabled, Is.False);
+            Assert.That(service.IsSuspended, Is.False);
+            Assert.That(region.HotkeyInfo.Status, Is.EqualTo(HotkeyStatus.Registered));
+        });
+    }
+
     private sealed class FakeHotkeyService : IHotkeyService
     {
         private readonly HashSet<ushort> _registeredIds = new();

@@ -15,6 +15,7 @@
         Icon="/Assets/Logo.ico"
         WindowState="Normal"
         WindowStartupLocation="CenterScreen"
+        MinWidth="1000"
         Opened="OnWindowOpened">
 
     <Window.Resources>

@@ -177,9 +177,9 @@ public static class ScrollingCaptureToolService
     {
         try
         {
-            var border = new ScrollingCaptureRegionWindow(region);
-            border.Show();
-            return new RegionBorderHandle(border);
+            var edges = ScrollingCaptureRegionWindow.CreateBorder(region);
+            foreach (var edge in edges) edge.Show();
+            return new RegionBorderHandle(edges);
         }
         catch (Exception ex)
         {
@@ -188,9 +188,12 @@ public static class ScrollingCaptureToolService
         }
     }
 
-    private sealed class RegionBorderHandle(Window window) : IDisposable
+    private sealed class RegionBorderHandle(IReadOnlyList<ScrollingCaptureRegionWindow> windows) : IDisposable
     {
-        public void Dispose() => window.Close();
+        public void Dispose()
+        {
+            foreach (var window in windows) window.Close();
+        }
     }
 
     private static async Task UploadCapturedImageAsync(IDesktopTaskManager taskManager, SKBitmap image, TaskSettings taskSettings)

@@ -191,22 +191,27 @@ public class ScrollingCaptureLinuxTests
     [AvaloniaTest]
     public void RegionBorder_SitsOnePixelOutsideTheArea()
     {
-        var window = new ScrollingCaptureRegionWindow(new Rectangle(100, 200, 300, 150));
+        var edges = ScrollingCaptureRegionWindow.CreateBorder(new Rectangle(100, 200, 300, 150));
         try
         {
-            window.Show();
+            foreach (var edge in edges) edge.Show();
             Assert.Multiple(() =>
             {
-                Assert.That(window.Position, Is.EqualTo(new PixelPoint(99, 199)));
-                Assert.That(window.Width, Is.EqualTo(302));
-                Assert.That(window.Height, Is.EqualTo(152));
-                Assert.That(window.ShowActivated, Is.False);
-                Assert.That(window.Topmost, Is.True);
+                Assert.That(edges.Select(edge => (edge.Position, edge.Width, edge.Height)), Is.EqualTo(new[]
+                {
+                    (new PixelPoint(99, 199), 302d, 1d),
+                    (new PixelPoint(99, 350), 302d, 1d),
+                    (new PixelPoint(99, 200), 1d, 150d),
+                    (new PixelPoint(400, 200), 1d, 150d)
+                }));
+                // Opaque edges: no window covers the captured area.
+                Assert.That(edges.All(edge => edge.TransparencyLevelHint.Count == 0), Is.True);
+                Assert.That(edges.All(edge => !edge.ShowActivated && edge.Topmost), Is.True);
             });
         }
         finally
         {
-            window.Close();
+            foreach (var edge in edges) edge.Close();
         }
     }
 }

@@ -82,6 +82,9 @@ namespace XerahS.Platform.Linux
         internal static extern int XRaiseWindow(IntPtr display, IntPtr w);
 
         [DllImport(libX11)]
+        internal static extern int XMapRaised(IntPtr display, IntPtr w);
+
+        [DllImport(libX11)]
         internal static extern int XMoveResizeWindow(IntPtr display, IntPtr w, int x, int y, int width, int height);
 
         [DllImport(libX11)]

@@ -471,7 +471,7 @@ namespace XerahS.Core.Tasks.Pipeline
                 case WorkflowType.DisableHotkeys:
                     if (WorkerTask.ToggleHotkeysCallback != null)
                     {
-                        WorkerTask.ToggleHotkeysCallback();
+                        WorkerTask.ToggleHotkeysCallback(taskSettings);
                         NotificationSoundService.PlayActionCompleted(taskSettings);
                     }
                     return PipelineStageResult.Stop;

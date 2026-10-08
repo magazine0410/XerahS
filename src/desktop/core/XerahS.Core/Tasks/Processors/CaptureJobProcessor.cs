@@ -49,6 +49,12 @@ namespace XerahS.Core.Tasks.Processors
         public static Func<string, TaskSettings, Task>? ShowAnalyzeImageCallback { get; set; }
 
         /// <summary>
+        /// Scans an image for QR codes and shows the results window, as ShareX's after-capture task opens its QR code
+        /// window on the image. The callback owns the image. Set by the UI layer.
+        /// </summary>
+        public static Func<SKBitmap, Task>? ShowQrCodeScanCallback { get; set; }
+
+        /// <summary>
         /// Prints an image with the print settings, as ShareX's TaskHelpers.PrintImage. Completes when printing is
         /// done or the print options window is closed. Set by the UI layer.
         /// </summary>
@@ -252,6 +258,17 @@ namespace XerahS.Core.Tasks.Processors
                     if (info.Metadata?.Image == null)
                     {
                         DebugHelper.WriteLine("ScanQRCode skipped: no image in metadata.");
+                    }
+                    else if (ShowQrCodeScanCallback is { } showQrCodeScan)
+                    {
+                        try
+                        {
+                            await showQrCodeScan(info.Metadata.Image.Copy());
+                        }
+                        catch (Exception ex)
+                        {
+                            DebugHelper.WriteException(ex, "ScanQRCode");
+                        }
                     }
                     else
                     {

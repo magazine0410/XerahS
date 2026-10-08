@@ -83,6 +83,12 @@ public class WorkflowManager : IDisposable
     {
         if (_hotkeyMap.TryGetValue(e.HotkeyInfo.Id, out var registration))
         {
+            if (HotkeysDisabled && registration.Settings.Job != WorkflowType.DisableHotkeys)
+            {
+                Debug.WriteLine($"HotkeyManager: Hotkeys are disabled, ignoring {registration.Settings}");
+                return;
+            }
+
             Debug.WriteLine($"HotkeyManager: Triggering {registration.Settings}");
             HotkeyTriggered?.Invoke(this, registration.Settings);
         }
@@ -322,11 +328,19 @@ public class WorkflowManager : IDisposable
     }
 
     /// <summary>
+    /// True while hotkeys are turned off with the Disable hotkeys job. As in ShareX, the Disable hotkeys hotkey
+    /// still works, so the same key turns the others back on. ShareX unregisters the other hotkeys; here they stay
+    /// registered and their presses are ignored, because changing the registered set on KDE's GlobalShortcuts
+    /// portal makes KDE ask to assign the shortcuts again.
+    /// </summary>
+    public bool HotkeysDisabled { get; private set; }
+
+    /// <summary>
     /// Toggle hotkeys on/off
     /// </summary>
     public void ToggleHotkeys(bool disabled)
     {
-        IgnoreHotkeys = disabled;
+        HotkeysDisabled = disabled;
     }
 
     /// <summary>

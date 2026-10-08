@@ -155,6 +155,8 @@ internal static class MouseHighlighterManager
         if (!ReferenceEquals(_service, service)) return;
         _service.Dispose();
         _service = null;
+        // Highlighting has stopped, so the window offers to start it again.
+        _manualActive = false;
         StateChanged?.Invoke();
         UploadWorkflowService.ReportError(exception, "Mouse highlighting failed");
     }

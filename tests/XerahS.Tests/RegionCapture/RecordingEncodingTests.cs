@@ -236,6 +236,32 @@ public sealed class RecordingEncodingTests
     }
 
     [Test]
+    public void FailureSummary_ShowsFFmpegsErrorLinesInsteadOfItsGeneralLastLines()
+    {
+        // FFmpeg's output when the AMF encoder is chosen without an AMD GPU (X11 test, 2026-10-08).
+        const string output = """
+            FFmpeg process failed.
+            Output: Input #0, x11grab, from ':99+100,100':
+            Stream mapping:
+            Press [q] to stop, [?] for help
+            [AMF @ 0x7faab033d8c0] DLL libamfrt64.so.1 failed to open
+            [h264_amf @ 0x5636613ec040] Failed to create  hardware device context (AMF) : Unknown error occurred
+            [vost#0:0/h264_amf @ 0x5636613eb580] [enc:h264_amf @ 0x5636613ebc00] Error while opening encoder - maybe incorrect parameters such as bit_rate, rate, width or height.
+            [vf#0:0 @ 0x5636613ec6c0] Error sending frames to consumers: Unknown error occurred
+            [vf#0:0 @ 0x5636613ec6c0] Task finished with error code: -1313558101 (Unknown error occurred)
+            [vf#0:0 @ 0x5636613ec6c0] Terminating thread with return code -1313558101 (Unknown error occurred)
+            [out#0/mp4 @ 0x5636613eb080] Nothing was written into output file, because at least one of its streams received no packets.
+            frame=    0 fps=0.0 q=0.0 Lsize=       0KiB time=N/A bitrate=N/A speed=N/A elapsed=0:00:00.03
+            Conversion failed!
+            """;
+
+        Assert.That(RecordingEncoding.Summarize(output), Is.EqualTo(
+            "FFmpeg process failed. [AMF] DLL libamfrt64.so.1 failed to open " +
+            "[h264_amf] Failed to create  hardware device context (AMF) : Unknown error occurred " +
+            "[vost#0:0/h264_amf] [enc:h264_amf] Error while opening encoder - maybe incorrect parameters such as bit_rate, rate, width or height."));
+    }
+
+    [Test]
     public async Task RealFfmpeg_ReportsSecondStageProgress()
     {
         if (!OperatingSystem.IsLinux() || !File.Exists("/usr/bin/ffmpeg")) Assert.Ignore("Requires local FFmpeg.");

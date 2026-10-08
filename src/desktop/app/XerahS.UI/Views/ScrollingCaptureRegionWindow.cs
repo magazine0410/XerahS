@@ -32,33 +32,46 @@ namespace XerahS.UI.Views;
 
 /// <summary>
 /// ShareX's "Show scrolling capture region": a 1-pixel lime border just outside the captured area,
-/// so it is not part of the frames. Clicks and the mouse wheel pass through the window.
+/// so it is not part of the frames. Each window is one edge of the border and is opaque: a single
+/// transparent window over the area is drawn black by an X11 session without a compositor, and the
+/// captured frames were then black. Clicks and the mouse wheel pass through the windows.
 /// </summary>
 public sealed class ScrollingCaptureRegionWindow : Window
 {
     private const int BorderPixels = 1;
-    private readonly System.Drawing.Rectangle _region;
+    private readonly System.Drawing.Rectangle _edge;
 
     public ScrollingCaptureRegionWindow()
-        : this(new System.Drawing.Rectangle(0, 0, 640, 420))
+        : this(new System.Drawing.Rectangle(0, 0, 640, BorderPixels))
     {
     }
 
-    public ScrollingCaptureRegionWindow(System.Drawing.Rectangle region)
+    private ScrollingCaptureRegionWindow(System.Drawing.Rectangle edge)
     {
-        _region = region;
+        _edge = edge;
         Title = "XerahS - Scrolling capture region";
         WindowDecorations = WindowDecorations.None;
         ShowInTaskbar = false;
         ShowActivated = false;
         Topmost = true;
         CanResize = false;
-        TransparencyLevelHint = [WindowTransparencyLevel.Transparent];
-        Background = Brushes.Transparent;
+        Background = Brushes.Lime;
         WindowStartupLocation = WindowStartupLocation.Manual;
-        Position = new PixelPoint(region.X - BorderPixels, region.Y - BorderPixels);
-        Content = new Border { BorderBrush = Brushes.Lime, IsHitTestVisible = false };
+        Position = new PixelPoint(edge.X, edge.Y);
         ApplyGeometry(1);
+    }
+
+    /// <summary>The four edge windows around <paramref name="region"/>: top, bottom, left, and right.</summary>
+    public static IReadOnlyList<ScrollingCaptureRegionWindow> CreateBorder(System.Drawing.Rectangle region)
+    {
+        int left = region.X - BorderPixels, top = region.Y - BorderPixels, width = region.Width + BorderPixels * 2;
+        return
+        [
+            new(new System.Drawing.Rectangle(left, top, width, BorderPixels)),
+            new(new System.Drawing.Rectangle(left, region.Bottom, width, BorderPixels)),
+            new(new System.Drawing.Rectangle(left, region.Y, BorderPixels, region.Height)),
+            new(new System.Drawing.Rectangle(region.Right, region.Y, BorderPixels, region.Height))
+        ];
     }
 
     protected override void OnOpened(EventArgs e)
@@ -75,11 +88,7 @@ public sealed class ScrollingCaptureRegionWindow : Window
     private void ApplyGeometry(double scaling)
     {
         scaling = Math.Max(0.5, scaling);
-        Width = (_region.Width + BorderPixels * 2) / scaling;
-        Height = (_region.Height + BorderPixels * 2) / scaling;
-        if (Content is Border border)
-        {
-            border.BorderThickness = new Thickness(BorderPixels / scaling);
-        }
+        Width = _edge.Width / scaling;
+        Height = _edge.Height / scaling;
     }
 }

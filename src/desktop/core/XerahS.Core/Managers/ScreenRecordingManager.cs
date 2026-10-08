@@ -395,7 +395,7 @@ public class ScreenRecordingManager : IScreenRecordingManager
             RecordingOptions optionsToStart = PrepareRecordingOptions(options, isResume: false);
             await StartRecordingCoreAsync(optionsToStart, preferFallback);
             if (_recordingFailure != null)
-                throw new RecordingFailedException(RecordingEncoding.Summarize(_recordingFailure.Message), _recordingFailure);
+                throw CreateRecordingFailure(_recordingFailure);
             if (_isFinalized || _discardRequested) return;
             _sessionTimer = new System.Threading.Timer(_ =>
             {
@@ -494,7 +494,7 @@ public class ScreenRecordingManager : IScreenRecordingManager
 
             _finishing = true;
             if (_recordingFailure != null)
-                throw new RecordingFailedException(RecordingEncoding.Summarize(_recordingFailure.Message), _recordingFailure);
+                throw CreateRecordingFailure(_recordingFailure);
             _sessionTimer?.Dispose();
             _sessionTimer = null;
             _sessionClock.Stop();
@@ -1258,6 +1258,28 @@ public class ScreenRecordingManager : IScreenRecordingManager
         string extension = Path.GetExtension(outputPath);
         string segmentFileName = $"{fileName}.part{index:D3}{extension}";
         return Path.Combine(directory, segmentFileName);
+    }
+
+    /// <summary>
+    /// The failure FFmpeg reported, for the user. A start that failed leaves the segment it was writing empty;
+    /// nothing can use that file, so it is removed.
+    /// </summary>
+    private RecordingFailedException CreateRecordingFailure(Exception failure)
+    {
+        string? segment = GetLastSegmentPath();
+        try
+        {
+            if (segment != null && File.Exists(segment) && new FileInfo(segment).Length == 0)
+            {
+                File.Delete(segment);
+            }
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            DebugHelper.WriteException(ex, "Failed to delete the empty recording segment");
+        }
+
+        return new RecordingFailedException(RecordingEncoding.Summarize(failure.Message), failure);
     }
 
     private string? GetLastSegmentPath()

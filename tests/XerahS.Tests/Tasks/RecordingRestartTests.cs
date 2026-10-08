@@ -86,6 +86,21 @@ public sealed class RecordingRestartTests
     }
 
     [Test]
+    public void AbortedRecording_KeepsTheStoppedStatusAfterThePipeline()
+    {
+        Assert.Multiple(() =>
+        {
+            // The recording code stops the task while the capture stage still reports it as working.
+            Assert.That(WorkerTask.ResolvePipelineStatus(XerahS.Core.TaskStatus.Stopped, XerahS.Core.TaskStatus.Working),
+                Is.EqualTo(XerahS.Core.TaskStatus.Stopped));
+            Assert.That(WorkerTask.ResolvePipelineStatus(XerahS.Core.TaskStatus.Working, XerahS.Core.TaskStatus.Working),
+                Is.EqualTo(XerahS.Core.TaskStatus.Working));
+            Assert.That(WorkerTask.ResolvePipelineStatus(XerahS.Core.TaskStatus.Working, XerahS.Core.TaskStatus.Failed),
+                Is.EqualTo(XerahS.Core.TaskStatus.Failed));
+        });
+    }
+
+    [Test]
     public async Task Stop_WithoutRestart_RecordsOnce()
     {
         var manager = new FakeRecordingManager(false);
