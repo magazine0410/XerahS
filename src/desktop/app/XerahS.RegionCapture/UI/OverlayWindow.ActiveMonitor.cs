@@ -149,6 +149,9 @@ public partial class OverlayWindow
             return false;
 
         e.Handled = true;
+        // The pointer is on this monitor, so the active overlay hides its crosshair and magnifier; its own pointer
+        // exit is not reported on every compositor (XWayland on Sway).
+        PointerLocationChanged?.Invoke(this, _captureControl.ToPhysicalPoint(e.GetPosition(_captureControl)));
         if (e is PointerPressedEventArgs)
         {
             ActiveOverlayRequested?.Invoke(this);

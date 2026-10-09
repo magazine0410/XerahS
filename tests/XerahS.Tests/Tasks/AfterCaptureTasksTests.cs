@@ -422,6 +422,22 @@ public class AfterCaptureTasksTests
     }
 
     [Test]
+    public void UploadWithoutAUrlByDesign_IsSuccessful_ButAMissingExpectedUrlIsNot()
+    {
+        // The Nextcloud destination without a public share returns no URL and says so, as ShareX's ownCloud uploader does.
+        var withoutShare = UploadOutcome.Success(url: null, "Nextcloud upload completed.", urlExpected: false).ToUploadResult();
+        var missingUrl = UploadOutcome.Success(url: null).ToUploadResult();
+        var failed = UploadOutcome.Failed("Upload failed.").ToUploadResult();
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(XerahS.Core.Tasks.Pipeline.FinalizationStage.IsUploadResultSuccessful(withoutShare), Is.True);
+            Assert.That(XerahS.Core.Tasks.Pipeline.FinalizationStage.IsUploadResultSuccessful(missingUrl), Is.False);
+            Assert.That(XerahS.Core.Tasks.Pipeline.FinalizationStage.IsUploadResultSuccessful(failed), Is.False);
+        });
+    }
+
+    [Test]
     public async Task BeforeUploadCancel_SkipsTheUpload_WithoutFailingATextUpload()
     {
         var settings = Settings(AfterCaptureTasks.ShowBeforeUploadWindow);

@@ -166,6 +166,38 @@ public class NextcloudProviderTests
     }
 
     [Test]
+    public void ParseShareResponse_AcceptsTheOcsV2SuccessCode()
+    {
+        // ownCloud 10.15.3's reply to the share request (OCS v2 reports success as 200, as Nextcloud does).
+        const string v2 = """{"ocs":{"meta":{"status":"ok","statuscode":200,"message":null,"totalitems":"","itemsperpage":""},"data":{"id":"1","share_type":3,"token":"U8uu7QhQ7rWnJ0X","path":"\/ShareX\/2026\/10\/oc-small.txt","url":"http:\/\/127.0.0.1:8090\/s\/U8uu7QhQ7rWnJ0X"}}}""";
+        const string v1 = """{"ocs":{"meta":{"status":"ok","statuscode":100,"message":"OK"},"data":{"token":"abc","url":"https://cloud.example.com/s/abc"}}}""";
+        const string failure = """{"ocs":{"meta":{"status":"failure","statuscode":403,"message":"You can't share your root folder","totalitems":"","itemsperpage":""},"data":[]}}""";
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(NextcloudClient.ParseShareResponse(v2)?.Url, Is.EqualTo("http://127.0.0.1:8090/s/U8uu7QhQ7rWnJ0X"));
+            Assert.That(NextcloudClient.ParseShareResponse(v1)?.Url, Is.EqualTo("https://cloud.example.com/s/abc"));
+            Assert.That(() => NextcloudClient.ParseShareResponse(failure),
+                Throws.InvalidOperationException.With.Message.EqualTo("You can't share your root folder"));
+        });
+    }
+
+    [Test]
+    public void ResolveProductName_UsesTheThemingNameThenStatusPhp()
+    {
+        // ownCloud 10.15.3's status.php; ownCloud has no theming capability.
+        const string ownCloudStatus = """{"installed":true,"maintenance":false,"needsDbUpgrade":false,"version":"10.15.3.0","versionstring":"10.15.3","edition":"Community","productname":"ownCloud","product":"ownCloud"}""";
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(NextcloudClient.ResolveProductName(null, ownCloudStatus), Is.EqualTo("ownCloud"));
+            Assert.That(NextcloudClient.ResolveProductName("Company Cloud", ownCloudStatus), Is.EqualTo("Company Cloud"));
+            Assert.That(NextcloudClient.ResolveProductName(null, null), Is.EqualTo("Nextcloud"));
+            Assert.That(NextcloudClient.ResolveProductName(null, "<html>"), Is.EqualTo("Nextcloud"));
+        });
+    }
+
+    [Test]
     public void Upload_FailsBeforeNetworkCall_WhenPublicSharesAreUnsupported()
     {
         NextcloudUploader uploader = new(new NextcloudConfigModel

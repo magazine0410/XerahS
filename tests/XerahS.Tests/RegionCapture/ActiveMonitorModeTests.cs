@@ -236,6 +236,34 @@ public class ActiveMonitorModeTests
         Assert.That(session.Completion.Task.Result!.Value.Region, Is.EqualTo(new CaptureRect(740, 200, 200, 160)));
     }
 
+    [AvaloniaTest]
+    public void PointerOnTheInactiveMonitor_HidesTheActiveOverlaysCrosshair()
+    {
+        using var session = Open(rightIsInitiallyActive: true);
+        Action disconnect = OverlayManager.ConnectPointerPresence([session.Left, session.Right]);
+        try
+        {
+            session.Right.MouseMove(new Point(100, 100));
+            Assert.That(CaptureControl(session.Right).IsPointerOnMonitor, Is.True);
+
+            // The active overlay may get no pointer exit (XWayland on Sway); the inactive one reports the pointer.
+            session.Left.MouseMove(new Point(50, 50));
+            Assert.Multiple(() =>
+            {
+                Assert.That(CaptureControl(session.Right).IsPointerOnMonitor, Is.False);
+                Assert.That(session.Left.MonitorState, Is.EqualTo(OverlayMonitorState.Inactive));
+                Assert.That(CaptureControl(session.Left).IsPointerOnMonitor, Is.False);
+            });
+
+            session.Right.MouseMove(new Point(120, 120));
+            Assert.That(CaptureControl(session.Right).IsPointerOnMonitor, Is.True);
+        }
+        finally
+        {
+            disconnect();
+        }
+    }
+
     private static RegionCaptureControl CaptureControl(OverlayWindow window) =>
         window.FindControl<Panel>("RootPanel")!.Children.OfType<RegionCaptureControl>().Single();
 

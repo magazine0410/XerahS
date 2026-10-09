@@ -503,6 +503,9 @@ public sealed class RegionCaptureControl : UserControl
     /// <summary>The pointer left this overlay's window without a drag holding the capture.</summary>
     internal void MarkPointerLeft() => SetPointerOnMonitor(false);
 
+    /// <summary>Physical screen position of a point in this control's coordinates.</summary>
+    internal PixelPoint ToPhysicalPoint(Point localPoint) => LocalToPhysical(localPoint);
+
     private void SetPointerOnMonitor(bool value)
     {
         if (_pointerOnMonitor == value)

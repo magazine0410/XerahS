@@ -201,6 +201,9 @@ public sealed class NextcloudClient
         JToken? capabilitiesData = capabilitiesPayload["ocs"]?["data"];
         JToken? userData = userPayload["ocs"]?["data"];
         JToken? capabilities = capabilitiesData?["capabilities"];
+        string? themingName = capabilities?["theming"]?["name"]?.Value<string>();
+        // ownCloud has no theming capability; its status.php names the product, as Nextcloud's does.
+        string? statusBody = string.IsNullOrWhiteSpace(themingName) ? await TryGetStatusAsync(cancellation) : null;
 
         return new NextcloudServerProfile
         {
@@ -209,8 +212,8 @@ public sealed class NextcloudClient
             UserId = userData?["id"]?.Value<string>() ?? _loginName,
             DisplayName = userData?["display-name"]?.Value<string>() ?? userData?["id"]?.Value<string>() ?? _loginName,
             ServerVersion = capabilitiesData?["version"]?["string"]?.Value<string>() ?? string.Empty,
-            ServerProductName = capabilities?["theming"]?["name"]?.Value<string>() ?? "Nextcloud",
-            ThemingName = capabilities?["theming"]?["name"]?.Value<string>() ?? string.Empty,
+            ServerProductName = ResolveProductName(themingName, statusBody),
+            ThemingName = themingName ?? string.Empty,
             SupportsPublicShares = GetBoolean(capabilities?["files_sharing"]?["public"]?["enabled"]),
             SupportsSharePasswords = GetBoolean(capabilities?["files_sharing"]?["public"]?["password"]?["enforced"]) ||
                                      capabilities?["files_sharing"]?["public"]?["password"] != null,
@@ -218,6 +221,42 @@ public sealed class NextcloudClient
             SupportsChunking = !string.IsNullOrWhiteSpace(capabilities?["dav"]?["chunking"]?.Value<string>()),
             SupportsSearch = capabilities?["files"]?["search"] != null || capabilities?["dav"]?["search"] != null
         };
+    }
+
+    /// <summary>The theming name, otherwise status.php's product name (ownCloud), otherwise Nextcloud.</summary>
+    public static string ResolveProductName(string? themingName, string? statusBody)
+    {
+        if (!string.IsNullOrWhiteSpace(themingName))
+        {
+            return themingName;
+        }
+
+        try
+        {
+            string? productName = string.IsNullOrWhiteSpace(statusBody) ? null : JObject.Parse(statusBody)["productname"]?.Value<string>();
+            return string.IsNullOrWhiteSpace(productName) ? "Nextcloud" : productName;
+        }
+        catch (JsonException)
+        {
+            return "Nextcloud";
+        }
+    }
+
+    private async Task<string?> TryGetStatusAsync(CancellationToken cancellation)
+    {
+        try
+        {
+            using HttpResponseMessage response = await HttpClient.GetAsync(_serverUrl + "/status.php", cancellation);
+            return response.IsSuccessStatusCode ? await response.Content.ReadAsStringAsync(cancellation) : null;
+        }
+        catch (HttpRequestException)
+        {
+            return null;
+        }
+        catch (TaskCanceledException) when (!cancellation.IsCancellationRequested)
+        {
+            return null;
+        }
     }
 
     public async Task UploadFileAsync(
@@ -298,9 +337,18 @@ public sealed class NextcloudClient
             throw new InvalidOperationException(BuildHttpErrorMessage("Nextcloud OCS share creation", response, body));
         }
 
+        return ParseShareResponse(body);
+    }
+
+    /// <summary>
+    /// Reads the share created through the OCS v2 endpoint. OCS v2 reports success as 200 (Nextcloud and ownCloud);
+    /// 100 is OCS v1's success code, which ShareX checks because it uses the v1 endpoint.
+    /// </summary>
+    public static NextcloudShareInfo? ParseShareResponse(string body)
+    {
         JObject payload = ParseOcsPayload(body);
         JToken? meta = payload["ocs"]?["meta"];
-        if (meta?["statuscode"]?.Value<int?>() != 100)
+        if (meta?["statuscode"]?.Value<int?>() is not (100 or 200))
         {
             string message = meta?["message"]?.Value<string>() ?? "Unknown Nextcloud share creation error.";
             throw new InvalidOperationException(message);

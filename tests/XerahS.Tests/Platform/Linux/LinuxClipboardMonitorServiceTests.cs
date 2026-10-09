@@ -1,3 +1,4 @@
+using System.Reflection;
 using NUnit.Framework;
 using XerahS.Platform.Linux.Services;
 
@@ -66,5 +67,36 @@ public class LinuxClipboardMonitorServiceTests
         Assert.That(service.IsMonitoring, Is.False);
 
         service.Dispose();
+    }
+
+    /// <summary>
+    /// wl-paste --watch exits at once when the compositor lacks the data-control protocol (GNOME) or cannot be
+    /// reached, as with the tests' display name without a socket; the service then polls instead of stopping.
+    /// </summary>
+    [Test]
+    public void WatchProcessThatExits_IsReplacedByPolling()
+    {
+        var service = new LinuxClipboardMonitorService();
+        try
+        {
+            service.Start();
+            Thread.Sleep(1500);
+
+            var pollTask = (Task?)typeof(LinuxClipboardMonitorService)
+                .GetField("_pollTask", BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(service);
+            Assert.Multiple(() =>
+            {
+                Assert.That(service.IsMonitoring, Is.True);
+                Assert.That(pollTask, Is.Not.Null);
+                Assert.That(pollTask!.IsCompleted, Is.False);
+            });
+
+            service.Stop();
+            Assert.That(service.IsMonitoring, Is.False);
+        }
+        finally
+        {
+            service.Dispose();
+        }
     }
 }

@@ -113,6 +113,9 @@ public static class BuiltinInstanceMigrator
         MigratePushbullet(source, result);
         CollectSkippedProviders(source, result);
 
+        // The destinations read their keys from the secret store, so the plaintext keys written above are moved there now.
+        InstanceManager.Instance.MigrateSecretsIfNeeded();
+
         return result;
     }
 

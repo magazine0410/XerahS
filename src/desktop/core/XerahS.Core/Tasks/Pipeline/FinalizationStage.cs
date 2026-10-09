@@ -77,13 +77,14 @@ namespace XerahS.Core.Tasks.Pipeline
             return info.Job is TaskJob.FileUpload or TaskJob.TextUpload or TaskJob.ShortenURL or TaskJob.ShareURL or TaskJob.DownloadUpload;
         }
 
-        private static bool IsUploadResultSuccessful(XerahS.Uploaders.UploadResult? result)
+        internal static bool IsUploadResultSuccessful(XerahS.Uploaders.UploadResult? result)
         {
             if (result == null) return false;
             if (result.IsError) return false;
             if (!string.IsNullOrEmpty(result.URL)) return true;
             if (!string.IsNullOrEmpty(result.ShortenedURL)) return true;
-            return false;
+            // As in ShareX, a destination that returns no URL by design (IsURLExpected = false) has uploaded successfully.
+            return !result.IsURLExpected;
         }
     }
 }

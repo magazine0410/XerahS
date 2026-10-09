@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using System.Text;
+using XerahS.Common;
 using XerahS.Platform.Abstractions;
 
 namespace XerahS.Platform.Linux.Services;
@@ -26,16 +27,16 @@ public sealed class LinuxClipboardMonitorService : IClipboardMonitorService
     private Process? _watchProcess;
     private Task? _pollTask;
     private CancellationTokenSource? _cts;
+    private readonly object _lock = new();
     private bool _disposed;
+    private bool _active;
     private bool _hasBaseline;
     private DateTime _suppressUntilUtc = DateTime.MinValue;
 
     public bool IsSupported => true;
 
-    public bool IsMonitoring =>
-        !_disposed &&
-        (_watchProcess is { HasExited: false } ||
-         (_pollTask != null && !_pollTask.IsCompleted));
+    // Monitoring lasts from Start to Stop, also while the watch process is replaced by polling.
+    public bool IsMonitoring => !_disposed && _active;
 
     public event EventHandler? ClipboardChanged;
 
@@ -51,20 +52,37 @@ public sealed class LinuxClipboardMonitorService : IClipboardMonitorService
 
     public void Start()
     {
-        if (_disposed || IsMonitoring)
-            return;
+        lock (_lock)
+        {
+            if (_disposed || _active)
+                return;
 
-        _cts = new CancellationTokenSource();
-        _hasBaseline = false;
+            _active = true;
+            _cts = new CancellationTokenSource();
+            _hasBaseline = false;
 
-        if (PreferWayland && TryStartWaylandWatch())
-            return;
+            if (PreferWayland && TryStartWaylandWatch())
+                return;
 
-        // X11 fallback (or wl-paste not available): poll with type-listing
-        _pollTask = Task.Run(() => PollLoopAsync(_cts.Token));
+            // X11 fallback (or wl-paste not available): poll with type-listing
+            StartPolling(_cts.Token);
+        }
     }
 
+    private void StartPolling(CancellationToken ct) => _pollTask = Task.Run(() => PollLoopAsync(ct));
+
     public void Stop()
+    {
+        // The lock is not held while the watch process is killed and disposed: disposing waits for its Exited
+        // handler, which takes the lock.
+        lock (_lock)
+        {
+            _active = false;
+        }
+        StopCore();
+    }
+
+    private void StopCore()
     {
         try
         {
@@ -130,12 +148,30 @@ public sealed class LinuxClipboardMonitorService : IClipboardMonitorService
                 return false;
 
             _watchProcess.OutputDataReceived += OnWatchOutput;
+            _watchProcess.EnableRaisingEvents = true;
+            _watchProcess.Exited += OnWatchExited;
             _watchProcess.BeginOutputReadLine();
             return true;
         }
         catch
         {
             return false;
+        }
+    }
+
+    /// <summary>
+    /// wl-paste --watch exits at once when the compositor lacks the data-control protocol (GNOME) or cannot be
+    /// reached; monitoring then continues by polling, as on X11.
+    /// </summary>
+    private void OnWatchExited(object? sender, EventArgs e)
+    {
+        lock (_lock)
+        {
+            if (!_active || _cts is not { IsCancellationRequested: false } cts || !ReferenceEquals(sender, _watchProcess))
+                return;
+
+            DebugHelper.WriteLine("Clipboard monitor: wl-paste --watch exited; polling the clipboard instead.");
+            StartPolling(cts.Token);
         }
     }
 

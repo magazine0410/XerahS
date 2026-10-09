@@ -22,7 +22,11 @@
 */
 
 #endregion License Information (GPL v3)
+using Avalonia;
 using Avalonia.Controls;
+using Avalonia.Input;
+using Avalonia.Interactivity;
+using Avalonia.VisualTree;
 using XerahS.UI.ViewModels;
 
 namespace XerahS.UI.Views;
@@ -32,10 +36,41 @@ public partial class ProviderCatalogDialog : UserControl
     public ProviderCatalogDialog()
     {
         InitializeComponent();
+        // The list handles Enter itself, so the key is taken before it reaches the list.
+        ProviderList.AddHandler(KeyDownEvent, OnProviderKeyDown, RoutingStrategies.Tunnel);
     }
 
     public ProviderCatalogDialog(ProviderCatalogViewModel viewModel) : this()
     {
         DataContext = viewModel;
+    }
+
+    // A double-click or Enter on a destination adds it, as the Add button does.
+    private void OnProviderDoubleTapped(object? sender, TappedEventArgs e)
+    {
+        if ((e.Source as Visual)?.FindAncestorOfType<ListBoxItem>(includeSelf: true) != null)
+        {
+            AddSelected();
+        }
+    }
+
+    private void OnProviderKeyDown(object? sender, KeyEventArgs e)
+    {
+        if (e.Key == Key.Enter && AddSelected())
+        {
+            e.Handled = true;
+        }
+    }
+
+    private bool AddSelected()
+    {
+        if (DataContext is not ProviderCatalogViewModel { SelectedProvider: not null } viewModel ||
+            !viewModel.AddSelectedCommand.CanExecute(null))
+        {
+            return false;
+        }
+
+        viewModel.AddSelectedCommand.Execute(null);
+        return true;
     }
 }

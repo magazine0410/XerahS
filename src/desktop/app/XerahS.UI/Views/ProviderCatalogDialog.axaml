@@ -19,8 +19,13 @@
 
         <!-- Provider List -->
         <Border Grid.Row="1" Theme="{StaticResource CardBorderTheme}" Padding="0">
+            <!-- The modal host gives the dialog unlimited height, so the list scrolls itself to keep the buttons
+                 on a 1080-pixel screen. -->
             <ListBox ItemsSource="{Binding AvailableProviders}"
                      SelectedItem="{Binding SelectedProvider}"
+                     MaxHeight="520"
+                     DoubleTapped="OnProviderDoubleTapped"
+                     x:Name="ProviderList"
                      Background="Transparent"
                      BorderThickness="0"
                      AutomationProperties.Name="Available Providers List">

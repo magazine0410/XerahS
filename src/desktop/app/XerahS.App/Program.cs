@@ -725,6 +725,9 @@ namespace XerahS.App
                         XerahS.Uploaders.PluginSystem.ProviderCatalog.LoadPlugins(XerahS.Common.PathsManager.GetPluginDirectories());
                         int pluginCount = XerahS.Uploaders.PluginSystem.ProviderCatalog.GetAllProviders().Count;
                         XerahS.Common.DebugHelper.WriteLine($"Plugins: {pluginCount} loaded");
+                        // The provider context migrated secrets before the plugins were loaded, which skipped every
+                        // plugin destination, so plaintext keys are moved to the secret store again now.
+                        XerahS.Uploaders.PluginSystem.InstanceManager.Instance.MigrateSecretsIfNeeded();
                         // As in ShareX, the built-in link sharing services are available without setup.
                         XerahS.Uploaders.SharingServices.LinkSharingProvider.EnsureInstances();
                     }
