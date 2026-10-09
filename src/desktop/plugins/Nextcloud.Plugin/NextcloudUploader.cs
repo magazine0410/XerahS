@@ -97,7 +97,7 @@ public sealed class NextcloudUploader : FileUploader, IUploadHandler
             string relativeFilePath = NextcloudClient.CombineRelativePath(relativeFolderPath, request.FileName);
             string sharePath = "/" + relativeFilePath;
 
-            NextcloudClient client = new(_config.ServerUrl, loginName, _appPassword);
+            NextcloudClient client = new(_config.ServerUrl, loginName, _appPassword) { BufferSize = BufferSize };
             await client.UploadFileAsync(
                 request.Content,
                 userId,

@@ -1,0 +1,27 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        x:Class="XerahS.UI.Views.Dialogs.LargeFileUploadWarningWindow"
+        Classes="xerahs-surface"
+        Title="Large file upload"
+        Width="440"
+        MinWidth="360"
+        SizeToContent="Height"
+        CanResize="False"
+        Topmost="True"
+        ShowInTaskbar="False"
+        WindowStartupLocation="CenterScreen">
+    <!-- ShareX's large file warning, shown before uploading a file larger than the large-file warning size. -->
+    <Border Background="{DynamicResource SolidBackgroundFillColorSecondaryBrush}"
+            BorderBrush="{DynamicResource SurfaceStrokeColorDefaultBrush}"
+            BorderThickness="1"
+            Padding="16">
+        <StackPanel Spacing="14">
+            <TextBlock x:Name="MessageText" FontSize="15" TextWrapping="Wrap" Text="You are attempting to upload a large file."/>
+            <CheckBox x:Name="DontShowAgainCheckBox" Content="Don't show this message again."/>
+            <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Spacing="8">
+                <Button Content="Continue" Classes="accent" IsDefault="True" Click="OnContinueClick"/>
+                <Button Content="Cancel" IsCancel="True" Click="OnCancelClick"/>
+            </StackPanel>
+        </StackPanel>
+    </Border>
+</Window>

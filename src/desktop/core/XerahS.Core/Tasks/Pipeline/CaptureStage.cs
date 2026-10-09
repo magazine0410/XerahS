@@ -923,6 +923,9 @@ namespace XerahS.Core.Tasks.Pipeline
 
         private static async Task<PipelineStageResult> DownloadAsync(PipelineContext context, CancellationToken token)
         {
+            // In ShareX the download is part of the task, so it waits under the simultaneous upload limit too.
+            await TaskStart.WaitForUploadLimitAsync(context.Info, token);
+            TaskStart.ClearClipboardIfUploading(context.Info);
             if (!await new Processors.DownloadJobProcessor().ProcessAsync(context.Info, token))
             {
                 context.Status = TaskStatus.Canceled;

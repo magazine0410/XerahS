@@ -70,7 +70,7 @@ public sealed class XBackBoneUploader : FileUploader, IUploadHandler
 
         try
         {
-            XBackBoneClient client = new(normalizedServerUrl, _apiToken);
+            XBackBoneClient client = new(normalizedServerUrl, _apiToken) { BufferSize = BufferSize };
             XBackBoneUploadResponse response = await client.UploadAsync(
                 request.Content,
                 request.FileName,

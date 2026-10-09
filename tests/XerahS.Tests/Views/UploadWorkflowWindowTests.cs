@@ -245,6 +245,38 @@ public class UploadWorkflowWindowTests
             "Don't show again applies to Cancel too, as in ShareX.");
     }
 
+    [AvaloniaTest]
+    public async Task LargeFileUploadWarning_ReportsTheButtonAndDontShowAgain()
+    {
+        var window = new XerahS.UI.Views.Dialogs.LargeFileUploadWarningWindow();
+        window.Show();
+        Assert.That(window.FindControl<TextBlock>("MessageText")!.Text, Is.EqualTo("You are attempting to upload a large file."));
+        window.FindControl<CheckBox>("DontShowAgainCheckBox")!.IsChecked = true;
+        SavePreview(window, "large-file-upload-warning");
+        window.Close();
+        Assert.That(await window.Result, Is.EqualTo(new XerahS.Core.Tasks.Processors.LargeFileUploadWarningResult(false, true)),
+            "Closing the window answers Cancel; don't show again applies to it too, as in ShareX.");
+    }
+
+    [Test]
+    public async Task FolderUpload_StartsEveryFileTogether_AsShareXDoes()
+    {
+        string directory = Path.Combine(Path.GetTempPath(), "xerahs-folder-together-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(directory);
+        for (int i = 0; i < 3; i++) File.WriteAllText(Path.Combine(directory, $"file{i}.txt"), "x");
+        try
+        {
+            var manager = new PendingFileManager();
+            var upload = UploadWorkflowService.UploadPathsAsync([directory], new TaskSettings { Job = WorkflowType.FolderUpload }, manager);
+
+            Assert.That(() => manager.StartedCount, Is.EqualTo(3).After(5000, 10), "Every file starts before the first one ends.");
+            Assert.That(upload.IsCompleted, Is.False, "The batch ends with its last upload.");
+            manager.CompleteAll();
+            await upload.WaitAsync(TimeSpan.FromSeconds(5));
+        }
+        finally { Directory.Delete(directory, recursive: true); }
+    }
+
     [Test]
     public async Task FolderUpload_RecursesDeduplicatesAndPreservesWorkflowSettings()
     {
@@ -318,6 +350,27 @@ public class UploadWorkflowWindowTests
         Directory.CreateDirectory(directory);
         using var stream = File.Create(Path.Combine(directory, name + ".png"));
         frame.Save(stream, PngBitmapEncoderOptions.Default);
+    }
+
+    /// <summary>File tasks that stay running until the test ends them.</summary>
+    private sealed class PendingFileManager : IDesktopTaskManager
+    {
+        private readonly List<TaskCompletionSource> _pending = [];
+        public int StartedCount { get { lock (_pending) return _pending.Count; } }
+        public event EventHandler<WorkerTask>? TaskStarted { add { } remove { } }
+        public event EventHandler<WorkerTask>? TaskCompleted { add { } remove { } }
+        public IEnumerable<WorkerTask> Tasks => [];
+        public Task StartFileTask(TaskSettings? settings, string path)
+        {
+            var completion = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+            lock (_pending) _pending.Add(completion);
+            return completion.Task;
+        }
+        public void CompleteAll() { lock (_pending) _pending.ForEach(completion => completion.TrySetResult()); }
+        public Task StartTextTask(TaskSettings? settings, string text) => throw new NotSupportedException();
+        public Task StartTask(TaskSettings? settings, SKBitmap? inputImage = null) => throw new NotSupportedException();
+        public Task StartImageUploadTask(TaskSettings? settings, SKBitmap image) => throw new NotSupportedException();
+        public void StopAllTasks() { }
     }
 
     private sealed class RecordingManager : IDesktopTaskManager, IDisposable

@@ -99,6 +99,8 @@ namespace XerahS.App
                 $"fromFolders={resolvedFiles.FolderFileCount}, folderPolicy={resolvedFiles.FolderPolicy}, " +
                 $"failedFolders={resolvedFiles.FailedFolderCount}, namingPolicy=task-name-pattern.");
 
+            // As in ShareX, the files' tasks all start at once; the simultaneous upload limit queues them.
+            var uploads = new List<Task>(resolvedFiles.FilePaths.Count);
             foreach (string file in resolvedFiles.FilePaths)
             {
                 TaskSettings settings = _createUploadTaskSettings();
@@ -106,8 +108,10 @@ namespace XerahS.App
                 DebugHelper.WriteLine(
                     $"Shell integration ({source}): Starting Send-to upload source=\"{file}\", " +
                     "staging=false, resolvedUploadName=generated-by-task-manager.");
-                await _taskManager.StartFileTask(settings, file);
+                uploads.Add(_taskManager.StartFileTask(settings, file));
             }
+
+            await Task.WhenAll(uploads);
         }
 
         private async Task<SendToPromptResult> ResolveDecisionAsync(SendToSelection selection)

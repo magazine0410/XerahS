@@ -45,6 +45,20 @@ public class TaskInfo
     internal bool UploadCancelled { get; set; }
     /// <summary>The capture job already ran the upload, so the upload job must not send the file again.</summary>
     internal bool UploadAttemptedDuringCapture { get; set; }
+    /// <summary>The task's place under the simultaneous upload limit, held until the task ends.</summary>
+    internal IDisposable? UploadQueuePlace { get; set; }
+    /// <summary>A place in the queue taken when the task was created, which the task waits for when it starts.</summary>
+    internal Task<IDisposable>? UploadQueueEntry { get; set; }
+    internal bool ClipboardClearedOnStart { get; set; }
+    /// <summary>"Process images during file upload": the file is loaded as an image when the task starts.</summary>
+    internal bool LoadImageFromFile { get; set; }
+    /// <summary>
+    /// The image file that was loaded to run the after capture tasks on. While <see cref="FilePath"/> is still this file,
+    /// the upload sends the processed image, not the file.
+    /// </summary>
+    internal string? ImageSourceFilePath { get; set; }
+    /// <summary>"Copy URL before upload" put the destination's URL on the clipboard before the upload.</summary>
+    internal bool EarlyURLCopied { get; set; }
 
     public bool IsUploadJob
     {

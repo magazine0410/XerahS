@@ -326,6 +326,41 @@ public static partial class TaskHelpers
     }
 
     /// <summary>
+    /// ShareX's CreateFileUploaderTask: an uploaded file gets the upload name, and with "Process images during file upload"
+    /// an image file is loaded when the task starts, to run the after capture tasks on it.
+    /// </summary>
+    public static void PrepareFileUpload(TaskInfo info)
+    {
+        ApplyFileUploadName(info);
+        var advanced = info.TaskSettings.AdvancedSettings;
+        info.LoadImageFromFile = advanced.ProcessImagesDuringFileUpload && !string.IsNullOrEmpty(info.FilePath) &&
+            FileHelpers.CheckExtension(info.FilePath, advanced.ImageExtensions);
+    }
+
+    /// <summary>
+    /// ShareX's upload buffer size: 2 to the power of "BufferSizePower" kibibytes, from 1 KiB to 8 MiB (32 KiB by default).
+    /// </summary>
+    public static int GetUploadBufferSize() => GetUploadBufferSize(SettingsManager.Settings?.BufferSizePower ?? 5);
+
+    public static int GetUploadBufferSize(int bufferSizePower) => 1024 << Math.Clamp(bufferSizePower, 0, MaxBufferSizePower);
+
+    /// <summary>The largest buffer size in ShareX's list, 8 MiB.</summary>
+    public const int MaxBufferSizePower = 13;
+
+    /// <summary>
+    /// ShareX's custom text for text uploaded from the clipboard or dropped on the drag and drop upload window: the
+    /// "TextCustom" advanced setting with %input replaced by the text, HTML-encoded first when "TextCustomEncodeInput"
+    /// is on. Without a template the text is unchanged.
+    /// </summary>
+    public static string ApplyCustomText(string text, TaskSettings settings)
+    {
+        string? template = settings.AdvancedSettings?.TextCustom;
+        if (string.IsNullOrEmpty(template)) return text;
+        if (settings.AdvancedSettings!.TextCustomEncodeInput) text = System.Web.HttpUtility.HtmlEncode(text);
+        return template.Replace("%input", text);
+    }
+
+    /// <summary>
     /// ShareX's last step before an upload: bidirectional control characters are removed from the name, and with
     /// "Replace potentially problematic characters" on, other characters that are not safe in a URL become underscores.
     /// </summary>
@@ -777,14 +812,19 @@ public static partial class TaskHelpers
         }
     }
 
-    public static async Task<string?> SaveImageAsFileAsync(SkiaSharp.SKBitmap bmp, TaskSettings taskSettings, bool overwriteFile = false)
+    /// <param name="fileName">
+    /// The name to save under, with the image format's extension; otherwise the name pattern names the file. ShareX
+    /// saves a processed file upload under the uploaded file's name.
+    /// </param>
+    public static async Task<string?> SaveImageAsFileAsync(SkiaSharp.SKBitmap bmp, TaskSettings taskSettings, bool overwriteFile = false,
+        string? fileName = null)
     {
         string screenshotsFolder = GetScreenshotsFolder(taskSettings);
         FileHelpers.CreateDirectory(screenshotsFolder);
 
         using var prepared = await PrepareImageAsync(bmp, taskSettings).ConfigureAwait(false);
         string extension = EnumExtensions.GetDescription(prepared.Format);
-        string fileName = GetFileName(taskSettings, extension, bmp);
+        fileName = string.IsNullOrEmpty(fileName) ? GetFileName(taskSettings, extension, bmp) : Path.ChangeExtension(fileName, extension);
         string filePath = Path.Combine(screenshotsFolder, fileName);
 
         if (!overwriteFile)

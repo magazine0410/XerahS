@@ -1264,12 +1264,15 @@ namespace XerahS.App
                     return;
                 }
 
+                // As in ShareX, the files' tasks all start at once; the simultaneous upload limit queues them.
+                var uploads = new List<Task>(files.Count);
                 foreach (string file in files)
                 {
                     TaskSettings settings = CreateFileUploadTaskSettings();
                     settings.Job = WorkflowType.FileUpload;
-                    await taskManager.StartFileTask(settings, file);
+                    uploads.Add(taskManager.StartFileTask(settings, file));
                 }
+                await Task.WhenAll(uploads);
             }
             catch (Exception ex)
             {

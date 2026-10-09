@@ -91,6 +91,8 @@ public sealed class WorkflowOrchestrator : IWorkflowOrchestrator
         Core.Tasks.Processors.CaptureJobProcessor.ShowQuickTaskMenuCallback = AfterCaptureInteractionService.ShowQuickTaskMenuAsync;
         Core.Tasks.Processors.CaptureJobProcessor.SaveImageWithDialogCallback = AfterCaptureInteractionService.SaveImageWithDialogAsync;
         Core.Tasks.Processors.UploadJobProcessor.ShowBeforeUploadCallback = AfterCaptureInteractionService.ShowBeforeUploadAsync;
+        Core.Tasks.Processors.UploadJobProcessor.ShowLargeFileUploadWarningCallback = Views.Dialogs.LargeFileUploadWarningWindow.ShowAsync;
+        Core.Tasks.WorkerTask.ConfirmMultiUploadCallback = UploadWorkflowService.ConfirmMultiUploadAsync;
         Core.Tasks.WorkerTask.ShowWindowSelectorCallback = ShowWindowSelectorAsync;
         Core.Tasks.WorkerTask.ShowOpenFileDialogCallback = ShowOpenFileDialogAsync;
         Core.Tasks.WorkerTask.HandleToolWorkflowCallback = HandleToolWorkflowAsync;

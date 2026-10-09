@@ -36,9 +36,21 @@ using XerahS.Core.Services;
 
 namespace XerahS.Core.Tasks.Processors
 {
+    /// <summary>The answer to ShareX's large file warning. "Don't show again" applies whichever button was clicked.</summary>
+    public readonly record struct LargeFileUploadWarningResult(bool ShouldContinue, bool DontShowAgain);
+
     public class UploadJobProcessor : IJobProcessor
     {
         public static Func<TaskInfo, CancellationToken, Task<bool>>? ShowBeforeUploadCallback { get; set; }
+
+        /// <summary>Shows ShareX's large file warning. Set by the UI layer; without it, large files upload without asking.</summary>
+        public static Func<CancellationToken, Task<LargeFileUploadWarningResult>>? ShowLargeFileUploadWarningCallback { get; set; }
+
+        /// <summary>Saves the application settings after "Don't show this message again".</summary>
+        internal static Func<Task> SaveApplicationSettings { get; set; } = () => SettingsManager.SaveApplicationConfigAsync();
+
+        /// <summary>ShareX's pause before each retry of a failed upload.</summary>
+        internal static TimeSpan RetryDelay { get; set; } = TimeSpan.FromSeconds(1);
 
         public async Task<bool> ProcessAsync(TaskInfo info, CancellationToken token)
         {
@@ -175,6 +187,13 @@ namespace XerahS.Core.Tasks.Processors
                 }
             }
 
+            if (!await ConfirmLargeFileUploadAsync(info, token).ConfigureAwait(false))
+            {
+                // As in ShareX, Cancel stops the task.
+                DebugHelper.WriteLine("Large file upload cancelled.");
+                throw new OperationCanceledException("The large file upload was cancelled.");
+            }
+
             if (!info.BeforeUploadConfirmed && info.TaskSettings.AfterCaptureJob.HasFlag(AfterCaptureTasks.ShowBeforeUploadWindow))
             {
                 var confirm = ShowBeforeUploadCallback ?? throw new InvalidOperationException("The before-upload window is unavailable in this host.");
@@ -188,7 +207,103 @@ namespace XerahS.Core.Tasks.Processors
                 info.BeforeUploadConfirmed = true;
             }
             token.ThrowIfCancellationRequested();
-            return await StartUploadAsync(info, token).ConfigureAwait(false);
+
+            UploadResult? result = null;
+            try
+            {
+                result = await StartUploadAsync(info, token).ConfigureAwait(false);
+                return result;
+            }
+            finally
+            {
+                // As in ShareX, a URL copied before an upload that gave no URL is taken off the clipboard.
+                if (info.EarlyURLCopied && (token.IsCancellationRequested || string.IsNullOrEmpty(result?.URL)))
+                {
+                    ClearEarlyCopiedURL();
+                }
+            }
+        }
+
+        /// <summary>
+        /// ShareX's large file warning: an upload larger than "ShowLargeFileSizeWarning" megabytes (Application Settings →
+        /// Advanced; 100 by default, 0 turns it off) asks first. Returns false when the upload was cancelled.
+        /// </summary>
+        internal static async Task<bool> ConfirmLargeFileUploadAsync(TaskInfo info, CancellationToken token)
+        {
+            var settings = SettingsManager.Settings;
+            long limit = GetLargeFileSizeLimit(settings.ShowLargeFileSizeWarning, settings.BinaryUnits);
+            if (limit <= 0 || ShowLargeFileUploadWarningCallback is not { } showWarning) return true;
+
+            long? size = await GetUploadSizeAsync(info, limit).ConfigureAwait(false);
+            if (size is not { } length || length <= limit) return true;
+
+            DebugHelper.WriteLine($"Large file upload: {length} bytes is over the {limit} byte warning size.");
+            var answer = await showWarning(token).ConfigureAwait(false);
+            if (answer.DontShowAgain)
+            {
+                settings.ShowLargeFileSizeWarning = 0;
+                try { await SaveApplicationSettings().ConfigureAwait(false); }
+                catch (Exception ex) { DebugHelper.WriteException(ex, "Save the large file warning setting"); }
+            }
+
+            token.ThrowIfCancellationRequested();
+            return answer.ShouldContinue;
+        }
+
+        /// <summary>
+        /// The warning size in bytes: megabytes of 1024 × 1024 bytes with "Use binary units", otherwise of 1000 × 1000.
+        /// ShareX multiplies in 32 bits, which overflows from 2048 MB; this does not.
+        /// </summary>
+        internal static long GetLargeFileSizeLimit(int megabytes, bool binaryUnits) =>
+            megabytes <= 0 ? 0 : megabytes * (binaryUnits ? 1024L * 1024 : 1000L * 1000);
+
+        /// <summary>The number of bytes the upload sends, or null when there is nothing to measure.</summary>
+        private static async Task<long?> GetUploadSizeAsync(TaskInfo info, long limit)
+        {
+            if (UploadsTextContent(info))
+            {
+                return Encoding.UTF8.GetByteCount(info.TextContent!);
+            }
+
+            if (!string.IsNullOrEmpty(info.FilePath) && !UploadsProcessedImage(info))
+            {
+                return File.Exists(info.FilePath) ? new FileInfo(info.FilePath).Length : null;
+            }
+
+            if (info.Metadata?.Image is { } image && info.DataType == EDataType.Image)
+            {
+                // An encoded image is at most a little larger than its pixels, so smaller images are not encoded twice.
+                long pixelBytes = (long)image.Width * image.Height * Math.Max(1, image.BytesPerPixel);
+                if (pixelBytes + pixelBytes / 64 + 65536 <= limit) return pixelBytes;
+                using var prepared = await TaskHelpers.PrepareImageAsync(image, info.TaskSettings).ConfigureAwait(false);
+                return prepared.Stream.Length;
+            }
+
+            return null;
+        }
+
+        /// <summary>A text upload sends its text, also when "Save text tasks as files" has saved it to a file.</summary>
+        private static bool UploadsTextContent(TaskInfo info) =>
+            info.Job == TaskJob.TextUpload && info.DataType == EDataType.Text && !string.IsNullOrEmpty(info.TextContent);
+
+        /// <summary>
+        /// "Process images during file upload" uploads the processed image instead of the file it was loaded from, until a
+        /// task gives the image a file of its own (such as "Save image to file").
+        /// </summary>
+        private static bool UploadsProcessedImage(TaskInfo info) =>
+            info.Metadata?.Image != null && info.ImageSourceFilePath != null &&
+            string.Equals(info.FilePath, info.ImageSourceFilePath, StringComparison.Ordinal);
+
+        private static void ClearEarlyCopiedURL()
+        {
+            try
+            {
+                if (PlatformServices.Clipboard.ContainsText()) PlatformServices.Clipboard.Clear();
+            }
+            catch (Exception ex)
+            {
+                DebugHelper.WriteException(ex, "Clear the URL copied before the upload");
+            }
         }
 
         private async Task<UploadResult?> StartUploadAsync(TaskInfo info, CancellationToken token)
@@ -667,10 +782,32 @@ namespace XerahS.Core.Tasks.Processors
         }
 
         /// <summary>
+        /// Uploads with one destination. As in ShareX, a failed upload is tried again after a second, up to "Number of
+        /// times to retry if upload fails" (Application Settings → Upload; once by default), before the next destination.
+        /// </summary>
+        private static async Task<UploadResult?> TryUploadWithInstanceAsync(
+            UploaderInstance instance,
+            TaskInfo info,
+            CancellationToken token)
+        {
+            var result = await UploadOnceWithInstanceAsync(instance, info, token).ConfigureAwait(false);
+            int retries = Math.Max(0, SettingsManager.Settings?.MaxUploadFailRetry ?? 0);
+            // No result means the destination's plugin is missing, which another try cannot change.
+            for (int retry = 1; retry <= retries && result != null && !IsSuccessfulUploadResult(result); retry++)
+            {
+                DebugHelper.WriteLine($"Upload failed. Retrying upload ({retry} of {retries}) with {instance.DisplayName}.");
+                await Task.Delay(RetryDelay, token).ConfigureAwait(false);
+                result = await UploadOnceWithInstanceAsync(instance, info, token).ConfigureAwait(false);
+            }
+
+            return result;
+        }
+
+        /// <summary>
         /// Attempts to upload using a specific instance. Prefers <see cref="IUploadHandler"/>;
         /// otherwise adapts legacy <see cref="GenericUploader"/>.
         /// </summary>
-        private static async Task<UploadResult?> TryUploadWithInstanceAsync(
+        private static async Task<UploadResult?> UploadOnceWithInstanceAsync(
             UploaderInstance instance,
             TaskInfo info,
             CancellationToken token)
@@ -728,8 +865,21 @@ namespace XerahS.Core.Tasks.Processors
                     Host = ProviderCatalog.GetProviderContext() as IDestinationHost
                 };
 
-                // As in ShareX, the uploader's errors are titled "{service} error".
-                if (uploader is Uploader legacyUploader) legacyUploader.Errors.DefaultTitle = $"{provider.Name} error";
+                if (uploader is Uploader legacyUploader)
+                {
+                    // As in ShareX, the uploader's errors are titled "{service} error", and it copies data with the
+                    // buffer size from Application Settings → Upload.
+                    legacyUploader.Errors.DefaultTitle = $"{provider.Name} error";
+                    legacyUploader.BufferSize = TaskHelpers.GetUploadBufferSize();
+
+                    // "Copy URL before upload": destinations that know the URL in advance (FTP, FTPS, SFTP, Amazon S3, and
+                    // Google Cloud Storage) put it on the clipboard before they upload, when "Copy URL to clipboard" is on.
+                    if (info.TaskSettings.AfterUploadJob.HasFlag(AfterUploadTasks.CopyURLToClipboard) &&
+                        info.TaskSettings.AdvancedSettings.EarlyCopyURL)
+                    {
+                        legacyUploader.EarlyURLCopyRequested += url => CopyEarlyURL(info, url);
+                    }
+                }
                 UploadOutcome outcome = await UploaderUploadAdapter.UploadAsync(uploader, request, token).ConfigureAwait(false);
                 UploadResult result = outcome.ToUploadResult();
                 if (!outcome.Succeeded && uploader is Uploader failedUploader && failedUploader.Errors.Count > 0)
@@ -760,9 +910,23 @@ namespace XerahS.Core.Tasks.Processors
             }
         }
 
+        private static void CopyEarlyURL(TaskInfo info, string url)
+        {
+            try
+            {
+                PlatformServices.Clipboard.SetText(url);
+                info.EarlyURLCopied = true;
+                DebugHelper.WriteLine("URL copied to the clipboard before the upload.");
+            }
+            catch (Exception ex)
+            {
+                DebugHelper.WriteException(ex, "Copy URL before upload");
+            }
+        }
+
         internal static async Task<(Stream? Content, string FileName, UploaderCategory Category)> OpenUploadContentAsync(TaskInfo info)
         {
-            if (!string.IsNullOrEmpty(info.FilePath))
+            if (!string.IsNullOrEmpty(info.FilePath) && !UploadsTextContent(info) && !UploadsProcessedImage(info))
             {
                 string name = string.IsNullOrWhiteSpace(info.FileName) ? Path.GetFileName(info.FilePath) : info.FileName;
                 var category = info.DataType switch
@@ -771,7 +935,8 @@ namespace XerahS.Core.Tasks.Processors
                     EDataType.Text => UploaderCategory.Text,
                     _ => UploaderCategory.File
                 };
-                return (new FileStream(info.FilePath, FileMode.Open, FileAccess.Read, FileShare.Read, 8192,
+                // As ShareX's file uploader does, the file is read with the upload buffer size.
+                return (new FileStream(info.FilePath, FileMode.Open, FileAccess.Read, FileShare.Read, TaskHelpers.GetUploadBufferSize(),
                     FileOptions.Asynchronous | FileOptions.SequentialScan), name, category);
             }
 

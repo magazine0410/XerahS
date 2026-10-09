@@ -70,6 +70,7 @@ namespace XerahS.Core.Managers
             XerahS.Common.TroubleshootingHelper.Log(taskSettings.Job.ToString(), "TASK_MANAGER", "StartTask Entry");
 
             var task = WorkerTask.Create(taskSettings, inputImage);
+            if (inputImage != null) task.ReserveUploadQueuePlace();
 
             AddTask(task);
 
@@ -112,7 +113,8 @@ namespace XerahS.Core.Managers
             task.Info.DataType = EDataType.File;
             task.Info.Job = TaskJob.FileUpload;
 
-            TaskHelpers.ApplyFileUploadName(task.Info);
+            TaskHelpers.PrepareFileUpload(task.Info);
+            task.ReserveUploadQueuePlace();
 
             AddTask(task);
 
@@ -151,6 +153,7 @@ namespace XerahS.Core.Managers
 
             string imageExtension = EnumExtensions.GetDescription(safeTaskSettings.ImageSettings.ImageFormat);
             task.Info.SetFileName(TaskHelpers.GetFileName(safeTaskSettings, imageExtension, task.Info.Metadata));
+            task.ReserveUploadQueuePlace();
 
             AddTask(task);
 
@@ -200,6 +203,7 @@ namespace XerahS.Core.Managers
             DebugHelper.WriteLine(
                 $"[UploadContentDebug] StartTextTask created WorkerTask: fileName=\"{task.Info.FileName}\", " +
                 $"dataType={task.Info.DataType}, taskJob={task.Info.Job}, textLength={(task.Info.TextContent?.Length ?? 0)}");
+            task.ReserveUploadQueuePlace();
 
             AddTask(task);
 

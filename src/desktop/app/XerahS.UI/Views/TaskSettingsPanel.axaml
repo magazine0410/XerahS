@@ -412,6 +412,8 @@
                                     <CheckBox IsChecked="{Binding ClipboardUploadShortenURL}" Content="Shorten URL"/>
                                     <CheckBox IsChecked="{Binding ClipboardUploadShareURL}" Content="Share URL"
                                               ToolTip.Tip="If the clipboard contains a URL, share it with the URL sharing service. Upload URL contents and Shorten URL take precedence, as in ShareX."/>
+                                    <CheckBox IsChecked="{Binding ClipboardUploadAutoIndexFolder}" Content="Index folder"
+                                              ToolTip.Tip="If the clipboard contains a folder path, index the folder with the Index folder settings and upload the index as text."/>
                                 </StackPanel>
                             </Border>
                         </StackPanel>

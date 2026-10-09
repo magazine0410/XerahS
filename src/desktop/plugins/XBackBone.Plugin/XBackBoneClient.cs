@@ -39,6 +39,9 @@ public sealed class XBackBoneClient
     private readonly string _apiToken;
     private readonly HttpClient? _httpClient;
 
+    /// <summary>The size of the buffer the file is sent with: the upload buffer size from Application Settings → Upload.</summary>
+    public int BufferSize { get; set; } = 81920;
+
     public XBackBoneClient(string serverUrl, string apiToken)
         : this(serverUrl, apiToken, httpClient: null)
     {
@@ -104,7 +107,7 @@ public sealed class XBackBoneClient
         }
 
         using MultipartFormDataContent form = new();
-        ProgressStreamContent fileContent = new(stream, reportProgress);
+        ProgressStreamContent fileContent = new(stream, reportProgress, BufferSize);
         fileContent.Headers.ContentType = new MediaTypeHeaderValue(MimeTypes.GetMimeTypeFromFileName(safeFileName));
 
         using HttpRequestMessage request = new(HttpMethod.Post, BuildUploadUrl(apiGeneration));
@@ -297,16 +300,18 @@ public sealed class XBackBoneClient
     {
         private readonly Stream _source;
         private readonly Action<int>? _reportProgress;
+        private readonly int _bufferSize;
 
-        public ProgressStreamContent(Stream source, Action<int>? reportProgress)
+        public ProgressStreamContent(Stream source, Action<int>? reportProgress, int bufferSize)
         {
             _source = source;
             _reportProgress = reportProgress;
+            _bufferSize = Math.Max(1, bufferSize);
         }
 
         protected override async Task SerializeToStreamAsync(Stream stream, TransportContext? context)
         {
-            byte[] buffer = new byte[81920];
+            byte[] buffer = new byte[_bufferSize];
 
             if (_source.CanSeek)
             {

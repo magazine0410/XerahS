@@ -39,6 +39,25 @@ namespace XerahS.Core.Tasks.Pipeline
 
         public async Task<PipelineStageResult> ExecuteAsync(PipelineContext context, CancellationToken token)
         {
+            try
+            {
+                return await FinishAsync(context, token);
+            }
+            finally
+            {
+                // The next task waiting under the simultaneous upload limit can start.
+                TaskStart.LeaveUploadQueue(context.Info);
+            }
+        }
+
+        private static async Task<PipelineStageResult> FinishAsync(PipelineContext context, CancellationToken token)
+        {
+            // What ShareX runs as a task starts here, after the capture.
+            await TaskStart.WaitForUploadLimitAsync(context.Info, token);
+            TaskStart.LoadImageFromFile(context.Info);
+            TaskStart.ClearClipboardIfUploading(context.Info);
+            await TaskStart.SaveTextAsFileAsync(context.Info, token);
+
             // Execute Capture Job (File Save, Clipboard, etc)
             var captureProcessor = new CaptureJobProcessor();
             bool captureWantsToContinue = await captureProcessor.ProcessAsync(context.Info, token);
