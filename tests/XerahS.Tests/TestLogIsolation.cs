@@ -33,12 +33,15 @@ namespace XerahS.Tests;
 /// that exercise failure paths never append entries to the user's real XerahS error log
 /// (XIP0088 Phase 0 item 2). A module initializer runs before any test or static constructor.
 /// The personal folder is also moved into a temporary folder, so tests that save settings never
-/// overwrite the user's real settings.
+/// overwrite the user's real settings, and Wayland clients started by tests cannot reach the user's
+/// compositor, so tests never replace the user's clipboard.
 /// </summary>
 internal static class TestLogIsolation
 {
     internal static string LogsFolder { get; private set; } = string.Empty;
     internal static string PersonalFolder { get; private set; } = string.Empty;
+    internal const string WaylandDisplay = "xerahs-test-no-compositor";
+    internal const string X11Display = ":4095";
 
     [ModuleInitializer]
     internal static void Initialize()
@@ -48,6 +51,18 @@ internal static class TestLogIsolation
         PersonalFolder = Path.Combine(Path.GetTempPath(), $"xerahs-test-personal-{Environment.ProcessId}");
         Directory.CreateDirectory(PersonalFolder);
         PathsManager.PersonalFolder = PersonalFolder;
+
+        // Clipboard writes also hand their content to wl-copy, or to xclip when wl-copy fails, which would own the
+        // user's real clipboard. Display names without a socket keep the session detection unchanged; unsetting
+        // them would make wl-copy use wayland-0.
+        if (!string.IsNullOrEmpty(Environment.GetEnvironmentVariable("WAYLAND_DISPLAY")))
+        {
+            Environment.SetEnvironmentVariable("WAYLAND_DISPLAY", WaylandDisplay);
+        }
+        if (!string.IsNullOrEmpty(Environment.GetEnvironmentVariable("DISPLAY")))
+        {
+            Environment.SetEnvironmentVariable("DISPLAY", X11Display);
+        }
 
         string? existing = Environment.GetEnvironmentVariable(PathsManager.LogsFolderOverrideVariable);
         if (!string.IsNullOrWhiteSpace(existing))

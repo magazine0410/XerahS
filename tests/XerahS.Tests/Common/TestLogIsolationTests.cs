@@ -57,4 +57,14 @@ public class TestLogIsolationTests
             Assert.That(PathsManager.HistoryFolder, Does.StartWith(TestLogIsolation.PersonalFolder));
         });
     }
+
+    [Test]
+    public void Displays_DoNotNameTheUsersSession()
+    {
+        Assert.Multiple(() =>
+        {
+            Assert.That(Environment.GetEnvironmentVariable("WAYLAND_DISPLAY"), Is.Null.Or.Empty.Or.EqualTo(TestLogIsolation.WaylandDisplay));
+            Assert.That(Environment.GetEnvironmentVariable("DISPLAY"), Is.Null.Or.Empty.Or.EqualTo(TestLogIsolation.X11Display));
+        });
+    }
 }
