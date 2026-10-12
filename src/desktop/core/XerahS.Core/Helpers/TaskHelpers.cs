@@ -326,15 +326,27 @@ public static partial class TaskHelpers
     }
 
     /// <summary>
-    /// ShareX's CreateFileUploaderTask: an uploaded file gets the upload name, and with "Process images during file upload"
-    /// an image file is loaded when the task starts, to run the after capture tasks on it.
+    /// ShareX's CreateFileUploaderTask: an uploaded file gets the upload name and its data type, which picks the image, text
+    /// or file destination. With "Process images during file upload" an image file is loaded when the task starts, to run
+    /// the after capture tasks on it.
     /// </summary>
     public static void PrepareFileUpload(TaskInfo info)
     {
         ApplyFileUploadName(info);
-        var advanced = info.TaskSettings.AdvancedSettings;
-        info.LoadImageFromFile = advanced.ProcessImagesDuringFileUpload && !string.IsNullOrEmpty(info.FilePath) &&
-            FileHelpers.CheckExtension(info.FilePath, advanced.ImageExtensions);
+        info.DataType = FindDataType(info.FilePath, info.TaskSettings);
+        info.LoadImageFromFile = info.TaskSettings.AdvancedSettings.ProcessImagesDuringFileUpload && info.DataType == EDataType.Image;
+    }
+
+    /// <summary>
+    /// ShareX's FindDataType: a file with one of the "Image extensions" is uploaded as an image, and a file with one of the
+    /// "Text extensions" as text (Task settings → Advanced). Any other file is uploaded as a file.
+    /// </summary>
+    public static EDataType FindDataType(string filePath, TaskSettings taskSettings)
+    {
+        var advanced = taskSettings.AdvancedSettings;
+        if (FileHelpers.CheckExtension(filePath, advanced.ImageExtensions)) return EDataType.Image;
+        if (FileHelpers.CheckExtension(filePath, advanced.TextExtensions)) return EDataType.Text;
+        return EDataType.File;
     }
 
     /// <summary>

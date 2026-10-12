@@ -176,7 +176,7 @@ namespace XerahS.Core.Tasks.Processors
             using var scope = new UploadCancellationScope(token);
             token = scope.Token;
             token.ThrowIfCancellationRequested();
-            if ((info.DataType is EDataType.Image or EDataType.File) && !string.IsNullOrEmpty(info.FilePath))
+            if (!string.IsNullOrEmpty(info.FilePath) && !UploadsTextContent(info))
             {
                 FileReadinessStatus readiness = await FileReadiness.WaitUntilReadyAsync(info.FilePath, cancellationToken: token).ConfigureAwait(false);
                 if (readiness != FileReadinessStatus.Ready)
@@ -459,6 +459,15 @@ namespace XerahS.Core.Tasks.Processors
 
             // Not Auto - use the configured instance directly
             targetInstance ??= ResolveDefaultInstance(instanceManager, category);
+
+            // An image or text file goes to the image or text destination only when one is selected. Otherwise it goes to
+            // the file destination, as every uploaded file did before files were told apart by their extension.
+            if (targetInstance == null && allowCrossCategoryFallback && (category is UploaderCategory.Image or UploaderCategory.Text) &&
+                (info.Job is TaskJob.FileUpload or TaskJob.DownloadUpload) && !string.IsNullOrEmpty(info.FilePath))
+            {
+                DebugHelper.WriteLine($"No {category} destination is selected; uploading the file with the file destination.");
+                return await UploadWithPluginSystemAsync(info, UploaderCategory.File, token).ConfigureAwait(false);
+            }
 
             if (targetInstance == null && category == UploaderCategory.File)
             {
@@ -835,7 +844,8 @@ namespace XerahS.Core.Tasks.Processors
                 var uploadContent = await OpenUploadContentAsync(info);
                 await using Stream? content = uploadContent.Content;
                 string fileName = uploadContent.FileName;
-                UploaderCategory category = uploadContent.Category;
+                // As with ShareX's "File uploader" choice for images and text, a file destination receives the upload as a file.
+                UploaderCategory category = instance.Category == UploaderCategory.File ? UploaderCategory.File : uploadContent.Category;
                 if (content == null)
                 {
                     return new UploadResult { IsSuccess = false, Response = "No content to upload." };

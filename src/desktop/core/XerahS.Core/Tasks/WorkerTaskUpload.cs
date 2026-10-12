@@ -87,7 +87,6 @@ namespace XerahS.Core.Tasks
                         return false;
                     }
                     Info.FilePath = clipboardFiles[0];
-                    Info.DataType = EDataType.File;
                     Info.Job = TaskJob.FileUpload;
                     TaskHelpers.PrepareFileUpload(Info);
                     return true;

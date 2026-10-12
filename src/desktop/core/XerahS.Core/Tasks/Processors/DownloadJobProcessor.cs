@@ -96,8 +96,7 @@ internal sealed class DownloadJobProcessor(HttpClient? client = null)
             File.Move(partial, path, overwrite);
             info.FilePath = path;
             info.TextContent = null;
-            info.DataType = FileHelpers.CheckExtension(path, info.TaskSettings.AdvancedSettings.ImageExtensions) ? EDataType.Image
-                : FileHelpers.CheckExtension(path, info.TaskSettings.AdvancedSettings.TextExtensions) ? EDataType.Text : EDataType.File;
+            info.DataType = TaskHelpers.FindDataType(path, info.TaskSettings);
             info.Status = string.Empty;
             return true;
         }

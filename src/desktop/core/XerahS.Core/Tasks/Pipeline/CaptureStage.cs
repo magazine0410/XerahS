@@ -292,7 +292,7 @@ namespace XerahS.Core.Tasks.Pipeline
                         {
                             XerahS.Common.TroubleshootingHelper.Log(taskSettings.Job.ToString(), "UI", $"User selected file: {selectedFile}");
                             context.Info.FilePath = selectedFile;
-                            context.Info.DataType = EDataType.File;
+                            TaskHelpers.PrepareFileUpload(context.Info);
                         }
                         else
                         {
@@ -303,7 +303,7 @@ namespace XerahS.Core.Tasks.Pipeline
                     }
                     else if (!string.IsNullOrEmpty(context.Info.FilePath))
                     {
-                         context.Info.DataType = EDataType.File;
+                         context.Info.DataType = TaskHelpers.FindDataType(context.Info.FilePath, taskSettings);
                     }
                     else
                     {

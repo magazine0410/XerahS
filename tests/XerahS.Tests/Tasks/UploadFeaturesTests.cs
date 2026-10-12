@@ -53,12 +53,17 @@ public class UploadFeaturesTests
     private static TaskCompletionSource _blockRelease = new();
     private static FakeClipboard? _clipboard;
 
+    private static readonly UploaderCategory[] UploadCategories = [UploaderCategory.Image, UploaderCategory.Text, UploaderCategory.File];
+
     private object? _previousFolder, _previousOverride;
     private string _directory = null!;
     private readonly List<string> _instances = [];
+    private readonly Dictionary<UploaderCategory, string?> _previousDefaults = [];
+    private Func<Task<string?>>? _previousOpenFileDialog;
     private (int UploadLimit, int BufferSizePower, int Retry, int LargeFile, bool BinaryUnits) _previousSettings;
 
-    private sealed record Upload(string Behaviour, string FileName, byte[] Content, int BufferSize, string? ClipboardText);
+    private sealed record Upload(string Behaviour, string FileName, byte[] Content, int BufferSize, string? ClipboardText,
+        UploaderCategory? Category = null);
 
     [SetUp]
     public void SetUp()
@@ -72,6 +77,11 @@ public class UploadFeaturesTests
         _clipboard = new FakeClipboard();
         PlatformServices.Clipboard = _clipboard;
         ProviderCatalog.RegisterProvider(new TestProvider());
+        foreach (var category in UploadCategories)
+        {
+            _previousDefaults[category] = InstanceManager.Instance.GetDefaultInstance(category)?.InstanceId;
+        }
+        _previousOpenFileDialog = WorkerTask.ShowOpenFileDialogCallback;
 
         var settings = SettingsManager.Settings;
         _previousSettings = (settings.UploadLimit, settings.BufferSizePower, settings.MaxUploadFailRetry, settings.ShowLargeFileSizeWarning, settings.BinaryUnits);
@@ -95,8 +105,14 @@ public class UploadFeaturesTests
         CaptureJobProcessor.ShowQuickTaskMenuCallback = null;
         var settings = SettingsManager.Settings;
         (settings.UploadLimit, settings.BufferSizePower, settings.MaxUploadFailRetry, settings.ShowLargeFileSizeWarning, settings.BinaryUnits) = _previousSettings;
+        WorkerTask.ShowOpenFileDialogCallback = _previousOpenFileDialog;
         foreach (string id in _instances) InstanceManager.Instance.RemoveInstance(id);
         _instances.Clear();
+        foreach (var (category, id) in _previousDefaults)
+        {
+            if (id != null && InstanceManager.Instance.GetInstance(id) != null) InstanceManager.Instance.SetDefaultInstance(category, id);
+        }
+        _previousDefaults.Clear();
         _clipboard = null;
         PlatformServices.Reset();
         PersonalFolder.SetValue(null, _previousFolder);
@@ -227,7 +243,7 @@ public class UploadFeaturesTests
         var settings = Settings(AddInstance(UploaderCategory.File, "early"));
         settings.AfterUploadJob = AfterUploadTasks.CopyURLToClipboard;
         settings.AdvancedSettings.EarlyCopyURL = true;
-        string file = Path.Combine(_directory, "early.txt");
+        string file = Path.Combine(_directory, "early.zip");
         await File.WriteAllTextAsync(file, "early");
 
         var task = await RunFileUploadAsync(settings, file);
@@ -235,8 +251,8 @@ public class UploadFeaturesTests
         Assert.Multiple(() =>
         {
             Assert.That(task.Status, Is.EqualTo(TaskStatus.Completed));
-            Assert.That(Uploads.Single().ClipboardText, Is.EqualTo("https://early.test/early.txt"), "Copied before the upload.");
-            Assert.That(_clipboard!.Text, Is.EqualTo("https://upload.test/early.txt"), "Copy URL to clipboard copies the result after.");
+            Assert.That(Uploads.Single().ClipboardText, Is.EqualTo("https://early.test/early.zip"), "Copied before the upload.");
+            Assert.That(_clipboard!.Text, Is.EqualTo("https://upload.test/early.zip"), "Copy URL to clipboard copies the result after.");
         });
     }
 
@@ -247,7 +263,7 @@ public class UploadFeaturesTests
         var settings = Settings(AddInstance(UploaderCategory.File, "early-fail"));
         settings.AfterUploadJob = AfterUploadTasks.CopyURLToClipboard;
         settings.AdvancedSettings.EarlyCopyURL = true;
-        string file = Path.Combine(_directory, "early.txt");
+        string file = Path.Combine(_directory, "early.zip");
         await File.WriteAllTextAsync(file, "early");
 
         var task = await RunFileUploadAsync(settings, file);
@@ -255,7 +271,7 @@ public class UploadFeaturesTests
         Assert.Multiple(() =>
         {
             Assert.That(task.Status, Is.EqualTo(TaskStatus.Failed));
-            Assert.That(Uploads.Single().ClipboardText, Is.EqualTo("https://early.test/early.txt"));
+            Assert.That(Uploads.Single().ClipboardText, Is.EqualTo("https://early.test/early.zip"));
             Assert.That(_clipboard!.Text, Is.Null);
         });
     }
@@ -268,7 +284,7 @@ public class UploadFeaturesTests
         var settings = Settings(AddInstance(UploaderCategory.File, "early"));
         settings.AfterUploadJob = afterUpload;
         settings.AdvancedSettings.EarlyCopyURL = earlyCopy;
-        string file = Path.Combine(_directory, "early.txt");
+        string file = Path.Combine(_directory, "early.zip");
         await File.WriteAllTextAsync(file, "early");
 
         await RunFileUploadAsync(settings, file);
@@ -405,7 +421,7 @@ public class UploadFeaturesTests
         string source = process ? Path.Combine(_directory, name) : WriteImage(name);
         if (process) await File.WriteAllTextAsync(source, "not an image");
         byte[] original = File.ReadAllBytes(source);
-        var settings = Settings(AddInstance(UploaderCategory.File, "record"));
+        var settings = Settings(AddInstance(UploaderCategory.Image, "record"));
         settings.AfterCaptureJob = AfterCaptureTasks.UploadImageToHost;
         settings.ImageSettings.ImageFormat = EImageFormat.JPEG;
         settings.AdvancedSettings.ProcessImagesDuringFileUpload = process;
@@ -415,6 +431,178 @@ public class UploadFeaturesTests
         Assert.That(task.Info.Job, Is.EqualTo(TaskJob.FileUpload));
         Assert.That(Uploads.Single().FileName, Is.EqualTo(name));
         Assert.That(Uploads.Single().Content, Is.EqualTo(original));
+    }
+
+    [TestCase("photo.png", EDataType.Image, "image host")]
+    [TestCase("PHOTO.JPG", EDataType.Image, "image host")]
+    [TestCase("notes.txt", EDataType.Text, "text host")]
+    [TestCase("script.py", EDataType.Text, "text host")]
+    [TestCase("archive.zip", EDataType.File, "file host")]
+    [TestCase("page.html", EDataType.File, "file host")]
+    [TestCase("no-extension", EDataType.File, "file host")]
+    public async Task FileUpload_SendsImageFilesToTheImageHost_TextFilesToTheTextHost_AndOtherFilesToTheFileHost(
+        string name, EDataType dataType, string host)
+    {
+        SelectHosts();
+        string source = WriteFile(name, "content of " + name);
+
+        var task = await RunFileUploadAsync(Settings(null), source);
+
+        var upload = Uploads.Single();
+        Assert.Multiple(() =>
+        {
+            Assert.That(task.Status, Is.EqualTo(TaskStatus.Completed));
+            Assert.That(task.Info.DataType, Is.EqualTo(dataType));
+            Assert.That(upload.Behaviour, Is.EqualTo(host));
+            Assert.That(upload.FileName, Is.EqualTo(name));
+            Assert.That(Encoding.UTF8.GetString(upload.Content), Is.EqualTo("content of " + name), "The file is sent as it is.");
+        });
+    }
+
+    [Test]
+    public async Task FileUpload_UsesTheImageAndTextExtensionsFromTheTaskSettings()
+    {
+        SelectHosts();
+        var settings = Settings(null);
+        settings.AdvancedSettings.ImageExtensions = ["webp"];
+        settings.AdvancedSettings.TextExtensions = ["md"];
+
+        await RunFileUploadAsync(settings, WriteFile("photo.webp", "image"));
+        await RunFileUploadAsync(settings, WriteFile("readme.md", "text"));
+        await RunFileUploadAsync(settings, WriteFile("photo.png", "png"));
+
+        Assert.That(Uploads.Select(upload => upload.Behaviour), Is.EqualTo(new[] { "image host", "text host", "file host" }));
+    }
+
+    [TestCase("photo.png", true)]
+    [TestCase("notes.txt", true)]
+    [TestCase("photo.png", false)]
+    [TestCase("notes.txt", false)]
+    public async Task FileUpload_WithNoImageOrTextHostSelected_SendsTheFileToTheFileHost_IfCrossCategoryFallbackIsOn(
+        string name, bool crossCategoryFallback)
+    {
+        ClearDefaultHost(UploaderCategory.Image);
+        ClearDefaultHost(UploaderCategory.Text);
+        InstanceManager.Instance.SetDefaultInstance(UploaderCategory.File, AddInstance(UploaderCategory.File, "file host"));
+        var settings = Settings(null);
+        settings.AllowCrossCategoryFallback = crossCategoryFallback;
+
+        var task = await RunFileUploadAsync(settings, WriteFile(name, "content"));
+
+        if (crossCategoryFallback)
+        {
+            Assert.That(task.Status, Is.EqualTo(TaskStatus.Completed));
+            Assert.That(Uploads.Single().Behaviour, Is.EqualTo("file host"));
+            Assert.That(Uploads.Single().FileName, Is.EqualTo(name));
+        }
+        else
+        {
+            Assert.That(task.Status, Is.EqualTo(TaskStatus.Failed));
+            Assert.That(Uploads, Is.Empty, "Without cross-category fallback, an image or text file is not sent to a file host.");
+        }
+    }
+
+    [TestCase(true, UploaderCategory.Text)]
+    [TestCase(false, UploaderCategory.File)]
+    public async Task TextFile_IsSentAsTextToATextHost_AndAsAFileToAFileHost(bool textHostSelected, UploaderCategory received)
+    {
+        ClearDefaultHost(UploaderCategory.Text);
+        if (textHostSelected) InstanceManager.Instance.SetDefaultInstance(UploaderCategory.Text, AddInstance(UploaderCategory.Text, "category"));
+        InstanceManager.Instance.SetDefaultInstance(UploaderCategory.File, AddInstance(UploaderCategory.File, "category"));
+        var settings = Settings(null);
+        settings.AllowCrossCategoryFallback = true;
+
+        await RunFileUploadAsync(settings, WriteFile("notes.txt", "some notes"));
+
+        Assert.That(Uploads.Single().Category, Is.EqualTo(received));
+        Assert.That(Encoding.UTF8.GetString(Uploads.Single().Content), Is.EqualTo("some notes"));
+    }
+
+    [Test]
+    public async Task TextFileUpload_WaitsForTheFileToBeWritten_AsOtherFileUploadsDo()
+    {
+        SelectHosts();
+        string source = Path.Combine(_directory, "late.txt");
+
+        var upload = RunFileUploadAsync(Settings(null), source);
+        await Task.Delay(300);
+        await File.WriteAllTextAsync(source, "written late");
+        var task = await upload;
+
+        Assert.That(task.Status, Is.EqualTo(TaskStatus.Completed));
+        Assert.That(Encoding.UTF8.GetString(Uploads.Single().Content), Is.EqualTo("written late"));
+    }
+
+    [Test]
+    public async Task UploadFileWorkflow_SendsTheChosenTextFileToTheTextHost()
+    {
+        InitializePlatform();
+        SelectHosts();
+        string source = WriteFile("notes.txt", "chosen in the dialog");
+        WorkerTask.ShowOpenFileDialogCallback = () => Task.FromResult<string?>(source);
+        var settings = Settings(null);
+        settings.Job = WorkflowType.FileUpload;
+
+        var task = await RunAsync(settings, () => TaskManager.Instance.StartTask(settings));
+
+        Assert.That(task.Info.DataType, Is.EqualTo(EDataType.Text));
+        Assert.That(Uploads.Single().Behaviour, Is.EqualTo("text host"));
+    }
+
+    [Test]
+    public async Task UploadFileWorkflow_ProcessesTheChosenImage()
+    {
+        InitializePlatform();
+        SelectHosts();
+        string source = WriteImage("photo.png");
+        WorkerTask.ShowOpenFileDialogCallback = () => Task.FromResult<string?>(source);
+        var settings = Settings(null);
+        settings.Job = WorkflowType.FileUpload;
+        settings.AfterCaptureJob = AfterCaptureTasks.UploadImageToHost;
+        settings.ImageSettings.ImageFormat = EImageFormat.JPEG;
+        settings.AdvancedSettings.ProcessImagesDuringFileUpload = true;
+
+        await RunAsync(settings, () => TaskManager.Instance.StartTask(settings));
+
+        Assert.That(Uploads.Single().Behaviour, Is.EqualTo("image host"));
+        Assert.That(Uploads.Single().FileName, Is.EqualTo("photo.jpg"), "As with other file uploads, the image is processed.");
+    }
+
+    /// <summary>The "Upload file" workflow runs the capture stage, which needs the platform services.</summary>
+    private static void InitializePlatform()
+    {
+        PlatformServices.Initialize(Stub<IPlatformInfo>(), Stub<IScreenService>(), _clipboard!, Stub<IWindowService>(),
+            Stub<IScreenCaptureService>(), Stub<IHotkeyService>(), Stub<IInputService>(), Stub<IFontService>(),
+            Stub<IStartupService>(), Stub<ISystemService>(), Stub<IDiagnosticService>());
+
+        static T Stub<T>() where T : class => DispatchProxy.Create<T, CaptureStageWindowTests.EmptyProxy>();
+    }
+
+    /// <summary>Selects an image, a text and a file host on the Destinations page.</summary>
+    private void SelectHosts()
+    {
+        foreach (var (category, host) in new[] { (UploaderCategory.Image, "image host"), (UploaderCategory.Text, "text host"), (UploaderCategory.File, "file host") })
+        {
+            InstanceManager.Instance.SetDefaultInstance(category, AddInstance(category, host));
+        }
+    }
+
+    /// <summary>A category's default host is removed with its instance; the teardown selects the earlier default again.</summary>
+    private void ClearDefaultHost(UploaderCategory category)
+    {
+        string id = AddInstance(category, "removed");
+        InstanceManager.Instance.SetDefaultInstance(category, id);
+        InstanceManager.Instance.RemoveInstance(id);
+        _instances.Remove(id);
+        Assert.That(InstanceManager.Instance.GetDefaultInstance(category), Is.Null);
+    }
+
+    private string WriteFile(string name, string content)
+    {
+        string path = Path.Combine(_directory, "source", name);
+        Directory.CreateDirectory(Path.GetDirectoryName(path)!);
+        File.WriteAllText(path, content);
+        return path;
     }
 
     [Test]
@@ -496,7 +684,7 @@ public class UploadFeaturesTests
         return path;
     }
 
-    private TaskSettings Settings(string instanceId)
+    private TaskSettings Settings(string? instanceId)
     {
         var settings = new TaskSettings
         {
@@ -559,7 +747,8 @@ public class UploadFeaturesTests
         {
             [UploaderCategory.Image] = ["*"], [UploaderCategory.Text] = ["*"], [UploaderCategory.File] = ["*"]
         };
-        public override Uploader CreateInstance(string settingsJson) => new TestUploader(settingsJson);
+        public override Uploader CreateInstance(string settingsJson) =>
+            settingsJson == "category" ? new CategoryUploader() : new TestUploader(settingsJson);
     }
 
     private sealed class TestUploader(string behaviour) : FileUploader
@@ -586,6 +775,20 @@ public class UploadFeaturesTests
             return fail
                 ? new UploadResult { IsSuccess = false, Response = "upload rejected" }
                 : new UploadResult { IsSuccess = true, URL = "https://upload.test/" + fileName };
+        }
+    }
+
+    /// <summary>Records the category of the upload request, which tells a custom uploader to send text or a file.</summary>
+    private sealed class CategoryUploader : FileUploader, IUploadHandler
+    {
+        public override UploadResult Upload(Stream stream, string fileName) => throw new NotSupportedException();
+
+        public async Task<UploadOutcome> UploadAsync(UploadRequest request, CancellationToken cancellationToken = default)
+        {
+            using var content = new MemoryStream();
+            await request.Content.CopyToAsync(content, cancellationToken);
+            lock (Uploads) Uploads.Add(new Upload("category", request.FileName, content.ToArray(), 0, null, request.Category));
+            return UploadOutcome.Success("https://upload.test/" + request.FileName);
         }
     }
 

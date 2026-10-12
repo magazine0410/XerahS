@@ -110,7 +110,6 @@ namespace XerahS.Core.Managers
             var safeTaskSettings = taskSettings ?? new TaskSettings();
             var task = WorkerTask.Create(safeTaskSettings);
             task.Info.FilePath = filePath;
-            task.Info.DataType = EDataType.File;
             task.Info.Job = TaskJob.FileUpload;
 
             TaskHelpers.PrepareFileUpload(task.Info);
