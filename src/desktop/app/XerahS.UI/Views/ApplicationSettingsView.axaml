@@ -807,6 +807,54 @@
                 </ScrollViewer>
             </TabItem>
 
+            <!-- Upload Tab (ShareX's Upload page) -->
+            <TabItem Header="Upload">
+                <ScrollViewer controls:SettingsSearch.PageId="upload">
+                    <StackPanel Spacing="24" Margin="24">
+                        <StackPanel Spacing="8" controls:SettingsSearch.IsPanel="True">
+                            <TextBlock Text="Upload" FontWeight="SemiBold"/>
+                            <Border BorderThickness="1"
+                                    BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}"
+                                    Background="{DynamicResource CardBackgroundFillColorDefaultBrush}"
+                                    CornerRadius="4" Padding="16">
+                                <StackPanel Spacing="16">
+                                    <Grid ColumnDefinitions="260,*" ColumnSpacing="8">
+                                        <TextBlock Text="Simultaneous upload limit:" VerticalAlignment="Center"/>
+                                        <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8">
+                                            <NumericUpDown Value="{Binding UploadLimit}"
+                                                           Minimum="0" Maximum="25" Increment="1" FormatString="0"
+                                                           MinWidth="120"
+                                                           AutomationProperties.Name="Simultaneous upload limit"/>
+                                            <TextBlock Text="0 disables the limit" VerticalAlignment="Center"
+                                                       FontSize="12"
+                                                       Foreground="{DynamicResource SystemControlForegroundBaseMediumBrush}"/>
+                                        </StackPanel>
+                                    </Grid>
+                                    <Grid ColumnDefinitions="260,*" ColumnSpacing="8">
+                                        <TextBlock Text="Buffer size:" VerticalAlignment="Center"/>
+                                        <ComboBox Grid.Column="1"
+                                                  ItemsSource="{Binding BufferSizeOptions}"
+                                                  SelectedIndex="{Binding BufferSizePower}"
+                                                  MinWidth="120"
+                                                  HorizontalAlignment="Left"
+                                                  AutomationProperties.Name="Buffer size"/>
+                                    </Grid>
+                                    <Grid ColumnDefinitions="260,*" ColumnSpacing="8">
+                                        <TextBlock Text="Number of times to retry if upload fails:" VerticalAlignment="Center"/>
+                                        <NumericUpDown Grid.Column="1"
+                                                       Value="{Binding MaxUploadFailRetry}"
+                                                       Minimum="0" Maximum="5" Increment="1" FormatString="0"
+                                                       MinWidth="120"
+                                                       HorizontalAlignment="Left"
+                                                       AutomationProperties.Name="Number of times to retry if upload fails"/>
+                                    </Grid>
+                                </StackPanel>
+                            </Border>
+                        </StackPanel>
+                    </StackPanel>
+                </ScrollViewer>
+            </TabItem>
+
             <!-- History Tab -->
             <TabItem Header="History">
                 <ScrollViewer controls:SettingsSearch.PageId="history">

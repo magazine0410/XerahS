@@ -156,6 +156,9 @@ namespace XerahS.Core.Tasks
             return new WorkerTask(taskSettings, inputImage);
         }
 
+        /// <inheritdoc cref="TaskStart.ReserveUploadQueuePlace"/>
+        internal void ReserveUploadQueuePlace() => TaskStart.ReserveUploadQueuePlace(Info, _cancellationTokenSource.Token);
+
         public async Task StartAsync()
         {
             lock (_lifetimeLock)
@@ -215,6 +218,9 @@ namespace XerahS.Core.Tasks
             }
             finally
             {
+                // The steps that take a place under the simultaneous upload limit free it when they end; a download that
+                // fails ends the task before those steps.
+                TaskStart.LeaveUploadQueue(Info);
                 if (Info.Job == TaskJob.Job)
                 {
                     try { Processors.AfterCaptureFileTasks.DeleteFile(Info); }

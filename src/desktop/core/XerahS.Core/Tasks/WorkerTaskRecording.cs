@@ -174,7 +174,12 @@ namespace XerahS.Core.Tasks
                 {
                     DebugHelper.WriteLine($"Recording saved to: {outputPath}");
                     Info.FilePath = outputPath;
-                    Info.DataType = EDataType.File;
+                    // As in ShareX's CreateFileJobTask, the extension picks the destination: a GIF goes to the image destination.
+                    Info.DataType = TaskHelpers.FindDataType(outputPath, taskSettings);
+
+                    // ShareX processes a finished recording in a new task, which waits under the simultaneous upload limit.
+                    await TaskStart.WaitForUploadLimitAsync(Info, _cancellationTokenSource.Token);
+                    TaskStart.ClearClipboardIfUploading(Info);
 
                     // Open VideoEditor when AnnotateMedia is checked, mirroring how AnnotateMedia opens ImageEditor for images
                     if (!recordingOptions.AudioOnly && taskSettings.AfterCaptureJob.HasFlag(AfterCaptureTasks.AnnotateMedia)
@@ -186,6 +191,7 @@ namespace XerahS.Core.Tasks
                         {
                             outputPath = editedPath;
                             Info.FilePath = outputPath;
+                            Info.DataType = TaskHelpers.FindDataType(outputPath, taskSettings);
                             DebugHelper.WriteLine($"VideoEditor produced: {outputPath}");
                         }
                     }
@@ -331,6 +337,10 @@ namespace XerahS.Core.Tasks
                 // The task's own failure notification would repeat this one.
                 _failureNotificationShown = true;
                 throw;
+            }
+            finally
+            {
+                TaskStart.LeaveUploadQueue(Info);
             }
         }
 

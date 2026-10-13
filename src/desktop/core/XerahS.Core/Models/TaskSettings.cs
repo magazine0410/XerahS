@@ -653,7 +653,7 @@ public class TaskSettingsTools
 /// </summary>
 public class TaskSettingsAdvanced
 {
-    [Category("General"), DefaultValue(false), Description("Allow after capture tasks for image files.")]
+    [Category("General"), DefaultValue(false), Description("Allow after capture tasks for image files by loading them as images when files are handled during file upload, clipboard file upload, drag and drop file upload, watch folder, and other image file tasks.")]
     public bool ProcessImagesDuringFileUpload { get; set; }
 
     [Category("General"), DefaultValue(false), Description("Use after capture tasks for clipboard image uploads.")]
@@ -665,10 +665,10 @@ public class TaskSettingsAdvanced
     [Category("General"), DefaultValue(true), Description("Allows file related after capture tasks.")]
     public bool UseAfterCaptureTasksDuringFileUpload { get; set; }
 
-    [Category("General"), DefaultValue(true), Description("Save text as file for text upload tasks.")]
+    [Category("General"), DefaultValue(true), Description("Save text as a file for tasks such as clipboard text upload, drag and drop text upload, and index folder.")]
     public bool TextTaskSaveAsFile { get; set; }
 
-    [Category("General"), DefaultValue(false), Description("Clear clipboard when upload task starts.")]
+    [Category("General"), DefaultValue(false), Description("If the task contains an upload job, clear the clipboard when the task starts.")]
     public bool AutoClearClipboard { get; set; }
 
     [Category("Capture"), DefaultValue(false), Description("Disable annotation support in region capture.")]
@@ -680,7 +680,7 @@ public class TaskSettingsAdvanced
     [Category("Upload"), Description("File extensions for text uploader.")]
     public List<string> TextExtensions { get; set; } = new();
 
-    [Category("Upload"), DefaultValue(false), Description("Copy URL before starting upload.")]
+    [Category("Upload"), DefaultValue(false), Description("Copy the URL before the upload starts. Only works for FTP, FTPS, SFTP, Amazon S3, and Google Cloud Storage.")]
     public bool EarlyCopyURL { get; set; }
 
     [Category("Upload text"), DefaultValue("txt"), Description("File extension for text files.")]
@@ -689,7 +689,7 @@ public class TaskSettingsAdvanced
     [Category("Upload text"), DefaultValue("text"), Description("Text format.")]
     public string TextFormat { get; set; } = "text";
 
-    [Category("Upload text"), DefaultValue(""), Description("Custom text for text dropped on the drag and drop upload window. Use %input for the dropped text. For example, you can create a web page with your text in it.")]
+    [Category("Upload text"), DefaultValue(""), Description("Custom text for text uploaded from the clipboard or dropped on the drag and drop upload window. Use %input for the text. For example, you can create a web page with your text in it.")]
     public string TextCustom { get; set; } = "";
 
     [Category("Upload text"), DefaultValue(true), Description("HTML encode custom text input.")]

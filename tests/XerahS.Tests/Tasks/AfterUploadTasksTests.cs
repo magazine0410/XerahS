@@ -311,7 +311,10 @@ public partial class AfterUploadTasksTests
     {
         _upload = () => { _events.Add("upload"); return new() { Response = "upload rejected" }; };
         var info = NewUpload();
-        await new UploadJobProcessor().ProcessAsync(info, default);
+        int retries = SettingsManager.Settings.MaxUploadFailRetry;
+        SettingsManager.Settings.MaxUploadFailRetry = 0; // Retrying is tested in UploadFeaturesTests.
+        try { await new UploadJobProcessor().ProcessAsync(info, default); }
+        finally { SettingsManager.Settings.MaxUploadFailRetry = retries; }
         Assert.That(info.Result.URL, Is.Null.Or.Empty);
         Assert.That(_events, Is.EqualTo(new[] { "upload" }));
     }

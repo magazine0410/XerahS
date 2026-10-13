@@ -187,15 +187,21 @@ public class UploadWorkflowTests
     {
         var instance = AddInstance(UploaderCategory.Image, "failed-image");
         _imageUploads = 0;
-        var capture = TaskManager.Instance.StartTask(new TaskSettings
+        int retries = SettingsManager.Settings.MaxUploadFailRetry;
+        SettingsManager.Settings.MaxUploadFailRetry = 0; // Retrying is tested in UploadFeaturesTests.
+        try
         {
-            Job = WorkflowType.PrintScreen,
-            AfterCaptureJob = AfterCaptureTasks.UploadImageToHost,
-            AfterUploadJob = AfterUploadTasks.None,
-            DestinationInstanceId = instance.InstanceId,
-            AllowCrossCategoryFallback = false
-        }, new SkiaSharp.SKBitmap(10, 10));
-        await capture.WaitAsync(TimeSpan.FromSeconds(10));
+            var capture = TaskManager.Instance.StartTask(new TaskSettings
+            {
+                Job = WorkflowType.PrintScreen,
+                AfterCaptureJob = AfterCaptureTasks.UploadImageToHost,
+                AfterUploadJob = AfterUploadTasks.None,
+                DestinationInstanceId = instance.InstanceId,
+                AllowCrossCategoryFallback = false
+            }, new SkiaSharp.SKBitmap(10, 10));
+            await capture.WaitAsync(TimeSpan.FromSeconds(10));
+        }
+        finally { SettingsManager.Settings.MaxUploadFailRetry = retries; }
 
         Assert.That(_imageUploads, Is.EqualTo(1));
     }
@@ -218,8 +224,14 @@ public class UploadWorkflowTests
             AllowCrossCategoryFallback = false
         }) { FilePath = path, Metadata = new TaskMetadata(image) };
 
-        await new XerahS.Core.Tasks.Processors.CaptureJobProcessor().ProcessAsync(info, CancellationToken.None);
-        await new XerahS.Core.Tasks.Processors.UploadJobProcessor().ProcessAsync(info, CancellationToken.None);
+        int retries = SettingsManager.Settings.MaxUploadFailRetry;
+        SettingsManager.Settings.MaxUploadFailRetry = 0; // Retrying is tested in UploadFeaturesTests.
+        try
+        {
+            await new XerahS.Core.Tasks.Processors.CaptureJobProcessor().ProcessAsync(info, CancellationToken.None);
+            await new XerahS.Core.Tasks.Processors.UploadJobProcessor().ProcessAsync(info, CancellationToken.None);
+        }
+        finally { SettingsManager.Settings.MaxUploadFailRetry = retries; }
 
         Assert.Multiple(() =>
         {

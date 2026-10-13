@@ -25,7 +25,7 @@
 
 using XerahS.Common;
 using XerahS.Core.Helpers;
-using XerahS.Core.Tasks.Processors;
+using XerahS.Core.SendTo;
 using XerahS.Platform.Abstractions;
 
 namespace XerahS.Core.Tasks
@@ -78,6 +78,7 @@ namespace XerahS.Core.Tasks
                     ApplyClipboardURLJob(Info, taskSettings);
                     string textExtension = taskSettings.AdvancedSettings.TextFileExtension;
                     Info.SetFileName(TaskHelpers.GetFileName(taskSettings, textExtension, metadata));
+                    if (Info.Job == TaskJob.TextUpload) ApplyClipboardTextJob(Info, taskSettings, content.Text!);
                     return true;
 
                 case EDataType.File:
@@ -86,14 +87,34 @@ namespace XerahS.Core.Tasks
                     {
                         return false;
                     }
+                    if (UploadsClipboardFilesSeparately(clipboardFiles))
+                    {
+                        return true;
+                    }
                     Info.FilePath = clipboardFiles[0];
-                    Info.DataType = EDataType.File;
                     Info.Job = TaskJob.FileUpload;
-                    TaskHelpers.ApplyFileUploadName(Info);
+                    TaskHelpers.PrepareFileUpload(Info);
                     return true;
             }
 
             return false;
+        }
+
+        /// <summary>
+        /// The rest of ShareX's ProcessTextUpload, for copied text that is not handled as a URL: with "If clipboard
+        /// contains a folder path, index and upload it", a folder path is indexed and the index is uploaded as text, named
+        /// with the indexer's output format. Other text goes through the custom text template ("TextCustom").
+        /// </summary>
+        internal static void ApplyClipboardTextJob(TaskInfo info, TaskSettings taskSettings, string text)
+        {
+            if (taskSettings.UploadSettings.ClipboardUploadAutoIndexFolder && text.Length <= 260 && Directory.Exists(text))
+            {
+                DebugHelper.WriteLine($"Clipboard upload: indexing the copied folder path \"{text}\".");
+                SetFolderIndex(info, taskSettings, text);
+                return;
+            }
+
+            info.TextContent = TaskHelpers.ApplyCustomText(text, taskSettings);
         }
 
         /// <summary>
@@ -129,63 +150,57 @@ namespace XerahS.Core.Tasks
             info.TextContent = url;
         }
 
-        internal async Task UploadClipboardFilesAsync(TaskSettings taskSettings, string[] files, CancellationToken token)
+        /// <summary>
+        /// Asks before uploading more than 10 files, unless "Don't show this message again" was ticked, as ShareX does.
+        /// Set by the UI layer.
+        /// </summary>
+        public static Func<int, Task<bool>>? ConfirmMultiUploadCallback { get; set; }
+
+        /// <summary>A single copied file is uploaded by the clipboard task itself; more files, or a folder, by tasks of their own.</summary>
+        internal static bool UploadsClipboardFilesSeparately(string[] paths) => paths.Length > 1 || !File.Exists(paths[0]);
+
+        /// <summary>
+        /// ShareX's ProcessFilesUpload: every copied file is uploaded by a task of its own, and so is every file in a copied
+        /// folder and its subfolders. The tasks all start at once; the simultaneous upload limit queues them. This task only
+        /// starts them, so it has no result of its own.
+        /// </summary>
+        internal async Task UploadClipboardFilesAsync(TaskSettings taskSettings, string[] paths, CancellationToken token)
         {
-            var uploadProcessor = new UploadJobProcessor();
-            TaskInfo? lastInfo = null;
+            Info.SuppressCompletionNotification = true;
+            Info.FilePath = string.Empty;
 
-            foreach (var filePath in files)
+            var resolved = await Task.Run(() => SendToPolicyResolver.ResolveFiles(
+                SendToSelectionClassifier.Create(paths.Where(File.Exists), paths.Where(Directory.Exists)),
+                SendToFolderPolicy.IncludeFilesRecursively), token);
+            if (resolved.FailedFolderCount > 0)
             {
-                if (token.IsCancellationRequested)
-                {
-                    return;
-                }
+                DebugHelper.WriteLine($"Upload from clipboard: {resolved.FailedFolderCount} copied folder(s) could not be read.");
+            }
+            var files = resolved.FilePaths;
+            if (files.Count == 0) return;
+            // As in XerahS's folder and drop uploads, more than 10 files ask first, once for all of them.
+            if (ConfirmMultiUploadCallback is { } confirm && !await confirm(files.Count)) return;
+            token.ThrowIfCancellationRequested();
 
-                if (string.IsNullOrWhiteSpace(filePath) || !File.Exists(filePath))
-                {
-                    continue;
-                }
-
-                var fileInfo = new TaskInfo(taskSettings)
-                {
-                    DataType = EDataType.File,
-                    Job = TaskJob.FileUpload,
-                    FilePath = filePath
-                };
-                TaskHelpers.ApplyFileUploadName(fileInfo);
-
-                await uploadProcessor.ProcessAsync(fileInfo, token);
-                lastInfo = fileInfo;
+            var uploads = new List<Task>(files.Count);
+            foreach (string filePath in files)
+            {
+                var fileSettings = TaskSettings.GetSafeTaskSettings(taskSettings);
+                fileSettings.Job = WorkflowType.FileUpload;
+                uploads.Add(Helpers.TaskHelpers.TaskManagerService.StartFileTask(fileSettings, filePath));
             }
 
-            if (lastInfo != null)
-            {
-                ApplyLastClipboardUploadInfo(Info, lastInfo);
-            }
+            await Task.WhenAll(uploads);
         }
 
-        internal static void ApplyLastClipboardUploadInfo(TaskInfo destination, TaskInfo lastInfo)
+        /// <summary>
+        /// ShareX's IndexFolder for the Index folder workflow: the folder in the workflow's Index folder settings is indexed,
+        /// and the index is uploaded as text, named with the name pattern and the indexer output's extension. As for other
+        /// text, "Save text tasks as files" also saves it.
+        /// </summary>
+        internal bool TryIndexFolder(TaskSettings taskSettings)
         {
-            destination.DataType = lastInfo.DataType;
-            destination.FilePath = lastInfo.FilePath;
-            destination.Job = lastInfo.Job;
-            destination.Result = lastInfo.Result;
-            destination.Metadata.UploadURL = lastInfo.Metadata.UploadURL;
-            destination.ResolvedUploaderHost = lastInfo.ResolvedUploaderHost;
-        }
-
-        internal bool TryIndexFolder(TaskSettings taskSettings, out string? outputPath)
-        {
-            outputPath = null;
-
-            if (taskSettings == null)
-            {
-                DebugHelper.WriteLine("IndexFolder: TaskSettings missing.");
-                return false;
-            }
-
-            var toolsSettings = taskSettings.ToolsSettingsReference;
-            string folderPath = toolsSettings.IndexerFolderPath;
+            string folderPath = taskSettings.ToolsSettingsReference.IndexerFolderPath;
             if (string.IsNullOrWhiteSpace(folderPath) || !Directory.Exists(folderPath))
             {
                 DebugHelper.WriteLine($"IndexFolder: Folder path invalid: '{folderPath}'");
@@ -194,11 +209,9 @@ namespace XerahS.Core.Tasks
 
             try
             {
-                var indexerSettings = toolsSettings.IndexerSettings ?? new XerahS.Indexer.IndexerSettings();
-
-                string output = XerahS.Indexer.Indexer.Index(folderPath, indexerSettings);
-                outputPath = WriteIndexOutput(taskSettings, folderPath, output, indexerSettings.Output);
-                return !string.IsNullOrEmpty(outputPath);
+                Info.SetFileName(TaskHelpers.GetFileName(taskSettings, taskSettings.AdvancedSettings.TextFileExtension, Info.Metadata));
+                SetFolderIndex(Info, taskSettings, folderPath);
+                return true;
             }
             catch (Exception ex)
             {
@@ -207,17 +220,14 @@ namespace XerahS.Core.Tasks
             }
         }
 
-        private static string WriteIndexOutput(TaskSettings taskSettings, string folderPath, string output, XerahS.Indexer.IndexerOutput outputType)
+        /// <summary>The folder's index becomes the task's text, and the file name gets the indexer output's extension.</summary>
+        private static void SetFolderIndex(TaskInfo info, TaskSettings taskSettings, string folderPath)
         {
-            string extension = GetIndexFolderExtension(outputType);
-            string screenshotsFolder = TaskHelpers.GetScreenshotsFolder(taskSettings);
-            Directory.CreateDirectory(screenshotsFolder);
-
-            string fileName = TaskHelpers.GetFileName(taskSettings, extension);
-            string resolvedPath = TaskHelpers.HandleExistsFile(screenshotsFolder, fileName, taskSettings);
-            if (string.IsNullOrWhiteSpace(resolvedPath)) return string.Empty;
-            File.WriteAllText(resolvedPath, output);
-            return resolvedPath;
+            var indexerSettings = taskSettings.ToolsSettingsReference.IndexerSettings ?? new XerahS.Indexer.IndexerSettings();
+            info.TextContent = XerahS.Indexer.Indexer.Index(folderPath, indexerSettings);
+            info.DataType = EDataType.Text;
+            info.Job = TaskJob.TextUpload;
+            info.SetFileName(Path.ChangeExtension(info.FileName, GetIndexFolderExtension(indexerSettings.Output)));
         }
 
         private static string GetIndexFolderExtension(XerahS.Indexer.IndexerOutput outputType)

@@ -91,7 +91,7 @@ public sealed class ImmichUploader : FileUploader, IUploadHandler
                 workingStream.Position = 0;
             }
 
-            ImmichClient client = new(_config.ServerUrl, _apiKey);
+            ImmichClient client = new(_config.ServerUrl, _apiKey) { BufferSize = BufferSize };
             string assetId = await UploadAssetWithDuplicateCheckAsync(
                 client, workingStream, request.FileName, checksum, createdAt, modifiedAt, request.Progress, cancellationToken).ConfigureAwait(false);
 

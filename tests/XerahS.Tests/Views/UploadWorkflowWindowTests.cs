@@ -245,6 +245,38 @@ public class UploadWorkflowWindowTests
             "Don't show again applies to Cancel too, as in ShareX.");
     }
 
+    [AvaloniaTest]
+    public async Task LargeFileUploadWarning_ReportsTheButtonAndDontShowAgain()
+    {
+        var window = new XerahS.UI.Views.Dialogs.LargeFileUploadWarningWindow();
+        window.Show();
+        Assert.That(window.FindControl<TextBlock>("MessageText")!.Text, Is.EqualTo("You are attempting to upload a large file."));
+        window.FindControl<CheckBox>("DontShowAgainCheckBox")!.IsChecked = true;
+        SavePreview(window, "large-file-upload-warning");
+        window.Close();
+        Assert.That(await window.Result, Is.EqualTo(new XerahS.Core.Tasks.Processors.LargeFileUploadWarningResult(false, true)),
+            "Closing the window answers Cancel; don't show again applies to it too, as in ShareX.");
+    }
+
+    [Test]
+    public async Task FolderUpload_StartsEveryFileTogether_AsShareXDoes()
+    {
+        string directory = Path.Combine(Path.GetTempPath(), "xerahs-folder-together-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(directory);
+        for (int i = 0; i < 3; i++) File.WriteAllText(Path.Combine(directory, $"file{i}.txt"), "x");
+        try
+        {
+            var manager = new PendingFileManager();
+            var upload = UploadWorkflowService.UploadPathsAsync([directory], new TaskSettings { Job = WorkflowType.FolderUpload }, manager);
+
+            Assert.That(() => manager.StartedCount, Is.EqualTo(3).After(5000, 10), "Every file starts before the first one ends.");
+            Assert.That(upload.IsCompleted, Is.False, "The batch ends with its last upload.");
+            manager.CompleteAll();
+            await upload.WaitAsync(TimeSpan.FromSeconds(5));
+        }
+        finally { Directory.Delete(directory, recursive: true); }
+    }
+
     [Test]
     public async Task FolderUpload_RecursesDeduplicatesAndPreservesWorkflowSettings()
     {
@@ -302,6 +334,57 @@ public class UploadWorkflowWindowTests
         Assert.That(manager.LastSettings!.Job, Is.EqualTo(WorkflowType.ShortenURL));
     }
 
+    [Test]
+    public async Task UploadContent_CopiedFolder_AddsTheFilesInIt_AsADroppedFolderDoes()
+    {
+        string directory = Path.Combine(Path.GetTempPath(), "xerahs-content-folder-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(directory);
+        try
+        {
+            File.WriteAllText(Path.Combine(directory, "a.txt"), "a");
+            File.WriteAllText(Path.Combine(directory, "b.zip"), "b");
+            var clipboard = new FileListClipboard([directory]);
+            PlatformServices.Reset();
+            PlatformServices.Initialize(Stub<IPlatformInfo>(), Stub<IScreenService>(), clipboard, Stub<IWindowService>(),
+                Stub<IScreenCaptureService>(), Stub<IHotkeyService>(), Stub<IInputService>(), Stub<IFontService>(),
+                Stub<IStartupService>(), Stub<ISystemService>(), Stub<IDiagnosticService>());
+            using var manager = new RecordingManager();
+            using var viewModel = new UploadContentViewModel(manager);
+
+            await viewModel.LoadFromClipboardCommand.ExecuteAsync(null);
+
+            Assert.That(viewModel.Items.Select(item => item.FilePath),
+                Is.EquivalentTo(new[] { Path.Combine(directory, "a.txt"), Path.Combine(directory, "b.zip") }));
+        }
+        finally
+        {
+            PlatformServices.Reset();
+            Directory.Delete(directory, recursive: true);
+        }
+
+        static T Stub<T>() where T : class => System.Reflection.DispatchProxy.Create<T, XerahS.Tests.Tasks.CaptureStageWindowTests.EmptyProxy>();
+    }
+
+    /// <summary>A clipboard holding copied files and folders only.</summary>
+    private sealed class FileListClipboard(string[] files) : IClipboardService
+    {
+        public void Clear() { }
+        public bool ContainsText() => false;
+        public bool ContainsImage() => false;
+        public bool ContainsFileDropList() => true;
+        public string? GetText() => null;
+        public void SetText(string text) { }
+        public SKBitmap? GetImage() => null;
+        public void SetImage(SKBitmap image) { }
+        public string[]? GetFileDropList() => files;
+        public void SetFileDropList(string[] newFiles) { }
+        public object? GetData(string format) => null;
+        public void SetData(string format, object data) { }
+        public bool ContainsData(string format) => false;
+        public Task<string?> GetTextAsync() => Task.FromResult<string?>(null);
+        public Task SetTextAsync(string text) => Task.CompletedTask;
+    }
+
     private static void SavePreview(Window window, string name)
     {
         window.Styles.Add(new global::Avalonia.Markup.Xaml.Styling.StyleInclude(new Uri("avares://XerahS.UI/"))
@@ -318,6 +401,27 @@ public class UploadWorkflowWindowTests
         Directory.CreateDirectory(directory);
         using var stream = File.Create(Path.Combine(directory, name + ".png"));
         frame.Save(stream, PngBitmapEncoderOptions.Default);
+    }
+
+    /// <summary>File tasks that stay running until the test ends them.</summary>
+    private sealed class PendingFileManager : IDesktopTaskManager
+    {
+        private readonly List<TaskCompletionSource> _pending = [];
+        public int StartedCount { get { lock (_pending) return _pending.Count; } }
+        public event EventHandler<WorkerTask>? TaskStarted { add { } remove { } }
+        public event EventHandler<WorkerTask>? TaskCompleted { add { } remove { } }
+        public IEnumerable<WorkerTask> Tasks => [];
+        public Task StartFileTask(TaskSettings? settings, string path)
+        {
+            var completion = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+            lock (_pending) _pending.Add(completion);
+            return completion.Task;
+        }
+        public void CompleteAll() { lock (_pending) _pending.ForEach(completion => completion.TrySetResult()); }
+        public Task StartTextTask(TaskSettings? settings, string text) => throw new NotSupportedException();
+        public Task StartTask(TaskSettings? settings, SKBitmap? inputImage = null) => throw new NotSupportedException();
+        public Task StartImageUploadTask(TaskSettings? settings, SKBitmap image) => throw new NotSupportedException();
+        public void StopAllTasks() { }
     }
 
     private sealed class RecordingManager : IDesktopTaskManager, IDisposable

@@ -85,10 +85,14 @@ namespace XerahS.Core.Tasks.Processors
             string? annotationSidecarPath = null;
             bool annotationSidecarSaveAttempted = false;
 
+            // ShareX shows the quick task menu and the after capture window before it starts an image task, but a file
+            // upload with "Process images during file upload" starts its task directly.
+            bool processedFileUpload = info.ImageSourceFilePath != null;
+
             try
             {
                 token.ThrowIfCancellationRequested();
-                if (settings.AfterCaptureJob.HasFlag(AfterCaptureTasks.ShowQuickTaskMenu))
+                if (!processedFileUpload && settings.AfterCaptureJob.HasFlag(AfterCaptureTasks.ShowQuickTaskMenu))
                 {
                     var showMenu = ShowQuickTaskMenuCallback ?? throw new InvalidOperationException("The quick task menu is unavailable in this host.");
                     var selection = await showMenu(settings, token);
@@ -97,7 +101,7 @@ namespace XerahS.Core.Tasks.Processors
                         info.Job = TaskJob.Job; // A clipboard image preset can choose saving without uploading.
                 }
 
-                if (settings.AfterCaptureJob.HasFlag(AfterCaptureTasks.ShowAfterCaptureWindow))
+                if (!processedFileUpload && settings.AfterCaptureJob.HasFlag(AfterCaptureTasks.ShowAfterCaptureWindow))
                 {
                     if (!PlatformServices.IsInitialized)
                     {
@@ -497,7 +501,9 @@ namespace XerahS.Core.Tasks.Processors
             SkiaSharp.SKBitmap bmp = info.Metadata.Image;
 
             // TaskHelpers contains the logic for folder resolution, naming, and file exists handling.
-            string? filePath = await TaskHelpers.SaveImageAsFileAsync(bmp, info.TaskSettings);
+            // A processed file upload is saved under the uploaded file's name, as in ShareX.
+            string? filePath = await TaskHelpers.SaveImageAsFileAsync(bmp, info.TaskSettings,
+                fileName: info.ImageSourceFilePath != null ? info.FileName : null);
             if (!string.IsNullOrEmpty(filePath))
             {
                 var directory = Path.GetDirectoryName(filePath) ?? "";

@@ -23,7 +23,6 @@
 
 #endregion License Information (GPL v3)
 
-using System.Web;
 using Avalonia.Input;
 using Avalonia.Media.Imaging;
 using SkiaSharp;
@@ -155,17 +154,8 @@ internal static class UploadWorkflowService
         }
     }
 
-    /// <summary>
-    /// ShareX's custom text for dropped text: the advanced setting TextCustom with %input replaced by the
-    /// text, HTML-encoded first when TextCustomEncodeInput is on. Without a template the text is unchanged.
-    /// </summary>
-    internal static string ApplyCustomText(string text, TaskSettings settings)
-    {
-        string? template = settings.AdvancedSettings?.TextCustom;
-        if (string.IsNullOrEmpty(template)) return text;
-        if (settings.AdvancedSettings!.TextCustomEncodeInput) text = HttpUtility.HtmlEncode(text);
-        return template.Replace("%input", text);
-    }
+    /// <inheritdoc cref="TaskHelpers.ApplyCustomText"/>
+    internal static string ApplyCustomText(string text, TaskSettings settings) => TaskHelpers.ApplyCustomText(text, settings);
 
     internal static TaskSettings CreateExecutionSettings(TaskSettings source, WorkflowType job)
     {
@@ -195,24 +185,38 @@ internal static class UploadWorkflowService
             return;
         }
 
-        foreach (var path in files.FilePaths)
+        // As in ShareX, every file is uploaded by a task of its own, and the tasks all start at once; the simultaneous
+        // upload limit (Application Settings → Upload) queues them.
+        var executionSettings = new HashSet<TaskSettings>(System.Collections.Generic.ReferenceEqualityComparer.Instance);
+        var cancellations = new List<CancellationTokenRegistration>();
+        void Started(object? sender, Core.Tasks.WorkerTask task)
         {
-            scope.Token.ThrowIfCancellationRequested();
-            var executionSettings = CreateExecutionSettings(settings, WorkflowType.FileUpload);
-            CancellationTokenRegistration cancellation = default;
-            void Started(object? sender, Core.Tasks.WorkerTask task)
+            lock (executionSettings)
             {
-                if (ReferenceEquals(task.Info.TaskSettings, executionSettings)) cancellation = scope.Token.Register(task.Stop);
+                if (executionSettings.Contains(task.Info.TaskSettings)) cancellations.Add(scope.Token.Register(task.Stop));
             }
-            taskManager.TaskStarted += Started;
-            try
+        }
+
+        var uploads = new List<Task>(files.FilePaths.Count);
+        taskManager.TaskStarted += Started;
+        try
+        {
+            foreach (var path in files.FilePaths)
             {
-                await taskManager.StartFileTask(executionSettings, path);
+                scope.Token.ThrowIfCancellationRequested();
+                var fileSettings = CreateExecutionSettings(settings, WorkflowType.FileUpload);
+                lock (executionSettings) executionSettings.Add(fileSettings);
+                uploads.Add(taskManager.StartFileTask(fileSettings, path));
             }
-            finally
+        }
+        finally
+        {
+            // Started tasks finish (or stop) before the batch ends, also when Stop all uploads interrupted the starts.
+            await Task.WhenAll(uploads);
+            taskManager.TaskStarted -= Started;
+            lock (executionSettings)
             {
-                taskManager.TaskStarted -= Started;
-                cancellation.Dispose();
+                foreach (var cancellation in cancellations) cancellation.Dispose();
             }
         }
     }

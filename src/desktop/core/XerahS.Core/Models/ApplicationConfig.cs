@@ -321,7 +321,7 @@ public class ApplicationConfig : SettingsBase<ApplicationConfig>
     [Category("Upload"), DefaultValue(true), Description("Show multi-upload warning.")]
     public bool ShowMultiUploadWarning { get; set; }
 
-    [Category("Upload"), DefaultValue(100), Description("Large file size warning threshold in MB.")]
+    [Category("Upload"), DefaultValue(100), Description("Large file size in MB. XerahS warns before uploading larger files. 0 disables the warning.")]
     public int ShowLargeFileSizeWarning { get; set; }
 
     [Category("Paths"), DefaultValue(true), Description("Use machine-specific uploaders config.")]

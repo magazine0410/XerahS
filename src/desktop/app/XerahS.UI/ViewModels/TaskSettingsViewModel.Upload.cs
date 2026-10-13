@@ -159,6 +159,19 @@ namespace XerahS.UI.ViewModels
             }
         }
 
+        public bool ClipboardUploadAutoIndexFolder
+        {
+            get => UploadSource.UploadSettings.ClipboardUploadAutoIndexFolder;
+            set
+            {
+                if (UploadSource.UploadSettings.ClipboardUploadAutoIndexFolder != value)
+                {
+                    UploadSource.UploadSettings.ClipboardUploadAutoIndexFolder = value;
+                    OnPropertyChanged();
+                }
+            }
+        }
+
         #endregion
     }
 }
