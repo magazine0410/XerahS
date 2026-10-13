@@ -246,7 +246,8 @@ public partial class UploadContentViewModel : ViewModelBase, IDisposable
             case EDataType.File when content.Files != null:
                 foreach (var file in content.Files)
                 {
-                    var addedItem = AddFileItem(file);
+                    // A copied folder adds its files, as a dropped folder does.
+                    var addedItem = Directory.Exists(file) ? AddFolderFiles(file) : AddFileItem(file);
                     if (firstAddedItem == null && addedItem != null)
                     {
                         firstAddedItem = addedItem;

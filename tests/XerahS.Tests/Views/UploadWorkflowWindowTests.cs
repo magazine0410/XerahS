@@ -334,6 +334,57 @@ public class UploadWorkflowWindowTests
         Assert.That(manager.LastSettings!.Job, Is.EqualTo(WorkflowType.ShortenURL));
     }
 
+    [Test]
+    public async Task UploadContent_CopiedFolder_AddsTheFilesInIt_AsADroppedFolderDoes()
+    {
+        string directory = Path.Combine(Path.GetTempPath(), "xerahs-content-folder-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(directory);
+        try
+        {
+            File.WriteAllText(Path.Combine(directory, "a.txt"), "a");
+            File.WriteAllText(Path.Combine(directory, "b.zip"), "b");
+            var clipboard = new FileListClipboard([directory]);
+            PlatformServices.Reset();
+            PlatformServices.Initialize(Stub<IPlatformInfo>(), Stub<IScreenService>(), clipboard, Stub<IWindowService>(),
+                Stub<IScreenCaptureService>(), Stub<IHotkeyService>(), Stub<IInputService>(), Stub<IFontService>(),
+                Stub<IStartupService>(), Stub<ISystemService>(), Stub<IDiagnosticService>());
+            using var manager = new RecordingManager();
+            using var viewModel = new UploadContentViewModel(manager);
+
+            await viewModel.LoadFromClipboardCommand.ExecuteAsync(null);
+
+            Assert.That(viewModel.Items.Select(item => item.FilePath),
+                Is.EquivalentTo(new[] { Path.Combine(directory, "a.txt"), Path.Combine(directory, "b.zip") }));
+        }
+        finally
+        {
+            PlatformServices.Reset();
+            Directory.Delete(directory, recursive: true);
+        }
+
+        static T Stub<T>() where T : class => System.Reflection.DispatchProxy.Create<T, XerahS.Tests.Tasks.CaptureStageWindowTests.EmptyProxy>();
+    }
+
+    /// <summary>A clipboard holding copied files and folders only.</summary>
+    private sealed class FileListClipboard(string[] files) : IClipboardService
+    {
+        public void Clear() { }
+        public bool ContainsText() => false;
+        public bool ContainsImage() => false;
+        public bool ContainsFileDropList() => true;
+        public string? GetText() => null;
+        public void SetText(string text) { }
+        public SKBitmap? GetImage() => null;
+        public void SetImage(SKBitmap image) { }
+        public string[]? GetFileDropList() => files;
+        public void SetFileDropList(string[] newFiles) { }
+        public object? GetData(string format) => null;
+        public void SetData(string format, object data) { }
+        public bool ContainsData(string format) => false;
+        public Task<string?> GetTextAsync() => Task.FromResult<string?>(null);
+        public Task SetTextAsync(string text) => Task.CompletedTask;
+    }
+
     private static void SavePreview(Window window, string name)
     {
         window.Styles.Add(new global::Avalonia.Markup.Xaml.Styling.StyleInclude(new Uri("avares://XerahS.UI/"))

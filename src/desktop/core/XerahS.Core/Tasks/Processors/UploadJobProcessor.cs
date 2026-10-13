@@ -282,6 +282,11 @@ namespace XerahS.Core.Tasks.Processors
             return null;
         }
 
+        /// <summary>A file sent as it is: an uploaded file, a downloaded one (Upload from URL), or a recording.</summary>
+        private static bool UploadsFileAsItIs(TaskInfo info) =>
+            !string.IsNullOrEmpty(info.FilePath) &&
+            (info.Job is TaskJob.FileUpload or TaskJob.DownloadUpload || TaskHelpers.IsVideoJob(info.TaskSettings.Job));
+
         /// <summary>A text upload sends its text, also when "Save text tasks as files" has saved it to a file.</summary>
         private static bool UploadsTextContent(TaskInfo info) =>
             info.Job == TaskJob.TextUpload && info.DataType == EDataType.Text && !string.IsNullOrEmpty(info.TextContent);
@@ -463,7 +468,7 @@ namespace XerahS.Core.Tasks.Processors
             // An image or text file goes to the image or text destination only when one is selected. Otherwise it goes to
             // the file destination, as every uploaded file did before files were told apart by their extension.
             if (targetInstance == null && allowCrossCategoryFallback && (category is UploaderCategory.Image or UploaderCategory.Text) &&
-                (info.Job is TaskJob.FileUpload or TaskJob.DownloadUpload) && !string.IsNullOrEmpty(info.FilePath))
+                UploadsFileAsItIs(info))
             {
                 DebugHelper.WriteLine($"No {category} destination is selected; uploading the file with the file destination.");
                 return await UploadWithPluginSystemAsync(info, UploaderCategory.File, token).ConfigureAwait(false);

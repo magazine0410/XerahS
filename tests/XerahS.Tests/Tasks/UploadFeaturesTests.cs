@@ -483,6 +483,9 @@ public class UploadFeaturesTests
     {
         ClearDefaultHost(UploaderCategory.Image);
         ClearDefaultHost(UploaderCategory.Text);
+        // Hosts that exist but are not selected; the fallback for captured images would try them.
+        AddInstance(UploaderCategory.Image, "unselected host");
+        AddInstance(UploaderCategory.Text, "unselected host");
         InstanceManager.Instance.SetDefaultInstance(UploaderCategory.File, AddInstance(UploaderCategory.File, "file host"));
         var settings = Settings(null);
         settings.AllowCrossCategoryFallback = crossCategoryFallback;
@@ -568,10 +571,88 @@ public class UploadFeaturesTests
         Assert.That(Uploads.Single().FileName, Is.EqualTo("photo.jpg"), "As with other file uploads, the image is processed.");
     }
 
-    /// <summary>The "Upload file" workflow runs the capture stage, which needs the platform services.</summary>
-    private static void InitializePlatform()
+    [TestCase(true)]
+    [TestCase(false)]
+    public async Task IndexFolderWorkflow_UploadsTheIndexAsTextToTheTextHost_AndSavesItOnlyWithSaveTextTasksAsFiles(bool saveAsFile)
     {
-        PlatformServices.Initialize(Stub<IPlatformInfo>(), Stub<IScreenService>(), _clipboard!, Stub<IWindowService>(),
+        InitializePlatform();
+        SelectHosts();
+        string folder = Path.Combine(_directory, "indexed");
+        Directory.CreateDirectory(folder);
+        File.WriteAllText(Path.Combine(folder, "listed-file.zip"), "x");
+        var settings = Settings(null);
+        settings.Job = WorkflowType.IndexFolder;
+        settings.UseDefaultToolsSettings = false;
+        settings.ToolsSettings.IndexerFolderPath = folder;
+        settings.AdvancedSettings.TextTaskSaveAsFile = saveAsFile;
+        string shots = Path.Combine(_directory, "shots");
+        settings.ScreenshotsFolder = shots;
+
+        var task = await RunAsync(settings, () => TaskManager.Instance.StartTask(settings));
+
+        var upload = Uploads.Single();
+        Assert.Multiple(() =>
+        {
+            Assert.That(task.Status, Is.EqualTo(TaskStatus.Completed));
+            Assert.That(upload.Behaviour, Is.EqualTo("text host"), "As in ShareX, the index is uploaded as text.");
+            Assert.That(Path.GetExtension(upload.FileName), Is.EqualTo(".html"), "Named with the indexer output's extension.");
+            Assert.That(Encoding.UTF8.GetString(upload.Content), Does.Contain("listed-file.zip").And.Contain("<html"));
+            string[] saved = Directory.Exists(shots) ? Directory.GetFiles(shots) : [];
+            Assert.That(saved.Select(Path.GetFileName), Is.EqualTo(saveAsFile ? new[] { upload.FileName } : Array.Empty<string>()));
+        });
+    }
+
+    [TestCase(true, "image host")]
+    [TestCase(false, "file host")]
+    public async Task GifRecording_GoesToTheImageHost_OrToTheFileHostWhenNoImageHostIsSelected(bool imageHostSelected, string host)
+    {
+        ClearDefaultHost(UploaderCategory.Image);
+        if (imageHostSelected) InstanceManager.Instance.SetDefaultInstance(UploaderCategory.Image, AddInstance(UploaderCategory.Image, "image host"));
+        else AddInstance(UploaderCategory.Image, "unselected host");
+        InstanceManager.Instance.SetDefaultInstance(UploaderCategory.File, AddInstance(UploaderCategory.File, "file host"));
+        var settings = Settings(null);
+        settings.Job = WorkflowType.ScreenRecorderGIF;
+        settings.AfterCaptureJob = AfterCaptureTasks.UploadImageToHost;
+        settings.AllowCrossCategoryFallback = true;
+        string recording = WriteFile("recording.gif", "GIF89a");
+        // As the recording task sets it once the recording is saved.
+        var info = new TaskInfo(settings) { Job = TaskJob.Job, FilePath = recording, DataType = TaskHelpers.FindDataType(recording, settings) };
+
+        await new UploadJobProcessor().ProcessAsync(info, CancellationToken.None);
+
+        Assert.That(info.DataType, Is.EqualTo(EDataType.Image));
+        Assert.That(Uploads.Single().Behaviour, Is.EqualTo(host));
+    }
+
+    [Test]
+    public async Task UploadFromClipboard_GivesUpOnAClipboardThatDoesNotAnswer_WithAMessage()
+    {
+        var clipboard = new StalledClipboard();
+        InitializePlatform(clipboard);
+        var previousTimeout = XerahS.Core.Tasks.Pipeline.CaptureStage.ClipboardReadTimeout;
+        XerahS.Core.Tasks.Pipeline.CaptureStage.ClipboardReadTimeout = TimeSpan.FromMilliseconds(200);
+        try
+        {
+            var settings = Settings(null);
+            settings.Job = WorkflowType.ClipboardUpload;
+
+            var task = await RunAsync(settings, () => TaskManager.Instance.StartTask(settings));
+
+            Assert.That(task.Status, Is.EqualTo(TaskStatus.Failed));
+            Assert.That(task.Error, Is.InstanceOf<InvalidOperationException>(), "This error type is shown as a notification.");
+            Assert.That(task.Error!.Message, Does.StartWith("The clipboard could not be read within"));
+        }
+        finally
+        {
+            XerahS.Core.Tasks.Pipeline.CaptureStage.ClipboardReadTimeout = previousTimeout;
+            clipboard.Release.Set();
+        }
+    }
+
+    /// <summary>The "Upload file" workflow runs the capture stage, which needs the platform services.</summary>
+    private static void InitializePlatform(IClipboardService? clipboard = null)
+    {
+        PlatformServices.Initialize(Stub<IPlatformInfo>(), Stub<IScreenService>(), clipboard ?? _clipboard!, Stub<IWindowService>(),
             Stub<IScreenCaptureService>(), Stub<IHotkeyService>(), Stub<IInputService>(), Stub<IFontService>(),
             Stub<IStartupService>(), Stub<ISystemService>(), Stub<IDiagnosticService>());
 
@@ -790,6 +871,27 @@ public class UploadFeaturesTests
             lock (Uploads) Uploads.Add(new Upload("category", request.FileName, content.ToArray(), 0, null, request.Category));
             return UploadOutcome.Success("https://upload.test/" + request.FileName);
         }
+    }
+
+    /// <summary>A clipboard whose first read does not return until the test releases it.</summary>
+    private sealed class StalledClipboard : IClipboardService
+    {
+        public ManualResetEventSlim Release { get; } = new();
+        public void Clear() { }
+        public bool ContainsText() => false;
+        public bool ContainsImage() { Release.Wait(TimeSpan.FromSeconds(10)); return false; }
+        public bool ContainsFileDropList() => false;
+        public string? GetText() => null;
+        public void SetText(string text) { }
+        public SKBitmap? GetImage() => null;
+        public void SetImage(SKBitmap image) { }
+        public string[]? GetFileDropList() => null;
+        public void SetFileDropList(string[] files) { }
+        public object? GetData(string format) => null;
+        public void SetData(string format, object data) { }
+        public bool ContainsData(string format) => false;
+        public Task<string?> GetTextAsync() => Task.FromResult<string?>(null);
+        public Task SetTextAsync(string text) => Task.CompletedTask;
     }
 
     private sealed class FakeClipboard : IClipboardService

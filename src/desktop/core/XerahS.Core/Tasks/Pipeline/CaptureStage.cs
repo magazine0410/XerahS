@@ -218,14 +218,23 @@ namespace XerahS.Core.Tasks.Pipeline
                         return PipelineStageResult.Failed;
                     }
 
-                    if (!_workerTask.TryLoadClipboardContent(taskSettings, metadata, out var clipboardFiles))
+                    if (await LoadClipboardContentAsync(taskSettings, metadata, token) is not { } clipboardLoad)
+                    {
+                        context.Status = TaskStatus.Failed;
+                        context.Error = new InvalidOperationException(
+                            $"The clipboard could not be read within {ClipboardReadTimeout.TotalSeconds:0} seconds. Copy it again and try again.");
+                        return PipelineStageResult.Failed;
+                    }
+
+                    var clipboardFiles = clipboardLoad.Files;
+                    if (!clipboardLoad.Loaded)
                     {
                         context.Status = TaskStatus.Failed;
                         context.Error = new Exception("Clipboard is empty or contains unsupported data.");
                         return PipelineStageResult.Failed;
                     }
 
-                    if (clipboardFiles != null && clipboardFiles.Length > 1)
+                    if (clipboardFiles != null && WorkerTask.UploadsClipboardFilesSeparately(clipboardFiles))
                     {
                         await _workerTask.UploadClipboardFilesAsync(taskSettings, clipboardFiles, token);
                         return PipelineStageResult.Stop;
@@ -316,16 +325,12 @@ namespace XerahS.Core.Tasks.Pipeline
                     break;
 
                 case WorkflowType.IndexFolder:
-                    if (!_workerTask.TryIndexFolder(taskSettings, out string? indexPath))
+                    if (!_workerTask.TryIndexFolder(taskSettings))
                     {
                         context.Status = TaskStatus.Failed;
                         context.Error = new Exception("Index folder path is invalid or indexing failed.");
                         return PipelineStageResult.Failed;
                     }
-
-                    context.Info.FilePath = indexPath ?? "";
-                    context.Info.DataType = EDataType.File;
-                    context.Info.Job = TaskJob.FileUpload;
                     break;
 
                 case WorkflowType.CustomWindow:
@@ -499,6 +504,32 @@ namespace XerahS.Core.Tasks.Pipeline
             }
         }
 
+        /// <summary>How long "Upload from clipboard" waits for the clipboard.</summary>
+        internal static TimeSpan ClipboardReadTimeout { get; set; } = TimeSpan.FromSeconds(30);
+
+        /// <summary>
+        /// Reads the clipboard for "Upload from clipboard". Avalonia's X11 clipboard can stop in the middle of a read until
+        /// something else wakes the UI loop (with a Qt application's copied files, a read took from 1 to 82 seconds, and
+        /// some never finished), so, as in the Upload Content window, the read is given up after a while. Null when it did
+        /// not finish.
+        /// </summary>
+        private async Task<(bool Loaded, string[]? Files)?> LoadClipboardContentAsync(TaskSettings taskSettings, TaskMetadata metadata, CancellationToken token)
+        {
+            var load = Task.Run(() =>
+            {
+                bool loaded = _workerTask.TryLoadClipboardContent(taskSettings, metadata, out var files);
+                return (loaded, files);
+            });
+            if (await Task.WhenAny(load, Task.Delay(ClipboardReadTimeout, token)) != load)
+            {
+                token.ThrowIfCancellationRequested();
+                DebugHelper.WriteLine($"Upload from clipboard: the clipboard did not answer within {ClipboardReadTimeout.TotalSeconds:0} seconds.");
+                return null;
+            }
+
+            return await load;
+        }
+
         private static PipelineStageResult FinishCapture(PipelineContext context, SKBitmap? image, Stopwatch captureStopwatch)
         {
             var taskSettings = context.Info.TaskSettings;
@@ -520,8 +551,7 @@ namespace XerahS.Core.Tasks.Pipeline
             {
                 DebugHelper.WriteLine($"Clipboard content loaded: dataType={context.Info.DataType}, filePath=\"{context.Info.FilePath}\", textLength={(context.Info.TextContent?.Length ?? 0)}");
             }
-            else if ((taskSettings?.Job == WorkflowType.FileUpload || taskSettings?.Job == WorkflowType.IndexFolder) &&
-                     !string.IsNullOrEmpty(context.Info.FilePath))
+            else if (taskSettings?.Job == WorkflowType.FileUpload && !string.IsNullOrEmpty(context.Info.FilePath))
             {
                 DebugHelper.WriteLine($"FileUpload selected file: {context.Info.FilePath}");
             }

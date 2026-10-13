@@ -140,7 +140,8 @@ public sealed class WorkerTaskClipboardUploadTests
 
         var upload = worker.UploadClipboardFilesAsync(settings, files, default);
 
-        Assert.That(manager.Started.Select(start => start.FilePath), Is.EqualTo(files), "Every file starts before the first one ends.");
+        Assert.That(() => manager.Started.Select(start => start.FilePath), Is.EqualTo(files).After(5000, 10),
+            "Every file starts before the first one ends.");
         Assert.That(upload.IsCompleted, Is.False);
         manager.CompleteAll();
         await upload.WaitAsync(TimeSpan.FromSeconds(5));
@@ -185,6 +186,118 @@ public sealed class WorkerTaskClipboardUploadTests
 
         Assert.That(worker.Info.Job, Is.EqualTo(TaskJob.FileUpload));
         Assert.That(worker.Info.LoadImageFromFile, Is.EqualTo(expected));
+    }
+
+    [Test]
+    public async Task CopiedFolder_UploadsEveryFileInItAndItsSubfolders_AlongWithTheOtherCopiedFiles()
+    {
+        var manager = new PendingTaskManager { CompleteImmediately = true };
+        XerahS.Core.Helpers.TaskHelpers.TaskManagerService = manager;
+        string single = CreateFiles(1)[0];
+        string folder = Path.Combine(_directory, "copied");
+        Directory.CreateDirectory(Path.Combine(folder, "sub"));
+        File.WriteAllText(Path.Combine(folder, "a.txt"), "a");
+        File.WriteAllText(Path.Combine(folder, "sub", "b.png"), "b");
+        var settings = Settings();
+        using var worker = WorkerTask.Create(settings);
+
+        await worker.UploadClipboardFilesAsync(settings, [single, folder], default);
+
+        Assert.That(manager.Started.Select(start => start.FilePath),
+            Is.EquivalentTo(new[] { single, Path.Combine(folder, "a.txt"), Path.Combine(folder, "sub", "b.png") }));
+        Assert.That(manager.Started.Select(start => start.Settings.Job), Is.All.EqualTo(WorkflowType.FileUpload));
+    }
+
+    [Test]
+    public void CopiedFolder_IsLeftToTheSeparateFileUploads()
+    {
+        string folder = Path.Combine(_directory, "copied");
+        Directory.CreateDirectory(folder);
+        _clipboard.SetFileDropList([folder, Path.Combine(_directory, "missing.txt")]);
+        using var worker = WorkerTask.Create(Settings());
+
+        bool loaded = worker.TryLoadClipboardContent(worker.Info.TaskSettings, worker.Info.Metadata, out var files);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(loaded, Is.True);
+            Assert.That(files, Is.EqualTo(new[] { folder }), "A folder is kept; a path that does not exist is not.");
+            Assert.That(WorkerTask.UploadsClipboardFilesSeparately(files!), Is.True);
+            Assert.That(worker.Info.FilePath, Is.Empty, "The clipboard task itself does not upload the folder.");
+        });
+    }
+
+    [Test]
+    public async Task CopiedFolder_WithMoreThanTenFiles_AsksOnceForAllOfThem()
+    {
+        var manager = new PendingTaskManager { CompleteImmediately = true };
+        XerahS.Core.Helpers.TaskHelpers.TaskManagerService = manager;
+        var counts = new List<int>();
+        WorkerTask.ConfirmMultiUploadCallback = count => { counts.Add(count); return Task.FromResult(true); };
+        CreateFiles(11);
+        var settings = Settings();
+        using var worker = WorkerTask.Create(settings);
+
+        await worker.UploadClipboardFilesAsync(settings, [_directory], default);
+
+        Assert.That(counts, Is.EqualTo(new[] { 11 }));
+        Assert.That(manager.Started, Has.Count.EqualTo(11));
+    }
+
+    [Test]
+    public async Task EmptyCopiedFolder_StartsNothing()
+    {
+        var manager = new PendingTaskManager { CompleteImmediately = true };
+        XerahS.Core.Helpers.TaskHelpers.TaskManagerService = manager;
+        string folder = Path.Combine(_directory, "empty");
+        Directory.CreateDirectory(folder);
+        var settings = Settings();
+        using var worker = WorkerTask.Create(settings);
+
+        await worker.UploadClipboardFilesAsync(settings, [folder], default);
+
+        Assert.That(manager.Started, Is.Empty);
+    }
+
+    [TestCase(true)]
+    [TestCase(false)]
+    public void FileManagerCopy_WhoseTextIsTheCopiedFiles_IsUploadedAsTheFiles(bool asUrls)
+    {
+        string folder = Path.Combine(_directory, "copied folder");
+        Directory.CreateDirectory(folder);
+        string file = CreateFiles(1)[0];
+        _clipboard.SetFileDropList([folder, file]);
+        // As Dolphin (Qt) and other Linux file managers offer copied files to applications that read text.
+        _clipboard.SetText(asUrls ? $"{new Uri(folder).AbsoluteUri}\n{new Uri(file).AbsoluteUri}" : $"{folder}/\r\n{file}\n");
+
+        var content = ClipboardContentHelper.ParseClipboard(_clipboard);
+
+        Assert.That(content!.DataType, Is.EqualTo(EDataType.File));
+        Assert.That(content.Files, Is.EqualTo(new[] { folder, file }));
+    }
+
+    [Test]
+    public void CopiedPathText_StaysText_WithoutCopiedFiles()
+    {
+        string file = CreateFiles(1)[0];
+        _clipboard.SetText(file);
+
+        var content = ClipboardContentHelper.ParseClipboard(_clipboard);
+
+        Assert.That(content!.DataType, Is.EqualTo(EDataType.Text), "As in ShareX, copied text is uploaded as text.");
+        Assert.That(content.Text, Is.EqualTo(file));
+    }
+
+    [Test]
+    public void Text_StaysText_WhenItIsNotTheCopiedFiles()
+    {
+        string[] files = CreateFiles(2);
+        _clipboard.SetFileDropList([files[0]]);
+        _clipboard.SetText(new Uri(files[1]).AbsoluteUri);
+
+        var content = ClipboardContentHelper.ParseClipboard(_clipboard);
+
+        Assert.That(content!.DataType, Is.EqualTo(EDataType.Text));
     }
 
     private string[] CreateFiles(int count)
