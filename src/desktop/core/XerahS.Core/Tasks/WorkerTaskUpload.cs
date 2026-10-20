@@ -167,6 +167,7 @@ namespace XerahS.Core.Tasks
         internal async Task UploadClipboardFilesAsync(TaskSettings taskSettings, string[] paths, CancellationToken token)
         {
             Info.SuppressCompletionNotification = true;
+            Info.IsDispatchTask = true;
             Info.FilePath = string.Empty;
 
             var resolved = await Task.Run(() => SendToPolicyResolver.ResolveFiles(

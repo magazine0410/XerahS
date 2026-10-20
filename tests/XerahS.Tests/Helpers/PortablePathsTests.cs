@@ -72,4 +72,47 @@ public class PortablePathsTests
             else File.WriteAllBytes(marker, originalMarker);
         }
     }
+
+    [Test]
+    public void PortableFlagKeepsDataBesideTheAppImageFile()
+    {
+        string? appImage = Environment.GetEnvironmentVariable("APPIMAGE");
+        FieldInfo portableField = typeof(PathsManager).GetField("_portableMode", BindingFlags.Static | BindingFlags.NonPublic)!;
+        object? originalPortable = portableField.GetValue(null);
+        string folder = Path.Combine(Path.GetTempPath(), "xerahs-portable-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(folder);
+        string appImageFile = Path.Combine(folder, "XerahS.AppImage");
+        File.WriteAllText(appImageFile, "");
+        try
+        {
+            Environment.SetEnvironmentVariable("APPIMAGE", null);
+            Assert.That(PathsManager.PortablePersonalFolder, Is.EqualTo(Path.Combine(AppContext.BaseDirectory, AppResources.AppName)));
+
+            Environment.SetEnvironmentVariable("APPIMAGE", appImageFile);
+            if (OperatingSystem.IsLinux())
+            {
+                Assert.That(PathsManager.PortablePersonalFolder, Is.EqualTo(Path.Combine(folder, AppResources.AppName)));
+                Assert.That(PathsManager.PortableCheckFilePath, Is.EqualTo(Path.Combine(folder, "portable.txt")));
+                Assert.That(PathsManager.IsPortable, Is.False);
+                File.WriteAllText(Path.Combine(folder, "portable.txt"), "");
+                Assert.That(PathsManager.IsPortable, Is.True);
+                File.Delete(Path.Combine(folder, "portable.txt"));
+
+                // An executable named after the application takes the folder's name.
+                File.WriteAllText(Path.Combine(folder, AppResources.AppName), "");
+                Assert.That(PathsManager.PortablePersonalFolder, Is.EqualTo(Path.Combine(folder, AppResources.AppName + "-Portable")));
+            }
+
+            PathsManager.SetPortableMode(true);
+            Assert.That(PathsManager.IsPortable, Is.True);
+            PathsManager.SetPortableMode(false);
+            Assert.That(PathsManager.IsPortable, Is.False);
+        }
+        finally
+        {
+            portableField.SetValue(null, originalPortable);
+            Environment.SetEnvironmentVariable("APPIMAGE", appImage);
+            Directory.Delete(folder, recursive: true);
+        }
+    }
 }

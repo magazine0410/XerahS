@@ -112,8 +112,9 @@ namespace XerahS.Platform.Linux
             IShellIntegrationService shellIntegrationService = environment.IsSandboxed
                 ? new UnsupportedShellIntegrationService()
                 : new LinuxShellIntegrationService();
-            // Follow an AppImage move or an upgrade without delaying startup.
-            if (shellIntegrationService is LinuxShellIntegrationService linuxShell) _ = Task.Run(linuxShell.RefreshRegisteredEntries);
+            // Follow an AppImage move or an upgrade without delaying startup. As ShareX skips its file type registration
+            // when portable, a portable copy leaves the entries of an installed copy pointing at that copy.
+            if (shellIntegrationService is LinuxShellIntegrationService linuxShell && !PathsManager.IsPortable) _ = Task.Run(linuxShell.RefreshRegisteredEntries);
             var notificationService = CreateNotificationService(environment, usePortalServices);
 
             PlatformServices.Initialize(

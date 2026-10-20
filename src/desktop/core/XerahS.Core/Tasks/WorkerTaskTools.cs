@@ -46,6 +46,7 @@ namespace XerahS.Core.Tasks
         internal async Task HandleToolWorkflowAsync(CancellationToken token)
         {
             XerahS.Common.TroubleshootingHelper.Log(Info.TaskSettings.Job.ToString(), "TOOL_WORKFLOW", "HandleToolWorkflowAsync Entry");
+            Info.IsDispatchTask = true;
 
             if (HandleToolWorkflowCallback != null)
             {

@@ -43,7 +43,7 @@ public static class HashCheckToolService
         };
     }
 
-    private static Task OpenHashCheckAsync(Window? owner, string? filePath, TaskSettings? taskSettings)
+    internal static Task OpenHashCheckAsync(Window? owner, string? filePath, TaskSettings? taskSettings)
     {
         var viewModel = new HashCheckViewModel(filePath)
         {

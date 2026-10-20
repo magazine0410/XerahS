@@ -107,6 +107,21 @@ public class DesktopIntegrationTests
     }
 
     [Test]
+    public void Arguments_ImageEditorWithoutFileIsLeftForTheImageEditorJob()
+    {
+        Assert.That(IntegrationArguments.Extract(new[] { "-ImageEditor" }, out var none), Is.EqualTo(new[] { "-ImageEditor" }));
+        Assert.That(none, Is.Empty);
+        Assert.That(IntegrationArguments.Extract(new[] { "-imageeditor", "-AutoClose", "/tmp/a.txt" }, out none),
+            Is.EqualTo(new[] { "-imageeditor", "-AutoClose", "/tmp/a.txt" }));
+        Assert.That(IntegrationArguments.Extract(new[] { "-ImageEditor", "-CustomUploader", "/tmp/a.json" }, out var requests),
+            Is.EqualTo(new[] { "-ImageEditor" }));
+        Assert.That(requests.Single().Action, Is.EqualTo(IntegrationAction.CustomUploader));
+        Assert.That(IntegrationArguments.Extract(new[] { "-ImageEditor", "/tmp/a.png", "-AutoClose" }, out requests),
+            Is.EqualTo(new[] { "-AutoClose" }));
+        Assert.That(requests.Single().Action, Is.EqualTo(IntegrationAction.ImageEditor));
+    }
+
+    [Test]
     public void FolderUploads_RecurseAndDeduplicate_WithoutFollowingDirectorySymlinks()
     {
         string root = Path.Combine(Path.GetTempPath(), "xerahs-upload-folder-" + Guid.NewGuid().ToString("N"));

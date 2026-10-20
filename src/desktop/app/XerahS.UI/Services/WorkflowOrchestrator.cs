@@ -83,7 +83,47 @@ public sealed class WorkflowOrchestrator : IWorkflowOrchestrator
         _taskManager.TaskStarted -= OnWorkflowTaskStarted;
         _taskManager.TaskCompleted += OnWorkflowTaskCompleted;
         _taskManager.TaskStarted += OnWorkflowTaskStarted;
+
+        _taskManager.TaskCompleted -= OnTaskCompletedAutoClose;
+        if (StartupOptions.AutoClose)
+        {
+            _taskManager.TaskCompleted += OnTaskCompletedAutoClose;
+        }
     }
+
+    /// <summary>
+    /// ShareX's -AutoClose: XerahS exits when a task ends and no other task is busy. In ShareX, tools are not tasks and a
+    /// capture becomes a task only once something was captured, so tasks that only opened a tool or started other tasks, and
+    /// tasks that ended with nothing to work on (a cancelled region selection, an empty clipboard), are not counted.
+    /// </summary>
+    private void OnTaskCompletedAutoClose(object? sender, Core.Tasks.WorkerTask task)
+    {
+        if (!ShouldAutoClose(task, _taskManager.Tasks))
+        {
+            return;
+        }
+
+        DebugHelper.WriteLine("AutoClose: the tasks are finished; exiting.");
+        Dispatcher.UIThread.Post(() =>
+        {
+            // A task may have started since this one ended.
+            if (_taskManager.Tasks.Any(IsBusyTask))
+            {
+                return;
+            }
+
+            App.IsExiting = true;
+            _desktop?.Shutdown();
+        });
+    }
+
+    internal static bool ShouldAutoClose(Core.Tasks.WorkerTask completedTask, IEnumerable<Core.Tasks.WorkerTask> tasks)
+    {
+        return !completedTask.Info.IsDispatchTask && completedTask.HasContent &&
+            !tasks.Any(task => !ReferenceEquals(task, completedTask) && IsBusyTask(task));
+    }
+
+    private static bool IsBusyTask(Core.Tasks.WorkerTask task) => task.IsBusy && !task.Info.IsDispatchTask;
 
     private void ConfigureWorkerTaskCallbacks()
     {
@@ -349,11 +389,34 @@ public sealed class WorkflowOrchestrator : IWorkflowOrchestrator
             // As in ShareX, hotkeys disabled before the last exit stay disabled.
             _workflowManager.ToggleHotkeys(Core.SettingsManager.Settings?.DisableHotkeys == true);
             DebugHelper.WriteLine($"Initialized hotkey manager with {hotkeys.Count} hotkeys from configuration{(_workflowManager.HotkeysDisabled ? " (hotkeys disabled)" : "")}");
+
+            // As in ShareX, hotkeys that could not be registered are reported at startup, unless started with -NoHotkeys.
+            if (!StartupOptions.IgnoreHotkeyWarning && !_workflowManager.HotkeysDisabled &&
+                GetFailedHotkeysMessage(_workflowManager.GetFailedHotkeys()) is { } failedHotkeysMessage)
+            {
+                DebugHelper.WriteLine(failedHotkeysMessage);
+                Dispatcher.UIThread.Post(() => _ = Views.Dialogs.ConfirmationDialog.ShowMessageAsync(
+                    $"{AppResources.AppName} - Hotkey registration failed", failedHotkeysMessage), DispatcherPriority.ApplicationIdle);
+            }
         }
         catch (Exception ex)
         {
             DebugHelper.WriteException(ex, "Failed to initialize hotkeys");
         }
+    }
+
+    /// <summary>ShareX's HotkeyManager.ShowFailedHotkeys message, or null when every hotkey was registered.</summary>
+    internal static string? GetFailedHotkeysMessage(IReadOnlyList<Core.Hotkeys.WorkflowSettings> failedHotkeys)
+    {
+        if (failedHotkeys.Count == 0)
+        {
+            return null;
+        }
+
+        string hotkeys = string.Join(Environment.NewLine, failedHotkeys.Select(x => $"[{x.HotkeyInfo}] {x.TaskSettings}"));
+        string hotkeyText = failedHotkeys.Count > 1 ? "hotkeys" : "hotkey";
+        return $"Unable to register {hotkeyText}:{Environment.NewLine}{Environment.NewLine}{hotkeys}{Environment.NewLine}{Environment.NewLine}" +
+            $"Please select a different hotkey or quit the conflicting application and reopen {AppResources.AppName}.";
     }
 
     /// <summary>Keeps ~/.config/hypr/xerahs.lua in sync with hotkeys when Hyprland keybindings are on (XIP0088).</summary>
@@ -418,6 +481,13 @@ public sealed class WorkflowOrchestrator : IWorkflowOrchestrator
     {
         DebugHelper.WriteLine($"Workflow run requested by an automation client: {workflow} (ID: {workflow.Id})");
         return ExecuteWorkflowFromTriggerAsync(workflow);
+    }
+
+    public Task RunJobAsync(WorkflowType job, TaskSettings taskSettings)
+    {
+        DebugHelper.WriteLine($"Job run requested from the command line: {job}");
+        taskSettings.Job = job;
+        return ExecuteWorkflowFromTriggerAsync(new Core.Hotkeys.WorkflowSettings { TaskSettings = taskSettings });
     }
 
     private async Task ExecuteWorkflowFromPaletteAsync(Core.Hotkeys.WorkflowSettings settings)

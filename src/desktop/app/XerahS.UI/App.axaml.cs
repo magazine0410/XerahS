@@ -346,9 +346,9 @@ public partial class App : Application
 
             // Trigger async recording initialization via callback
             // This prevents blocking the main window from showing quickly
-            if (AppContracts.Cli.TryGetRunWorkflowId(desktop.Args ?? [], out _))
+            if (AppContracts.Cli.TryGetRunWorkflowId(desktop.Args ?? [], out _) || HasCommandLineRequests(desktop.Args))
             {
-                // A workflow started from the command line must not race the main window's first
+                // A workflow or job started from the command line must not race the main window's first
                 // activation. In particular, window captures must keep their selected target focused.
                 Helpers.StartupWorkflowLauncher.RunAfterOpened(desktop.MainWindow, () => PostUIInitializationCallback?.Invoke());
             }
@@ -481,6 +481,34 @@ public partial class App : Application
 
         _ = _workflowOrchestrator.RunWorkflowAsync(workflow);
         return true;
+    }
+
+    /// <summary>
+    /// Runs ShareX's job and workflow arguments (-RectangleRegion, -workflow "name") one after another; false when the
+    /// orchestrator is not ready.
+    /// </summary>
+    public bool TryRunCommandLineRequests(IReadOnlyList<Core.Automation.CommandLineRequest> requests)
+    {
+        if (_workflowOrchestrator == null || ServiceProvider == null ||
+            ApplicationLifetime is not IClassicDesktopStyleApplicationLifetime desktop)
+        {
+            return false;
+        }
+
+        var runner = new CommandLineJobRunner(desktop, ServiceProvider.GetRequiredService<IDesktopTaskManager>(), _workflowOrchestrator);
+        _ = runner.RunAsync(requests);
+        return true;
+    }
+
+    private static bool HasCommandLineRequests(IReadOnlyList<string>? arguments)
+    {
+        if (arguments is not { Count: > 0 })
+        {
+            return false;
+        }
+
+        Core.Automation.CommandLineArguments.Extract(arguments, out var commands);
+        return commands.Requests.Count > 0;
     }
 
     private static void HideMainWindowToTray(Window? window)

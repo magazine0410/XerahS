@@ -863,9 +863,12 @@ namespace XerahS.Core.Tasks.Pipeline
                 context.Info.Metadata.Image = null;
             }
 
-            var lastRegion = context.Info.TaskSettings!.CaptureSettings.CaptureCustomRegion;
+            // As in ShareX, the area of the last recording, kept within the screens (a monitor may be gone since).
+            var lastRegion = GetLastRecordingRegion(SettingsManager.Settings.ScreenRecordRegion,
+                PlatformServices.IsInitialized ? PlatformServices.Screen.GetVirtualScreenBounds() : Rectangle.Empty);
             if (lastRegion.IsEmpty || lastRegion.Width <= 0 || lastRegion.Height <= 0)
             {
+                DebugHelper.WriteLine("Screen recording using last region: there is no last recording region yet.");
                 context.Status = TaskStatus.Stopped;
                 return;
             }
@@ -885,6 +888,19 @@ namespace XerahS.Core.Tasks.Pipeline
                 return;
 
             await _workerTask.HandleStartRecordingAsync(CaptureMode.Region, region: recordingRegion);
+        }
+
+        /// <summary>ShareX's Rectangle.Intersect of the last recording region with the screens; empty when there is none.</summary>
+        internal static Rectangle GetLastRecordingRegion(Rectangle screenRecordRegion, Rectangle screenBounds)
+        {
+            if (screenRecordRegion.Width <= 0 || screenRecordRegion.Height <= 0)
+            {
+                return Rectangle.Empty;
+            }
+
+            return screenBounds.Width > 0 && screenBounds.Height > 0
+                ? Rectangle.Intersect(screenRecordRegion, screenBounds)
+                : screenRecordRegion;
         }
 
         internal static bool TryCreateConfiguredCaptureRect(Rectangle configuredRegion, out SKRect captureRect)

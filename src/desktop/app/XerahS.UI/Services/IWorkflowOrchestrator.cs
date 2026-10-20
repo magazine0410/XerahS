@@ -34,4 +34,7 @@ public interface IWorkflowOrchestrator
 
     /// <summary>Runs a workflow exactly as its hotkey would (XIP0088 "omaxerahs workflow run").</summary>
     Task RunWorkflowAsync(Core.Hotkeys.WorkflowSettings workflow);
+
+    /// <summary>Runs a job with the given settings as a workflow's hotkey would (ShareX's "-&lt;JobName&gt;" argument).</summary>
+    Task RunJobAsync(Core.WorkflowType job, Core.TaskSettings taskSettings);
 }

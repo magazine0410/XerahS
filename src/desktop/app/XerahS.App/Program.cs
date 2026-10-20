@@ -30,6 +30,7 @@ using System.Security.Cryptography;
 using System.Text;
 using XerahS.Common;
 using XerahS.Core;
+using XerahS.Core.Automation;
 using XerahS.Core.Cloud;
 using XerahS.Core.Managers;
 using XerahS.Core.SendTo;
@@ -42,8 +43,9 @@ namespace XerahS.App
     {
         private static XerahS.Common.SingleInstanceManager? _singleInstanceManager;
         private static string[] _startupArguments = Array.Empty<string>();
+        private static string? _portableFolderError;
 
-        private sealed class StartupOptions
+        private sealed class StartupArguments
         {
             public string[] ForwardedArguments { get; init; } = Array.Empty<string>();
 
@@ -71,18 +73,26 @@ namespace XerahS.App
             }
             try
             {
-                StartupOptions startupOptions = ParseStartupOptions(args ?? Array.Empty<string>());
-                _startupArguments = startupOptions.ForwardedArguments;
+                StartupArguments startupArguments = ParseStartupArguments(args ?? Array.Empty<string>());
+                // A running instance resolves relative paths in its own working folder, so they are made absolute here.
+                _startupArguments = CommandLineArguments.ResolveRelativePaths(startupArguments.ForwardedArguments, Environment.CurrentDirectory);
 
-                if (!string.IsNullOrWhiteSpace(startupOptions.PersonalFolderOverride))
+                if (!string.IsNullOrWhiteSpace(startupArguments.PersonalFolderOverride))
                 {
-                    SettingsManager.PersonalFolder = startupOptions.PersonalFolderOverride;
+                    SettingsManager.PersonalFolder = startupArguments.PersonalFolderOverride;
                 }
 
-                (string mutexName, string pipeName) = GetSingleInstanceIdentifiers(startupOptions.PersonalFolderOverride);
+                // ShareX's startup options. They apply to this instance; a running instance that receives them ignores them.
+                XerahS.Core.StartupOptions.MultiInstance = CommandLineArguments.IsCommandPresent(_startupArguments, CommandLineArguments.MultiInstanceCommands);
+                XerahS.Core.StartupOptions.IgnoreHotkeyWarning = CommandLineArguments.IsCommandPresent(_startupArguments, CommandLineArguments.NoHotkeysCommand);
+                XerahS.Core.StartupOptions.AutoClose = CommandLineArguments.IsCommandPresent(_startupArguments, CommandLineArguments.AutoCloseCommand);
+                string? portableDetectionMethod = InitializePortableMode(_startupArguments, startupArguments.PersonalFolderOverride);
 
-                // Single instance enforcement
-                _singleInstanceManager = new XerahS.Common.SingleInstanceManager(mutexName, pipeName, _startupArguments);
+                (string mutexName, string pipeName) = GetSingleInstanceIdentifiers(startupArguments.PersonalFolderOverride);
+
+                // Single instance enforcement, unless started with -multi
+                _singleInstanceManager = new XerahS.Common.SingleInstanceManager(
+                    mutexName, pipeName, !XerahS.Core.StartupOptions.MultiInstance, _startupArguments);
 
                 if (!_singleInstanceManager.IsFirstInstance)
                 {
@@ -103,7 +113,9 @@ namespace XerahS.App
                 dh.AsyncWrite = false; // Synchronous for startup
 
                 dh.WriteLine($"{XerahS.Common.AppResources.AppName} starting.");
-                dh.WriteLine("Running as first instance (single instance mode enabled).");
+                dh.WriteLine(XerahS.Core.StartupOptions.MultiInstance
+                    ? "Running as an additional instance (-multi: single instance mode disabled)."
+                    : "Running as first instance (single instance mode enabled).");
 
                 var version = XerahS.Common.AppResources.Version;
                 dh.WriteLine($"Version: {version}");
@@ -116,9 +128,17 @@ namespace XerahS.App
 
                 dh.WriteLine($"Command line: \"{Environment.ProcessPath}\"");
                 dh.WriteLine($"Personal path: {XerahS.Common.PathsManager.GetLogsFolderForMonth()}");
-                if (!string.IsNullOrWhiteSpace(startupOptions.PersonalFolderOverride))
+                if (!string.IsNullOrWhiteSpace(startupArguments.PersonalFolderOverride))
                 {
-                    dh.WriteLine($"Personal folder override: {startupOptions.PersonalFolderOverride}");
+                    dh.WriteLine($"Personal folder override: {startupArguments.PersonalFolderOverride}");
+                }
+                if (portableDetectionMethod != null)
+                {
+                    dh.WriteLine($"Portable personal folder: {XerahS.Common.PathsManager.PersonalFolder} (detection method: {portableDetectionMethod})");
+                }
+                if (_portableFolderError != null)
+                {
+                    dh.WriteLine(_portableFolderError);
                 }
                 dh.WriteLine($"Operating system: {System.Runtime.InteropServices.RuntimeInformation.OSDescription} ({System.Runtime.InteropServices.RuntimeInformation.OSArchitecture})");
                 dh.WriteLine($".NET version: {System.Environment.Version}");
@@ -136,11 +156,17 @@ namespace XerahS.App
                     }
                 }
                 dh.WriteLine($"Running as elevated process: {isElevated}");
+                List<string> flags = new();
 #if DEBUG
-                dh.WriteLine("Flags: Debug");
+                flags.Add("Debug");
 #else
-                dh.WriteLine("Flags: Release");
+                flags.Add("Release");
 #endif
+                if (XerahS.Core.StartupOptions.MultiInstance) flags.Add(nameof(XerahS.Core.StartupOptions.MultiInstance));
+                if (XerahS.Common.PathsManager.IsPortable) flags.Add("Portable");
+                if (XerahS.Core.StartupOptions.IgnoreHotkeyWarning) flags.Add(nameof(XerahS.Core.StartupOptions.IgnoreHotkeyWarning));
+                if (XerahS.Core.StartupOptions.AutoClose) flags.Add(nameof(XerahS.Core.StartupOptions.AutoClose));
+                dh.WriteLine("Flags: " + string.Join(", ", flags));
 
                 dh.AsyncWrite = true; // Switch back to async
 
@@ -258,11 +284,56 @@ namespace XerahS.App
             }
         }
 
-        private static StartupOptions ParseStartupOptions(string[] args)
+        /// <summary>
+        /// ShareX's -portable (-p) argument and portable check file: the personal folder is
+        /// <see cref="XerahS.Common.PathsManager.PortablePersonalFolder"/>, next to the application or the AppImage file. As in
+        /// ShareX, when that folder cannot be created XerahS uses its usual folders and reports the error.
+        /// <c>--settings-folder</c> takes precedence. Returns how portable mode was detected.
+        /// </summary>
+        private static string? InitializePortableMode(string[] args, string? personalFolderOverride)
+        {
+            if (!string.IsNullOrWhiteSpace(personalFolderOverride))
+            {
+                // The folder given with --settings-folder is used instead, and nothing else is portable either.
+                XerahS.Common.PathsManager.SetPortableMode(false);
+                return null;
+            }
+
+            if (CommandLineArguments.IsCommandPresent(args, CommandLineArguments.PortableCommands))
+            {
+                XerahS.Common.PathsManager.SetPortableMode(true);
+            }
+
+            if (!XerahS.Common.PathsManager.IsPortable)
+            {
+                return null;
+            }
+
+            string detectionMethod = CommandLineArguments.IsCommandPresent(args, CommandLineArguments.PortableCommands)
+                ? "Portable CLI flag"
+                : $"Portable file ({XerahS.Common.PathsManager.PortableCheckFilePath})";
+            string folder = XerahS.Common.PathsManager.PortablePersonalFolder;
+
+            try
+            {
+                Directory.CreateDirectory(folder);
+                return detectionMethod;
+            }
+            catch (Exception ex)
+            {
+                XerahS.Common.PathsManager.SetPortableMode(false);
+                _portableFolderError = $"Unable to create folder: \"{folder}\"{Environment.NewLine}" +
+                    $"Personal path detection method: {detectionMethod}{Environment.NewLine}{Environment.NewLine}{ex.Message}";
+                Console.Error.WriteLine(_portableFolderError);
+                return null;
+            }
+        }
+
+        private static StartupArguments ParseStartupArguments(string[] args)
         {
             if (args.Length == 0)
             {
-                return new StartupOptions();
+                return new StartupArguments();
             }
 
             List<string> forwardedArguments = new List<string>(args.Length);
@@ -299,7 +370,7 @@ namespace XerahS.App
                 forwardedArguments.Add(arg);
             }
 
-            return new StartupOptions
+            return new StartupArguments
             {
                 ForwardedArguments = forwardedArguments.ToArray(),
                 PersonalFolderOverride = personalFolderOverride
@@ -852,6 +923,16 @@ namespace XerahS.App
         private static void OnPostUIInitialization()
         {
             InitializeBackgroundServicesAsync();
+
+            if (_portableFolderError is { } portableFolderError)
+            {
+                // As in ShareX, which shows this before it starts with its usual folders. Shown once the main window is up,
+                // so that it does not open behind it.
+                Avalonia.Threading.Dispatcher.UIThread.Post(
+                    () => _ = XerahS.UI.Views.Dialogs.ConfirmationDialog.ShowMessageAsync($"{AppResources.AppName} - Error", portableFolderError),
+                    Avalonia.Threading.DispatcherPriority.ApplicationIdle);
+            }
+
             ProcessIncomingArguments(_startupArguments, source: "startup");
         }
 
@@ -986,7 +1067,13 @@ namespace XerahS.App
 
             args = IntegrationArguments.Extract(args, out List<IntegrationRequest> integrationRequests);
             if (integrationRequests.Count > 0) _ = ProcessIntegrationRequestsAsync(integrationRequests);
+
+            // ShareX's job, workflow, and task arguments: -RectangleRegion, -ImageEditor "file", -workflow "name", -task "name".
+            args = CommandLineArguments.Extract(args, out CommandLineCommands commands);
+            if (commands.Requests.Count > 0) RunCommandLineRequests(commands.Requests, source);
             if (args.Length == 0) return;
+
+            Func<TaskSettings> uploadTaskSettings = CreateCommandLineUploadSettingsFactory(commands.TaskName, source);
 
             IncomingPluginPackageSet pluginPackages = ExtractIncomingPluginPackages(args);
             if (pluginPackages.PackagePaths.Count > 0)
@@ -1020,13 +1107,49 @@ namespace XerahS.App
                 XerahS.Common.DebugHelper.WriteLine(
                     $"Shell integration ({source}): Scheduling Send-to prompt for {selection.ItemCount} item(s).");
 
-                _ = Task.Run(() => HandleSendToInvocationAsync(selection, source));
+                _ = Task.Run(() => HandleSendToInvocationAsync(selection, source, uploadTaskSettings));
                 return;
             }
 
             XerahS.Common.DebugHelper.WriteLine(
                 $"Shell integration ({source}): Scheduling upload for {pathSet.Files.Count} file(s).");
-            _ = UploadPathsFromIntegrationAsync(pathSet.Files, pathSet.Folders);
+            _ = UploadPathsFromIntegrationAsync(pathSet.Files, pathSet.Folders, uploadTaskSettings);
+        }
+
+        private static void RunCommandLineRequests(IReadOnlyList<CommandLineRequest> requests, string source)
+        {
+            XerahS.Common.DebugHelper.WriteLine($"Command line ({source}): {string.Join(" ", requests)}");
+            if (Application.Current is not XerahS.UI.App app || !app.TryRunCommandLineRequests(requests))
+            {
+                XerahS.Common.DebugHelper.WriteLine($"Command line ({source}): ignored, workflows are not initialized yet.");
+            }
+        }
+
+        /// <summary>
+        /// ShareX's -task argument: the files on the command line are uploaded with the settings of the workflow of that name.
+        /// Without it, or when no workflow has that name, they use the first Upload file workflow's settings.
+        /// </summary>
+        private static Func<TaskSettings> CreateCommandLineUploadSettingsFactory(string? taskName, string source)
+        {
+            if (string.IsNullOrEmpty(taskName))
+            {
+                return CreateFileUploadTaskSettings;
+            }
+
+            var workflow = CommandLineArguments.FindTask(SettingsManager.WorkflowsConfig?.Hotkeys, taskName);
+            if (workflow == null)
+            {
+                XerahS.Common.DebugHelper.WriteLine($"Command line ({source}): no workflow is named \"{taskName}\" for -task; using the default upload settings.");
+                return CreateFileUploadTaskSettings;
+            }
+
+            XerahS.Common.DebugHelper.WriteLine($"Command line ({source}): files are uploaded with the settings of workflow \"{taskName}\" ({workflow.Id}).");
+            return () =>
+            {
+                TaskSettings settings = TaskSettings.GetSafeTaskSettings(workflow.TaskSettings);
+                settings.WorkflowId = workflow.Id;
+                return settings;
+            };
         }
 
         private static async Task ProcessCloudCallbackAsync(string callbackArgument, string source)
@@ -1253,7 +1376,7 @@ namespace XerahS.App
             }
         }
 
-        private static async Task UploadFilesFromIntegrationAsync(IReadOnlyCollection<string> files)
+        private static async Task UploadFilesFromIntegrationAsync(IReadOnlyCollection<string> files, Func<TaskSettings> createTaskSettings)
         {
             try
             {
@@ -1268,7 +1391,7 @@ namespace XerahS.App
                 var uploads = new List<Task>(files.Count);
                 foreach (string file in files)
                 {
-                    TaskSettings settings = CreateFileUploadTaskSettings();
+                    TaskSettings settings = createTaskSettings();
                     settings.Job = WorkflowType.FileUpload;
                     uploads.Add(taskManager.StartFileTask(settings, file));
                 }
@@ -1280,7 +1403,7 @@ namespace XerahS.App
             }
         }
 
-        private static async Task HandleSendToInvocationAsync(SendToSelection selection, string source)
+        private static async Task HandleSendToInvocationAsync(SendToSelection selection, string source, Func<TaskSettings> createTaskSettings)
         {
             try
             {
@@ -1294,7 +1417,7 @@ namespace XerahS.App
                 SendToIntegrationCoordinator coordinator = new(
                     PlatformServices.UI,
                     taskManager,
-                    CreateFileUploadTaskSettings);
+                    createTaskSettings);
 
                 await coordinator.HandleAsync(selection, source);
             }

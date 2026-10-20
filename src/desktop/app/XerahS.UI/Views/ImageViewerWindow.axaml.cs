@@ -104,14 +104,20 @@ public partial class ImageViewerWindow : Window
             });
 
             if (files.FirstOrDefault()?.TryGetLocalPath() is not { Length: > 0 } filePath) return;
-            var window = new ImageViewerWindow(filePath);
-            if (window._viewModel.HasImage) window.Show();
-            else window.Close();
+            OpenFile(filePath);
         }
         catch (Exception ex)
         {
             UploadWorkflowService.ReportError(ex, "Could not open image");
         }
+    }
+
+    /// <summary>Opens an image file in the viewer, as ShareX's OpenImageViewer(filePath).</summary>
+    public static void OpenFile(string filePath)
+    {
+        var window = new ImageViewerWindow(filePath);
+        if (window._viewModel.HasImage) window.Show();
+        else window.Close();
     }
 
     private void OnPreviousClick(object? sender, RoutedEventArgs e) => _viewModel.Navigate(-1);

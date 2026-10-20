@@ -151,6 +151,13 @@ public static class MediaToolsToolService
         }
     }
 
+    /// <summary>Opens the Video Converter with a video loaded (ShareX's -VideoConverter argument with a file).</summary>
+    public static void OpenVideoConverter(string filePath, Window? owner)
+    {
+        _ = HandleWorkflowAsync(WorkflowType.VideoConverter, owner);
+        _converterWindow?.ViewModel?.SetInputFile(filePath);
+    }
+
     /// <summary>Opens the Video Trimmer, optionally with a video already loaded (History "Trim video...").</summary>
     public static void OpenVideoTrimmer(string? filePath, Window? owner, TaskSettings? taskSettings = null)
     {

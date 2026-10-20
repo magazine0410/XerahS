@@ -283,8 +283,9 @@ internal struct XImage
     {
         public int type;
         public IntPtr display;
-        public uint resourceid;
-        public uint serial;
+        // XID and unsigned long are 8 bytes on 64-bit Linux; 4-byte fields read error_code from serial instead.
+        public nuint resourceid;
+        public nuint serial;
         public byte error_code;
         public byte request_code;
         public byte minor_code;

@@ -42,9 +42,22 @@ internal static class MetadataToolService
             var files = await storage.OpenFilePickerAsync(new FilePickerOpenOptions { Title = "Strip metadata", AllowMultiple = false });
             if (files.FirstOrDefault()?.TryGetLocalPath() is { } path)
             {
-                await MetadataService.StripMetadataAsync(path);
-                NotificationSoundService.PlayActionCompleted(taskSettings);
+                await StripFileAsync(path, taskSettings);
             }
+        }
+        catch (Exception ex)
+        {
+            UploadWorkflowService.ReportError(ex, "Unable to strip metadata");
+        }
+    }
+
+    /// <summary>ShareX's StripMetadata(filePath), also for the -StripMetadata argument with a file.</summary>
+    public static async Task StripFileAsync(string path, TaskSettings? taskSettings = null)
+    {
+        try
+        {
+            await MetadataService.StripMetadataAsync(path);
+            NotificationSoundService.PlayActionCompleted(taskSettings);
         }
         catch (Exception ex)
         {

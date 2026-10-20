@@ -40,6 +40,11 @@ public class TaskInfo
     public string Status { get; set; } = "";
     public TaskJob Job { get; set; }
     public bool SuppressCompletionNotification { get; set; }
+    /// <summary>
+    /// The task only opened a tool or started other tasks, one per file; these are not tasks in ShareX. -AutoClose does not
+    /// wait for it.
+    /// </summary>
+    public bool IsDispatchTask { get; internal set; }
     internal bool BeforeUploadConfirmed { get; set; }
     /// <summary>The before-upload window was cancelled. The task completes without an upload, as in ShareX.</summary>
     internal bool UploadCancelled { get; set; }

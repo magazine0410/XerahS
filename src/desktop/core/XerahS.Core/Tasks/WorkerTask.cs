@@ -93,6 +93,15 @@ namespace XerahS.Core.Tasks
             }
         }
 
+        /// <summary>
+        /// The task had something to work on: an image, a file, text, or a URL. Every ShareX task has; a ShareX capture that
+        /// was cancelled, a recording that was aborted (its file is deleted), or a clipboard upload of an empty clipboard,
+        /// does not become a task.
+        /// </summary>
+        public bool HasContent =>
+            _hasImageOutput || Info.Metadata?.Image != null || (!string.IsNullOrEmpty(Info.FilePath) && File.Exists(Info.FilePath)) ||
+            !string.IsNullOrEmpty(Info.TextContent) || !string.IsNullOrEmpty(Info.Metadata?.UploadURL);
+
         private CancellationTokenSource _cancellationTokenSource;
         private bool _hasImageOutput;
         private bool _failureNotificationShown;

@@ -88,14 +88,15 @@ internal partial class Program
         finally { IntegrationGate.Release(); }
     }
 
-    private static async Task UploadPathsFromIntegrationAsync(IReadOnlyList<string> files, IReadOnlyList<string> folders)
+    private static async Task UploadPathsFromIntegrationAsync(IReadOnlyList<string> files, IReadOnlyList<string> folders,
+        Func<TaskSettings> createTaskSettings)
     {
         try
         {
             var paths = await Task.Run(() => IntegrationArguments.ExpandUploadPaths(files, folders));
             if (paths.Count > 10 && SettingsManager.Settings.ShowMultiUploadWarning &&
                 !await new AvaloniaDialogServiceAdapter().ShowConfirmationAsync("Upload files", $"Are you sure you want to upload {paths.Count} files?")) return;
-            await UploadFilesFromIntegrationAsync(paths);
+            await UploadFilesFromIntegrationAsync(paths, createTaskSettings);
         }
         catch (Exception ex)
         {

@@ -35,6 +35,8 @@ internal static class IntegrationArguments
         requests = new();
         var remaining = new List<string>();
         IntegrationAction? mode = null;
+        // -ImageEditor without a file is ShareX's Image editor job, which the command line jobs run.
+        string? imageEditorJob = null;
         foreach (string argument in arguments)
         {
             IntegrationAction? command = argument.ToLowerInvariant() switch
@@ -45,7 +47,17 @@ internal static class IntegrationArguments
                 "-nativemessaginginput" => IntegrationAction.NativeMessaging,
                 _ => null
             };
-            if (command != null) { mode = command; continue; }
+            if (command != null || argument.StartsWith('-'))
+            {
+                if (imageEditorJob != null) remaining.Add(imageEditorJob);
+                imageEditorJob = null;
+            }
+            if (command != null)
+            {
+                mode = command;
+                if (argument.Equals("-imageeditor", StringComparison.OrdinalIgnoreCase)) imageEditorJob = argument;
+                continue;
+            }
             if (argument.StartsWith('-')) { mode = null; remaining.Add(argument); continue; }
             string path = Uri.TryCreate(argument, UriKind.Absolute, out var uri) && uri.IsFile ? uri.LocalPath : argument;
             IntegrationAction? action = mode ?? Path.GetExtension(path).ToLowerInvariant() switch
@@ -54,9 +66,14 @@ internal static class IntegrationArguments
                 ".sxie" or ".xsie" => IntegrationAction.ImageEffect,
                 _ => (IntegrationAction?)null
             };
-            if (action != null) requests.Add(new IntegrationRequest(action.Value, path));
+            if (action != null)
+            {
+                requests.Add(new IntegrationRequest(action.Value, path));
+                if (action == IntegrationAction.ImageEditor) imageEditorJob = null;
+            }
             else remaining.Add(argument);
         }
+        if (imageEditorJob != null) remaining.Add(imageEditorJob);
         return remaining.ToArray();
     }
 

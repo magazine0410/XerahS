@@ -78,6 +78,36 @@ namespace XerahS.Core.Tasks
             return new ScreenRecordingWorkflowCoordinator(RecordingManagerService);
         }
 
+        /// <summary>
+        /// The screen area of a recording: its region, or its window's bounds (the client area with "Capture client area"),
+        /// as ShareX's ScreenRecordManager keeps it. Null when the area is chosen later, by the ScreenCast portal.
+        /// </summary>
+        internal static Rectangle? GetRecordingArea(CaptureMode mode, IntPtr windowHandle, Rectangle? region, bool clientArea)
+        {
+            if (region is { Width: > 0, Height: > 0 } regionArea)
+            {
+                return regionArea;
+            }
+
+            if (mode != CaptureMode.Window || windowHandle == IntPtr.Zero || !PlatformServices.IsWindowServiceInitialized)
+            {
+                return null;
+            }
+
+            try
+            {
+                Rectangle bounds = clientArea
+                    ? PlatformServices.Window.GetWindowClientBounds(windowHandle)
+                    : PlatformServices.Window.GetWindowBounds(windowHandle);
+                return bounds.Width > 0 && bounds.Height > 0 ? bounds : null;
+            }
+            catch (Exception ex)
+            {
+                DebugHelper.WriteException(ex, "Recording: could not read the window's bounds for the last recording region");
+                return null;
+            }
+        }
+
         internal async Task HandleStartRecordingAsync(CaptureMode mode, IntPtr windowHandle = default, Rectangle? region = null)
         {
             var taskSettings = Info.TaskSettings ?? new TaskSettings();
@@ -124,6 +154,12 @@ namespace XerahS.Core.Tasks
                 {
                     // Force FFmpeg path until native audio capture is implemented
                     recordingOptions.Settings.ForceFFmpeg = true;
+                }
+
+                // As in ShareX, the area of every recording is kept for the "using last region" jobs.
+                if (GetRecordingArea(mode, windowHandle, region, captureSettings.CaptureClientArea) is { } recordingArea)
+                {
+                    SettingsManager.Settings.ScreenRecordRegion = recordingArea;
                 }
 
                 XerahS.Common.TroubleshootingHelper.Log(taskSettings.Job.ToString(), "WORKER_TASK", "Calling ScreenRecordingManager.StartRecordingAsync");

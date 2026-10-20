@@ -62,10 +62,96 @@ public static class OcrToolService
         }
 
         // Capture region
+        var captureOptions = CreateCaptureOptions();
+
+        var bitmap = await PlatformServices.ScreenCapture.CaptureRegionAsync(captureOptions);
+
+        if (bitmap == null)
+        {
+            return; // User cancelled, no toast needed
+        }
+
+        ShowOcrWindow(bitmap, captureOptions, owner);
+    }
+
+    /// <summary>
+    /// ShareX's OCRImage(filePath), for the -OCR argument with an image file: the OCR window opens with the image, or with
+    /// "Silent" on the text is copied without it. As in ShareX, the text found is also saved next to the image, in a .txt
+    /// file of the same name. Completes when the window closes.
+    /// </summary>
+    public static async Task OcrImageFileAsync(string filePath, Window? owner, TaskSettings? taskSettings)
+    {
+        var ocrService = PlatformServices.Ocr;
+        if (ocrService == null || !ocrService.IsSupported)
+        {
+            ShowToast("OCR", ocrService?.UnavailableMessage ?? "OCR is not supported on this platform.");
+            return;
+        }
+
+        var bitmap = ImageHelpers.LoadBitmap(filePath);
+        if (bitmap == null)
+        {
+            ShowToast("OCR", "The image could not be opened. Check that it uses a supported image format.");
+            return;
+        }
+
+        var ocrOptions = (taskSettings ?? SettingsManager.DefaultTaskSettings)?.CaptureSettings?.OCROptions ?? new OCROptions();
+        if (ocrOptions.Silent)
+        {
+            using (bitmap)
+            {
+                var result = await ocrService.RecognizeAsync(bitmap, new OcrOptions
+                {
+                    Language = string.IsNullOrWhiteSpace(ocrOptions.Language) ? "en" : ocrOptions.Language.Trim(),
+                    ScaleFactor = float.IsFinite(ocrOptions.ScaleFactor) ? Math.Max(ocrOptions.ScaleFactor, 1f) : 1f,
+                    SingleLine = ocrOptions.SingleLine
+                });
+
+                if (result.Success && !string.IsNullOrWhiteSpace(result.Text))
+                {
+                    PlatformServices.Clipboard.SetText(result.Text);
+                    SaveTextNextToImage(filePath, result.Text);
+                }
+                else
+                {
+                    PlatformServices.Clipboard.Clear();
+                }
+
+                NotificationSoundService.PlayActionCompleted(taskSettings);
+            }
+
+            return;
+        }
+
+        var window = ShowOcrWindow(bitmap, CreateCaptureOptions(), owner);
+        var closed = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        window.Closed += (_, _) => closed.TrySetResult();
+        await closed.Task;
+
+        if (window.DataContext is OcrViewModel { ResultText: { } text } && !string.IsNullOrWhiteSpace(text))
+        {
+            SaveTextNextToImage(filePath, text);
+        }
+    }
+
+    private static void SaveTextNextToImage(string imageFilePath, string text)
+    {
+        try
+        {
+            File.WriteAllText(Path.ChangeExtension(imageFilePath, "txt"), text, System.Text.Encoding.UTF8);
+        }
+        catch (Exception ex)
+        {
+            DebugHelper.WriteException(ex, "OCR: could not save the text next to the image");
+        }
+    }
+
+    private static CaptureOptions CreateCaptureOptions()
+    {
         var captureSettings = SettingsManager.DefaultTaskSettings?.CaptureSettings
             ?? new TaskSettingsCapture();
 
-        var captureOptions = new CaptureOptions
+        return new CaptureOptions
         {
             UseModernCapture = captureSettings.UseModernCapture,
             LinuxRegionSelectorPreference = captureSettings.LinuxRegionSelectorPreference,
@@ -76,14 +162,10 @@ public static class OcrToolService
             CaptureShadow = captureSettings.CaptureShadow,
             CaptureClientArea = captureSettings.CaptureClientArea
         };
+    }
 
-        var bitmap = await PlatformServices.ScreenCapture.CaptureRegionAsync(captureOptions);
-
-        if (bitmap == null)
-        {
-            return; // User cancelled, no toast needed
-        }
-
+    private static OcrWindow ShowOcrWindow(SKBitmap bitmap, CaptureOptions captureOptions, Window? owner)
+    {
         // Create ViewModel and wire callbacks
         var viewModel = new OcrViewModel(bitmap);
 
@@ -105,6 +187,8 @@ public static class OcrToolService
         {
             window.Show();
         }
+
+        return window;
     }
 
     private static async Task<SKBitmap?> CaptureNewRegionAsync(CaptureOptions captureOptions)

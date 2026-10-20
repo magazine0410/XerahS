@@ -42,6 +42,7 @@ public static class WorkflowCatalog
         WorkflowType.ScrollingCapture,
         WorkflowType.OCR,
         WorkflowType.ImageEditor,
+        WorkflowType.VideoEditor,
         WorkflowType.ImageBeautifier,
         WorkflowType.ImageEffects,
         WorkflowType.ImageViewer,

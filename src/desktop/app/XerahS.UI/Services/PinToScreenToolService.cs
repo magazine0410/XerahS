@@ -233,11 +233,25 @@ public static class PinToScreenToolService
         }
     }
 
+    /// <summary>ShareX's PinToScreen(filePath), for the -PinToScreen and -PinToScreenFromFile arguments with a file.</summary>
+    public static async Task PinFileAsync(string path, TaskSettings? taskSettings = null)
+    {
+        if (await PinImageFileAsync(path))
+        {
+            NotificationSoundService.PlayActionCompleted(taskSettings);
+        }
+    }
+
     private static async Task<bool> PinFromFileAsync(Window? owner)
     {
         var path = await BrowseImageFileAsync(null, owner);
         if (string.IsNullOrEmpty(path)) return false;
 
+        return await PinImageFileAsync(path);
+    }
+
+    private static async Task<bool> PinImageFileAsync(string path)
+    {
         if (await HostedEditorAndPinService.TryPinFileAsync(path))
         {
             return true;

@@ -238,5 +238,14 @@ public class LinuxHotkeyServiceTests
         // Headless CI typically has no X display; either Unavailable or Native depending on environment.
         Assert.That(diagnostics.State, Is.AnyOf(HotkeyBackendState.Unavailable, HotkeyBackendState.Native));
     }
-}
 
+    [Test]
+    public void XErrorEvent_ErrorCodeIsWhereXlibPutsIt()
+    {
+        // Xlib: int type; Display *display; XID resourceid; unsigned long serial; unsigned char error_code; ...
+        // XID and unsigned long have the size of a pointer on Linux, so error_code follows four pointer-sized fields.
+        int expected = 4 * IntPtr.Size;
+        Assert.That((int)System.Runtime.InteropServices.Marshal.OffsetOf<XErrorEvent>(nameof(XErrorEvent.error_code)),
+            Is.EqualTo(expected));
+    }
+}

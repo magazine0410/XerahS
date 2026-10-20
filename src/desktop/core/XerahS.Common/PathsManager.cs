@@ -58,7 +58,7 @@ namespace XerahS.Common
 
                 if (string.IsNullOrEmpty(_personalFolder))
                 {
-                    _personalFolder = Path.Combine(IsPortable ? AppContext.BaseDirectory : GetDocumentsFolder(), AppResources.AppName);
+                    _personalFolder = IsPortable ? PortablePersonalFolder : Path.Combine(GetDocumentsFolder(), AppResources.AppName);
                 }
                 return _personalFolder;
             }
@@ -72,7 +72,54 @@ namespace XerahS.Common
             }
         }
 
-        public static bool IsPortable => File.Exists(Path.Combine(AppContext.BaseDirectory, "portable.txt"));
+        private static bool? _portableMode;
+
+        /// <summary>
+        /// Portable mode, as ShareX's: the settings and files are kept in <see cref="PortablePersonalFolder"/>. On with the
+        /// -portable (-p) argument, or when <see cref="PortableCheckFilePath"/> exists.
+        /// </summary>
+        public static bool IsPortable => _portableMode ?? File.Exists(PortableCheckFilePath);
+
+        /// <summary>The folder of the application, or of the AppImage file when XerahS runs from one (its own folder is a temporary mount).</summary>
+        public static string PortableBaseDirectory
+        {
+            get
+            {
+                string? appImage = Environment.GetEnvironmentVariable("APPIMAGE");
+                if (OperatingSystem.IsLinux() && !string.IsNullOrWhiteSpace(appImage) && File.Exists(appImage) &&
+                    Path.GetDirectoryName(Path.GetFullPath(appImage)) is { Length: > 0 } appImageFolder)
+                {
+                    return appImageFolder;
+                }
+
+                return AppContext.BaseDirectory;
+            }
+        }
+
+        /// <summary>
+        /// ShareX's PortablePersonalFolder: a folder named after the application, next to it. On Linux and macOS the
+        /// executable itself has that name, so the folder is then named "XerahS-Portable".
+        /// </summary>
+        public static string PortablePersonalFolder
+        {
+            get
+            {
+                string folder = Path.Combine(PortableBaseDirectory, AppResources.AppName);
+                return File.Exists(folder) ? folder + "-Portable" : folder;
+            }
+        }
+
+        public static string PortableCheckFilePath => Path.Combine(PortableBaseDirectory, "portable.txt");
+
+        /// <summary>Turns portable mode on (the -portable argument) or off (when its folder cannot be created).</summary>
+        public static void SetPortableMode(bool enabled)
+        {
+            _portableMode = enabled;
+            if (!_personalFolderOverrideSet)
+            {
+                _personalFolder = "";
+            }
+        }
 
         private static bool UseLinuxXdgLayout => OperatingSystem.IsLinux() && !_personalFolderOverrideSet && !IsPortable;
 

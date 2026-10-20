@@ -2,6 +2,8 @@
 
 XerahS follows the XDG Base Directory Specification on Linux when the user has not explicitly provided `--settings-folder`.
 
+In portable mode (started with `-portable` or `-p`, or with a `portable.txt` file next to the application), everything is kept in one folder instead: `XerahS` next to the AppImage file when XerahS runs from an AppImage, otherwise `XerahS-Portable` next to the `XerahS` executable. `--settings-folder` takes precedence over portable mode.
+
 | Purpose | Location |
 |---------|----------|
 | User config | `$XDG_CONFIG_HOME/xerahs`, defaulting to `$HOME/.config/xerahs` |
