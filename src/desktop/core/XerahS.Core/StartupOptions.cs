@@ -27,7 +27,8 @@ namespace XerahS.Core;
 
 /// <summary>
 /// ShareX's StartupOptions: command line arguments that apply to the instance they start. A running instance that
-/// receives them from a second start ignores them, as in ShareX. Portable mode is <see cref="XerahS.Common.PathsManager.IsPortable"/>.
+/// receives them from a second start ignores them, as in ShareX. Portable mode is <see cref="XerahS.Common.PathsManager.IsPortable"/>,
+/// and sandbox mode <see cref="XerahS.Common.PathsManager.IsSandbox"/>.
 /// </summary>
 public static class StartupOptions
 {

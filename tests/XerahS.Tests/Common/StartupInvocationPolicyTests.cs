@@ -36,9 +36,23 @@ public class StartupInvocationPolicyTests
 {
     [TestCase("-silent")]
     [TestCase("-SILENT")]
+    [TestCase("-s")]
+    [TestCase("-S")]
     public void SilentOnlyInvocation_IsPassive(string argument)
     {
         Assert.That(AppContracts.Cli.IsPassiveStartupInvocation([argument]), Is.True);
+    }
+
+    [TestCase("-silent", true)]
+    [TestCase("-s", true)]
+    [TestCase("--silent", false)]
+    [TestCase("--s", false)]
+    [TestCase("-sandbox", false)]
+    [TestCase("s", false)]
+    [TestCase(null, false)]
+    public void SilentFlag_IsSilentOrItsShortForm(string? argument, bool expected)
+    {
+        Assert.That(AppContracts.Cli.IsSilentStartupFlag(argument), Is.EqualTo(expected));
     }
 
     [Test]

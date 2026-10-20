@@ -26,6 +26,7 @@
 using Avalonia;
 using Microsoft.Extensions.DependencyInjection;
 using Newtonsoft.Json;
+using System.Runtime.InteropServices;
 using System.Security.Cryptography;
 using System.Text;
 using XerahS.Common;
@@ -44,6 +45,7 @@ namespace XerahS.App
         private static XerahS.Common.SingleInstanceManager? _singleInstanceManager;
         private static string[] _startupArguments = Array.Empty<string>();
         private static string? _portableFolderError;
+        private static PosixSignalRegistration[]? _sandboxSignalRegistrations;
 
         private sealed class StartupArguments
         {
@@ -86,7 +88,8 @@ namespace XerahS.App
                 XerahS.Core.StartupOptions.MultiInstance = CommandLineArguments.IsCommandPresent(_startupArguments, CommandLineArguments.MultiInstanceCommands);
                 XerahS.Core.StartupOptions.IgnoreHotkeyWarning = CommandLineArguments.IsCommandPresent(_startupArguments, CommandLineArguments.NoHotkeysCommand);
                 XerahS.Core.StartupOptions.AutoClose = CommandLineArguments.IsCommandPresent(_startupArguments, CommandLineArguments.AutoCloseCommand);
-                string? portableDetectionMethod = InitializePortableMode(_startupArguments, startupArguments.PersonalFolderOverride);
+                bool sandbox = CommandLineArguments.IsCommandPresent(_startupArguments, CommandLineArguments.SandboxCommand);
+                string? portableDetectionMethod = InitializePortableMode(_startupArguments, startupArguments.PersonalFolderOverride, sandbox);
 
                 (string mutexName, string pipeName) = GetSingleInstanceIdentifiers(startupArguments.PersonalFolderOverride);
 
@@ -99,6 +102,11 @@ namespace XerahS.App
                     // Arguments have been passed to the first instance, exit this instance
                     _singleInstanceManager.Dispose();
                     return;
+                }
+
+                if (sandbox)
+                {
+                    InitializeSandbox();
                 }
 
                 // Subscribe to receive arguments from subsequent instances
@@ -140,6 +148,10 @@ namespace XerahS.App
                 {
                     dh.WriteLine(_portableFolderError);
                 }
+                if (XerahS.Common.PathsManager.SandboxFolder is { } sandboxFolder)
+                {
+                    dh.WriteLine($"Sandbox folder (settings and history, deleted on exit): {sandboxFolder}");
+                }
                 dh.WriteLine($"Operating system: {System.Runtime.InteropServices.RuntimeInformation.OSDescription} ({System.Runtime.InteropServices.RuntimeInformation.OSArchitecture})");
                 dh.WriteLine($".NET version: {System.Environment.Version}");
 
@@ -164,6 +176,7 @@ namespace XerahS.App
 #endif
                 if (XerahS.Core.StartupOptions.MultiInstance) flags.Add(nameof(XerahS.Core.StartupOptions.MultiInstance));
                 if (XerahS.Common.PathsManager.IsPortable) flags.Add("Portable");
+                if (XerahS.Common.PathsManager.IsSandbox) flags.Add("Sandbox");
                 if (XerahS.Core.StartupOptions.IgnoreHotkeyWarning) flags.Add(nameof(XerahS.Core.StartupOptions.IgnoreHotkeyWarning));
                 if (XerahS.Core.StartupOptions.AutoClose) flags.Add(nameof(XerahS.Core.StartupOptions.AutoClose));
                 dh.WriteLine("Flags: " + string.Join(", ", flags));
@@ -288,13 +301,15 @@ namespace XerahS.App
         /// ShareX's -portable (-p) argument and portable check file: the personal folder is
         /// <see cref="XerahS.Common.PathsManager.PortablePersonalFolder"/>, next to the application or the AppImage file. As in
         /// ShareX, when that folder cannot be created XerahS uses its usual folders and reports the error.
-        /// <c>--settings-folder</c> takes precedence. Returns how portable mode was detected.
+        /// <c>--settings-folder</c> takes precedence, and with -sandbox, as in ShareX, portable mode is off. Returns how portable mode was
+        /// detected.
         /// </summary>
-        private static string? InitializePortableMode(string[] args, string? personalFolderOverride)
+        private static string? InitializePortableMode(string[] args, string? personalFolderOverride, bool sandbox)
         {
-            if (!string.IsNullOrWhiteSpace(personalFolderOverride))
+            if (!string.IsNullOrWhiteSpace(personalFolderOverride) || sandbox)
             {
-                // The folder given with --settings-folder is used instead, and nothing else is portable either.
+                // The folder given with --settings-folder is used instead, and nothing else is portable either. ShareX's
+                // PersonalPathManager skips its portable check with -sandbox.
                 XerahS.Common.PathsManager.SetPortableMode(false);
                 return null;
             }
@@ -326,6 +341,70 @@ namespace XerahS.App
                     $"Personal path detection method: {detectionMethod}{Environment.NewLine}{Environment.NewLine}{ex.Message}";
                 Console.Error.WriteLine(_portableFolderError);
                 return null;
+            }
+        }
+
+        /// <summary>
+        /// ShareX's -sandbox argument: no settings or history files are read or written. XerahS starts with the default settings,
+        /// and keeps the settings and history it saves during the session in a temporary folder, deleted when it exits, as ShareX
+        /// keeps its history in a temporary database. Logs and screenshots go to their usual folders, as in ShareX.
+        /// </summary>
+        private static void InitializeSandbox()
+        {
+            string folder = CreateSandboxFolder();
+            XerahS.Common.PathsManager.SetSandboxFolder(folder);
+            AppDomain.CurrentDomain.ProcessExit += (_, _) => DeleteSandboxFolder(folder);
+
+            // The runtime does not raise ProcessExit when a signal ends XerahS (logging out ends it with SIGTERM). The handlers
+            // do not cancel the signal, so XerahS still exits.
+            _sandboxSignalRegistrations = new[] { PosixSignal.SIGTERM, PosixSignal.SIGINT, PosixSignal.SIGHUP, PosixSignal.SIGQUIT }
+                .Select(signal => PosixSignalRegistration.Create(signal, _ => DeleteSandboxFolder(folder)))
+                .ToArray();
+        }
+
+        /// <summary>
+        /// On Linux, in the user's runtime folder, which is in memory and is removed when the user logs out; otherwise in the
+        /// temporary folder.
+        /// </summary>
+        private static string CreateSandboxFolder()
+        {
+            string prefix = $"{AppResources.AppName}-Sandbox-";
+
+            if (OperatingSystem.IsLinux() && Environment.GetEnvironmentVariable("XDG_RUNTIME_DIR") is { Length: > 0 } runtimeFolder &&
+                Path.IsPathRooted(runtimeFolder) && Directory.Exists(runtimeFolder))
+            {
+                try
+                {
+                    string folder;
+                    do
+                    {
+                        folder = Path.Combine(runtimeFolder, prefix + Path.GetRandomFileName().Replace(".", ""));
+                    }
+                    while (Directory.Exists(folder));
+
+                    return Directory.CreateDirectory(folder, UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.UserExecute).FullName;
+                }
+                catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+                {
+                    Console.Error.WriteLine($"Unable to create the sandbox folder in \"{runtimeFolder}\": {ex.Message}");
+                }
+            }
+
+            return Directory.CreateTempSubdirectory(prefix).FullName;
+        }
+
+        private static void DeleteSandboxFolder(string folder)
+        {
+            try
+            {
+                if (Directory.Exists(folder))
+                {
+                    Directory.Delete(folder, recursive: true);
+                }
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+            {
+                Console.Error.WriteLine($"Unable to delete the sandbox folder \"{folder}\": {ex.Message}");
             }
         }
 
@@ -1075,6 +1154,15 @@ namespace XerahS.App
 
             Func<TaskSettings> uploadTaskSettings = CreateCommandLineUploadSettingsFactory(commands.TaskName, source);
 
+            // As in ShareX, a URL is downloaded and the file uploaded, with the same settings as the files.
+            args = CommandLineArguments.ExtractUrls(args, out List<string> urls);
+            if (urls.Count > 0)
+            {
+                XerahS.Common.DebugHelper.WriteLine($"Command line ({source}): Scheduling download and upload for {urls.Count} URL(s).");
+                _ = DownloadAndUploadUrlsAsync(urls, uploadTaskSettings);
+                if (args.Length == 0) return;
+            }
+
             IncomingPluginPackageSet pluginPackages = ExtractIncomingPluginPackages(args);
             if (pluginPackages.PackagePaths.Count > 0)
             {
@@ -1126,7 +1214,7 @@ namespace XerahS.App
         }
 
         /// <summary>
-        /// ShareX's -task argument: the files on the command line are uploaded with the settings of the workflow of that name.
+        /// ShareX's -task argument: the files and URLs on the command line are uploaded with the settings of the workflow of that name.
         /// Without it, or when no workflow has that name, they use the first Upload file workflow's settings.
         /// </summary>
         private static Func<TaskSettings> CreateCommandLineUploadSettingsFactory(string? taskName, string source)
@@ -1143,7 +1231,7 @@ namespace XerahS.App
                 return CreateFileUploadTaskSettings;
             }
 
-            XerahS.Common.DebugHelper.WriteLine($"Command line ({source}): files are uploaded with the settings of workflow \"{taskName}\" ({workflow.Id}).");
+            XerahS.Common.DebugHelper.WriteLine($"Command line ({source}): files and URLs are uploaded with the settings of workflow \"{taskName}\" ({workflow.Id}).");
             return () =>
             {
                 TaskSettings settings = TaskSettings.GetSafeTaskSettings(workflow.TaskSettings);
@@ -1400,6 +1488,34 @@ namespace XerahS.App
             catch (Exception ex)
             {
                 XerahS.Common.DebugHelper.WriteException(ex, "Shell integration: Failed to upload incoming files.");
+            }
+        }
+
+        /// <summary>ShareX's UploadManager.DownloadAndUploadFile for each URL: the Upload URL job downloads the file and uploads it.</summary>
+        internal static async Task DownloadAndUploadUrlsAsync(IReadOnlyCollection<string> urls, Func<TaskSettings> createTaskSettings,
+            ITaskManager? taskManager = null)
+        {
+            try
+            {
+                taskManager ??= (Application.Current as XerahS.UI.App)?.ServiceProvider?.GetService<ITaskManager>();
+                if (taskManager == null)
+                {
+                    XerahS.Common.DebugHelper.WriteLine("Command line: Task manager unavailable for URLs.");
+                    return;
+                }
+
+                var downloads = new List<Task>(urls.Count);
+                foreach (string url in urls)
+                {
+                    TaskSettings settings = createTaskSettings();
+                    settings.Job = WorkflowType.UploadURL;
+                    downloads.Add(taskManager.StartTextTask(settings, url));
+                }
+                await Task.WhenAll(downloads);
+            }
+            catch (Exception ex)
+            {
+                XerahS.Common.DebugHelper.WriteException(ex, "Command line: Failed to download and upload URLs.");
             }
         }
 

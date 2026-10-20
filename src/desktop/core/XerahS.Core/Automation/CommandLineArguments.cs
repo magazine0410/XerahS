@@ -66,6 +66,7 @@ public static class CommandLineArguments
     public const string TaskCommand = "task";
     public const string NoHotkeysCommand = "NoHotkeys";
     public const string AutoCloseCommand = "AutoClose";
+    public const string SandboxCommand = "sandbox";
     public static readonly string[] MultiInstanceCommands = ["multi", "m"];
     public static readonly string[] PortableCommands = ["portable", "p"];
 
@@ -141,6 +142,28 @@ public static class CommandLineArguments
         }
 
         return remaining.ToArray();
+    }
+
+    /// <summary>
+    /// ShareX's test for a URL argument (URLHelpers.IsValidURL): an http, https, or ftp URL whose host is a domain name or a public
+    /// IP address. Like ShareX, it does not take localhost or private addresses such as 192.168.x.x for URLs.
+    /// </summary>
+    public static bool IsUrl(string? argument)
+    {
+        string url = argument?.Trim() ?? string.Empty;
+
+        // XerahS's URLHelpers.IsValidURL also takes steam:// links, which ShareX's does not.
+        return !url.StartsWith("steam://", StringComparison.OrdinalIgnoreCase) && XerahS.Common.URLHelpers.IsValidURL(url);
+    }
+
+    /// <summary>
+    /// Takes out the URL arguments (<see cref="IsUrl"/>), which ShareX's ShareXCLIManager downloads and uploads. Returns the other
+    /// arguments, in order.
+    /// </summary>
+    public static string[] ExtractUrls(IReadOnlyList<string> arguments, out List<string> urls)
+    {
+        urls = arguments.Where(IsUrl).Select(argument => argument.Trim()).ToList();
+        return arguments.Where(argument => !IsUrl(argument)).ToArray();
     }
 
     /// <summary>

@@ -60,12 +60,13 @@ internal static class IntegrationArguments
             }
             if (argument.StartsWith('-')) { mode = null; remaining.Add(argument); continue; }
             string path = Uri.TryCreate(argument, UriKind.Absolute, out var uri) && uri.IsFile ? uri.LocalPath : argument;
-            IntegrationAction? action = mode ?? Path.GetExtension(path).ToLowerInvariant() switch
+            // A URL is downloaded and uploaded, as in ShareX, whatever its extension.
+            IntegrationAction? action = mode ?? (XerahS.Core.Automation.CommandLineArguments.IsUrl(argument) ? null : Path.GetExtension(path).ToLowerInvariant() switch
             {
                 ".sxcu" => IntegrationAction.CustomUploader,
                 ".sxie" or ".xsie" => IntegrationAction.ImageEffect,
                 _ => (IntegrationAction?)null
-            };
+            });
             if (action != null)
             {
                 requests.Add(new IntegrationRequest(action.Value, path));

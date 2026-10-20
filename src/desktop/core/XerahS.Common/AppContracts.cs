@@ -61,6 +61,16 @@ public static class AppContracts
         /// </summary>
         public const string SilentStartupFlag = "-silent";
 
+        /// <summary>ShareX's short form of <see cref="SilentStartupFlag"/>.</summary>
+        public const string SilentStartupShortFlag = "-s";
+
+        /// <summary>True for <c>-silent</c> or <c>-s</c>, in any case, as ShareX's IsCommandPresent("silent", "s").</summary>
+        public static bool IsSilentStartupFlag(string? arg)
+        {
+            return SilentStartupFlag.Equals(arg, StringComparison.OrdinalIgnoreCase) ||
+                SilentStartupShortFlag.Equals(arg, StringComparison.OrdinalIgnoreCase);
+        }
+
         /// <summary>
         /// Relayed by automation (omaxerahs, agents) after writing WorkflowsConfig so the running
         /// instance reloads workflows from disk. Handled without surfacing the main window.
@@ -113,8 +123,7 @@ public static class AppContracts
 
         public static bool IsPassiveStartupInvocation(IReadOnlyCollection<string>? args)
         {
-            return args is { Count: > 0 } &&
-                args.All(arg => arg.Equals(SilentStartupFlag, StringComparison.OrdinalIgnoreCase));
+            return args is { Count: > 0 } && args.All(IsSilentStartupFlag);
         }
     }
 

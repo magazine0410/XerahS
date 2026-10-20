@@ -4,6 +4,8 @@ XerahS follows the XDG Base Directory Specification on Linux when the user has n
 
 In portable mode (started with `-portable` or `-p`, or with a `portable.txt` file next to the application), everything is kept in one folder instead: `XerahS` next to the AppImage file when XerahS runs from an AppImage, otherwise `XerahS-Portable` next to the `XerahS` executable. `--settings-folder` takes precedence over portable mode.
 
+When started with `-sandbox`, XerahS reads and writes none of its usual settings or history files and is not portable. It starts with the default settings and keeps the settings, credentials, and history of that session in `$XDG_RUNTIME_DIR/XerahS-Sandbox-<random>` (or the temporary folder when `$XDG_RUNTIME_DIR` is not set), which it deletes when it exits. Logs and screenshots go to their usual folders.
+
 | Purpose | Location |
 |---------|----------|
 | User config | `$XDG_CONFIG_HOME/xerahs`, defaulting to `$HOME/.config/xerahs` |

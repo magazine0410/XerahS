@@ -107,6 +107,28 @@ public class DesktopIntegrationTests
     }
 
     [Test]
+    public void Arguments_LeaveUrlsToBeDownloadedWhateverTheirExtension()
+    {
+        string[] left = IntegrationArguments.Extract(new[] { "https://example.com/uploader.sxcu", "/tmp/a.sxcu", "http://example.org/effect.sxie" },
+            out var requests);
+        Assert.That(left, Is.EqualTo(new[] { "https://example.com/uploader.sxcu", "http://example.org/effect.sxie" }));
+        Assert.That(requests.Single(), Is.EqualTo(new IntegrationRequest(IntegrationAction.CustomUploader, "/tmp/a.sxcu")));
+    }
+
+    [Test]
+    public async Task UrlArguments_RunTheUploadUrlJobWithTheCommandLineSettings()
+    {
+        var manager = new TextTaskRecorder();
+        await Program.DownloadAndUploadUrlsAsync(["https://example.com/a.png", "https://example.org/b.zip"],
+            () => new TaskSettings { Job = WorkflowType.RectangleRegion, WorkflowId = "cli-task" }, manager);
+
+        Assert.That(manager.Started.Select(x => x.Text), Is.EqualTo(new[] { "https://example.com/a.png", "https://example.org/b.zip" }));
+        Assert.That(manager.Started.Select(x => x.Settings.Job), Is.All.EqualTo(WorkflowType.UploadURL));
+        Assert.That(manager.Started.Select(x => x.Settings.WorkflowId), Is.All.EqualTo("cli-task"));
+        Assert.That(manager.Started[0].Settings, Is.Not.SameAs(manager.Started[1].Settings));
+    }
+
+    [Test]
     public void Arguments_ImageEditorWithoutFileIsLeftForTheImageEditorJob()
     {
         Assert.That(IntegrationArguments.Extract(new[] { "-ImageEditor" }, out var none), Is.EqualTo(new[] { "-ImageEditor" }));
@@ -184,6 +206,16 @@ public class DesktopIntegrationTests
         public Task StartTextTask(object? settings, string text) { Text = text; return StartTask(settings); }
         public Task StartFileTask(object? settings, string path) => throw new NotSupportedException();
         public Task StartImageUploadTask(object? settings, SKBitmap image) => StartTask(settings, image);
+        public void StopAllTasks() { }
+    }
+
+    private sealed class TextTaskRecorder : ITaskManager
+    {
+        public List<(TaskSettings Settings, string Text)> Started { get; } = [];
+        public Task StartTextTask(object? settings, string text) { Started.Add(((TaskSettings)settings!, text)); return Task.CompletedTask; }
+        public Task StartTask(object? taskSettings, SKBitmap? inputImage = null) => throw new NotSupportedException();
+        public Task StartFileTask(object? settings, string path) => throw new NotSupportedException();
+        public Task StartImageUploadTask(object? settings, SKBitmap image) => throw new NotSupportedException();
         public void StopAllTasks() { }
     }
 

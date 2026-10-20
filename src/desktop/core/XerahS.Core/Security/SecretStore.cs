@@ -200,6 +200,16 @@ public sealed class SecretStore : ISecretStore, ISecretStoreInfo
                 isFallback: false);
         }
 
+        // -sandbox: credentials stay in the temporary sandbox folder with the other settings, never in the system keyring.
+        if (PathsManager.IsSandbox)
+        {
+            return BackendSelection.Create(
+                new AesFileSecretStore(filePath, GetKeyPath(filePath)),
+                "AES file store (sandbox)",
+                "AES-GCM SecretsStore.json + SecretsStore.key in the temporary sandbox folder",
+                isFallback: true);
+        }
+
         if (OperatingSystem.IsMacOS())
         {
             if (MacOSKeychainSecretStore.IsAvailable())

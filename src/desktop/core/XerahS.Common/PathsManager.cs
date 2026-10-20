@@ -121,6 +121,23 @@ namespace XerahS.Common
             }
         }
 
+        private static string? _sandboxFolder;
+
+        /// <summary>
+        /// ShareX's -sandbox argument: the settings and history are kept in this temporary folder instead of
+        /// <see cref="SettingsFolder"/> and <see cref="HistoryFolder"/>, so none of the usual settings or history files are read or
+        /// written. Null without -sandbox.
+        /// </summary>
+        public static string? SandboxFolder => _sandboxFolder;
+
+        public static bool IsSandbox => _sandboxFolder != null;
+
+        /// <summary>Keeps the settings and history in <paramref name="folder"/> (the -sandbox argument), or in their usual folders (null).</summary>
+        public static void SetSandboxFolder(string? folder)
+        {
+            _sandboxFolder = folder;
+        }
+
         private static bool UseLinuxXdgLayout => OperatingSystem.IsLinux() && !_personalFolderOverrideSet && !IsPortable;
 
         private static string GetDocumentsFolder()
@@ -262,13 +279,17 @@ namespace XerahS.Common
             return Path.Combine(GetLogsFolderForMonth(date), $"{AppResources.AppName}-{date:yyyyMMdd}.log");
         }
 
-        public static string SettingsFolder => UseLinuxXdgLayout
-            ? LinuxXdgDirectories.Detect().ConfigDirectory
-            : Path.Combine(PersonalFolder, AppResources.SettingsFolderName);
+        public static string SettingsFolder => _sandboxFolder != null
+            ? Path.Combine(_sandboxFolder, AppResources.SettingsFolderName)
+            : UseLinuxXdgLayout
+                ? LinuxXdgDirectories.Detect().ConfigDirectory
+                : Path.Combine(PersonalFolder, AppResources.SettingsFolderName);
 
-        public static string HistoryFolder => UseLinuxXdgLayout
-            ? Path.Combine(LinuxXdgDirectories.Detect().StateDirectory, AppResources.HistoryFolderName)
-            : Path.Combine(PersonalFolder, AppResources.HistoryFolderName);
+        public static string HistoryFolder => _sandboxFolder != null
+            ? Path.Combine(_sandboxFolder, AppResources.HistoryFolderName)
+            : UseLinuxXdgLayout
+                ? Path.Combine(LinuxXdgDirectories.Detect().StateDirectory, AppResources.HistoryFolderName)
+                : Path.Combine(PersonalFolder, AppResources.HistoryFolderName);
 
         public static string BackupFolder => Path.Combine(SettingsFolder, AppResources.BackupFolderName);
         public static string HistoryBackupFolder => Path.Combine(HistoryFolder, AppResources.BackupFolderName);

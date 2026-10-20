@@ -85,6 +85,46 @@ public class CommandLineArgumentsTests
         Assert.That(CommandLineArguments.IsCommandPresent(["-autoclose"], CommandLineArguments.AutoCloseCommand), Is.True);
         Assert.That(CommandLineArguments.IsCommandPresent(["-AutoCloses"], CommandLineArguments.AutoCloseCommand), Is.False);
         Assert.That(CommandLineArguments.IsCommandPresent(null, CommandLineArguments.AutoCloseCommand), Is.False);
+        Assert.That(CommandLineArguments.IsCommandPresent(["/tmp/a.png", "-SandBox"], CommandLineArguments.SandboxCommand), Is.True);
+        Assert.That(CommandLineArguments.IsCommandPresent(["-s"], CommandLineArguments.SandboxCommand), Is.False);
+    }
+
+    [TestCase("https://example.com/a.png", true)]
+    [TestCase("http://example.com", true)]
+    [TestCase("HTTPS://Example.COM/Shot%20one.png?x=1#y", true)]
+    [TestCase("ftp://files.example.org/a.zip", true)]
+    [TestCase("  https://example.com/a.png  ", true)]
+    [TestCase("http://user:pass@example.com:8080/a.png", true)]
+    [TestCase("http://xerahs.localhost:8777/files/a.png", true)]
+    [TestCase("http://8.8.8.8/a.png", true)]
+    // As in ShareX's URLHelpers.IsValidURL: no localhost, private or loopback addresses, or hosts without a domain.
+    [TestCase("http://localhost/a.png", false)]
+    [TestCase("http://127.0.0.1:8777/a.png", false)]
+    [TestCase("http://192.168.1.159/a.png", false)]
+    [TestCase("http://10.0.0.2/a.png", false)]
+    [TestCase("http://nas/a.png", false)]
+    [TestCase("file:///tmp/a.png", false)]
+    [TestCase("steam://run/440", false)]
+    [TestCase("xerahs://oauth/callback?code=a&state=b", false)]
+    [TestCase("example.com/a.png", false)]
+    [TestCase("/tmp/a.png", false)]
+    [TestCase("-silent", false)]
+    [TestCase("", false)]
+    [TestCase(null, false)]
+    public void IsUrl_AcceptsWhatShareXDownloadsAndUploads(string? argument, bool expected)
+    {
+        Assert.That(CommandLineArguments.IsUrl(argument), Is.EqualTo(expected));
+    }
+
+    [Test]
+    public void ExtractUrls_TakesTheUrlsInOrderAndLeavesTheRest()
+    {
+        string[] left = CommandLineArguments.ExtractUrls(
+            ["-silent", "https://example.com/a.png", "/tmp/b.png", " http://example.org/c.zip ", "http://localhost/d.png", "-sandbox"],
+            out List<string> urls);
+
+        Assert.That(urls, Is.EqualTo(new[] { "https://example.com/a.png", "http://example.org/c.zip" }));
+        Assert.That(left, Is.EqualTo(new[] { "-silent", "/tmp/b.png", "http://localhost/d.png", "-sandbox" }));
     }
 
     [Test]

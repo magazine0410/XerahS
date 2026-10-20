@@ -44,12 +44,12 @@ internal static class SilentRunStartupPolicy
 
     /// <summary>
     /// As in ShareX, XerahS starts in the tray when "Start minimized to tray" is on or it was started with
-    /// <c>-silent</c> (as the run-at-startup entries do), but only while the tray icon is shown; without
-    /// it, the main window opens.
+    /// <c>-silent</c> or <c>-s</c> (as the run-at-startup entries do), but only while the tray icon is shown;
+    /// without it, the main window opens.
     /// </summary>
     public static bool StartsInTray(bool silentRunSetting, IEnumerable<string>? arguments, bool showTray)
     {
-        bool silentFlag = arguments?.Any(arg => arg.Equals(AppContracts.Cli.SilentStartupFlag, StringComparison.OrdinalIgnoreCase)) == true;
+        bool silentFlag = arguments?.Any(AppContracts.Cli.IsSilentStartupFlag) == true;
         return (silentRunSetting || silentFlag) && showTray;
     }
 
