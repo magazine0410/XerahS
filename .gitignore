@@ -196,3 +196,6 @@ web/supabase/.temp/
 web/.env.local
 web/.env.*.local
 .vercel/
+
+# Local notes
+local-notes/
