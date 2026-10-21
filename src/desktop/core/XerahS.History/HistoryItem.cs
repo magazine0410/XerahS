@@ -83,6 +83,11 @@ namespace XerahS.History
         {
             get
             {
+                // An entry for a sidecar file (imported from a folder, for example) is not an annotated image:
+                // its default sidecar path would be the file itself.
+                if (IsAnnotationSidecarFile)
+                    return false;
+
                 if (!string.IsNullOrWhiteSpace(AnnotationSidecarPath) && System.IO.File.Exists(AnnotationSidecarPath))
                     return true;
 
@@ -95,6 +100,17 @@ namespace XerahS.History
                 }
 
                 return false;
+            }
+        }
+
+        [JsonIgnore]
+        public bool IsAnnotationSidecarFile
+        {
+            get
+            {
+                string candidate = !string.IsNullOrWhiteSpace(FilePath) ? FilePath : FileName;
+                return !string.IsNullOrWhiteSpace(candidate) &&
+                    string.Equals(System.IO.Path.GetExtension(candidate), ".xann", StringComparison.OrdinalIgnoreCase);
             }
         }
 

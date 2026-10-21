@@ -9,10 +9,12 @@
     <TextBlock Text="{Binding Message}" TextWrapping="Wrap" FontSize="14" IsVisible="{Binding !!Message}"/>
     <StackPanel Spacing="8" IsVisible="{Binding ShowInput}">
       <TextBlock Text="{Binding Label}" Theme="{StaticResource BodyStrongTextBlockStyle}"/>
-      <TextBox Text="{Binding InputText, UpdateSourceTrigger=PropertyChanged}"
+      <TextBox x:Name="InputTextBox"
+               Text="{Binding InputText, UpdateSourceTrigger=PropertyChanged}"
                PlaceholderText="{Binding Label}"
                IsVisible="{Binding !IsPassword}"/>
-      <TextBox Text="{Binding InputText, UpdateSourceTrigger=PropertyChanged}"
+      <TextBox x:Name="PasswordTextBox"
+               Text="{Binding InputText, UpdateSourceTrigger=PropertyChanged}"
                PlaceholderText="{Binding Label}"
                PasswordChar="*"
                IsVisible="{Binding IsPassword}"/>
@@ -23,7 +25,8 @@
               IsVisible="{Binding ShowCancel}"
               IsCancel="True"/>
       <Button Content="{Binding SecondaryButtonText}" Command="{Binding SecondaryCommand}" IsVisible="{Binding ShowSecondary}"/>
-      <Button Content="{Binding PrimaryButtonText}"
+      <Button x:Name="PrimaryButton"
+              Content="{Binding PrimaryButtonText}"
               Command="{Binding PrimaryCommand}"
               Classes="accent"
               IsDefault="True"/>
