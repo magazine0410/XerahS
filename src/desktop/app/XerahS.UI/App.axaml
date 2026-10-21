@@ -67,6 +67,18 @@
                 </MenuItem>
                 <MenuItem Header="{Binding HistoryActions.FavoriteHeader}" Command="{Binding HistoryActions.ToggleFavoriteCommand}"
                           IsVisible="{Binding IsHistoryContext}"/>
+                <!-- As in ShareX's history menu: edit tag, edit item, rename file, then the two delete entries. -->
+                <MenuItem Header="Edit tag..." Command="{Binding HistoryActions.EditTagCommand}"
+                          IsVisible="{Binding IsHistoryContext}"/>
+                <MenuItem Header="Edit item..." Command="{Binding HistoryActions.EditItemCommand}"
+                          IsVisible="{Binding IsHistoryContext}"/>
+                <MenuItem Header="Rename file..." Command="{Binding HistoryActions.RenameFileCommand}"
+                          IsVisible="{Binding IsHistoryContext}"/>
+                <MenuItem Header="Delete from history..." Command="{Binding DeleteItemCommand}"
+                          IsVisible="{Binding IsHistoryContext}" InputGesture="Delete"/>
+                <MenuItem Header="Delete file and history item..." Command="{Binding HistoryActions.DeleteFileCommand}"
+                          IsVisible="{Binding IsHistoryContext}" InputGesture="Shift+Delete"/>
+                <Separator IsVisible="{Binding IsHistoryContext}"/>
                 <MenuItem Header="Edit..."
                           Command="{Binding EditImageCommand}"
                           IsVisible="{Binding Item.HasExistingFile}"
@@ -171,8 +183,14 @@
                           IsVisible="{Binding Item.CanDeleteRemotely}"/>
                 <MenuItem Header="Delete"
                           Command="{Binding DeleteItemCommand}"
-                          IsVisible="{Binding Item.HasExistingFile}"
-                          InputGesture="Delete"/>
+                          InputGesture="Delete">
+                    <MenuItem.IsVisible>
+                        <MultiBinding Converter="{x:Static BoolConverters.And}">
+                            <Binding Path="!IsHistoryContext"/>
+                            <Binding Path="Item.HasExistingFile"/>
+                        </MultiBinding>
+                    </MenuItem.IsVisible>
+                </MenuItem>
             </MenuFlyout>
         </ResourceDictionary>
     </Application.Resources>
@@ -211,6 +229,15 @@
         </DataTemplate>
         <DataTemplate DataType="vm:SimplePromptViewModel" x:DataType="vm:SimplePromptViewModel">
             <views:SimplePromptView/>
+        </DataTemplate>
+        <DataTemplate DataType="vm:HistoryItemEditViewModel" x:DataType="vm:HistoryItemEditViewModel">
+            <views:HistoryItemEditDialog/>
+        </DataTemplate>
+        <DataTemplate DataType="vm:HistoryImportViewModel" x:DataType="vm:HistoryImportViewModel">
+            <views:HistoryImportDialog/>
+        </DataTemplate>
+        <DataTemplate DataType="vm:HistoryStatsViewModel" x:DataType="vm:HistoryStatsViewModel">
+            <views:HistoryStatsDialog/>
         </DataTemplate>
         <DataTemplate DataType="vm:OpenImageChoiceViewModel" x:DataType="vm:OpenImageChoiceViewModel">
             <dialogs:OpenImageChoiceDialog/>

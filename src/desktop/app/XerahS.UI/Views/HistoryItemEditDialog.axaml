@@ -1,0 +1,46 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:XerahS.UI.ViewModels"
+             x:Class="XerahS.UI.Views.HistoryItemEditDialog"
+             x:DataType="vm:HistoryItemEditViewModel"
+             Width="700">
+
+    <Design.DataContext>
+        <vm:HistoryItemEditViewModel/>
+    </Design.DataContext>
+
+    <!-- ShareX's "Edit history item" dialog: every field except the date, and the tags as one key=value per line. -->
+    <Grid Margin="24" RowDefinitions="Auto,*,Auto" RowSpacing="16">
+        <TextBlock Text="Edit history item" Theme="{StaticResource SubtitleTextBlockStyle}"/>
+        <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" MaxHeight="520">
+            <Grid RowDefinitions="Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto"
+                  ColumnDefinitions="120,*" RowSpacing="8" ColumnSpacing="10" Margin="0,0,8,0">
+                <TextBlock Grid.Row="0" Text="File name" VerticalAlignment="Center"/>
+                <TextBox Grid.Row="0" Grid.Column="1" Text="{Binding FileName}" AutomationProperties.Name="File name"/>
+                <TextBlock Grid.Row="1" Text="File path" VerticalAlignment="Center"/>
+                <TextBox Grid.Row="1" Grid.Column="1" Text="{Binding FilePath}" AutomationProperties.Name="File path"/>
+                <TextBlock Grid.Row="2" Text="Date" VerticalAlignment="Center"/>
+                <TextBox Grid.Row="2" Grid.Column="1" Text="{Binding Date}" IsReadOnly="True" AutomationProperties.Name="Date"/>
+                <TextBlock Grid.Row="3" Text="Type" VerticalAlignment="Center"/>
+                <TextBox Grid.Row="3" Grid.Column="1" Text="{Binding Type}" AutomationProperties.Name="Type"/>
+                <TextBlock Grid.Row="4" Text="Host" VerticalAlignment="Center"/>
+                <TextBox Grid.Row="4" Grid.Column="1" Text="{Binding Host}" AutomationProperties.Name="Host"/>
+                <TextBlock Grid.Row="5" Text="URL" VerticalAlignment="Center"/>
+                <TextBox Grid.Row="5" Grid.Column="1" Text="{Binding Url}" AutomationProperties.Name="URL"/>
+                <TextBlock Grid.Row="6" Text="Thumbnail URL" VerticalAlignment="Center"/>
+                <TextBox Grid.Row="6" Grid.Column="1" Text="{Binding ThumbnailUrl}" AutomationProperties.Name="Thumbnail URL"/>
+                <TextBlock Grid.Row="7" Text="Deletion URL" VerticalAlignment="Center"/>
+                <TextBox Grid.Row="7" Grid.Column="1" Text="{Binding DeletionUrl}" AutomationProperties.Name="Deletion URL"/>
+                <TextBlock Grid.Row="8" Text="Shortened URL" VerticalAlignment="Center"/>
+                <TextBox Grid.Row="8" Grid.Column="1" Text="{Binding ShortenedUrl}" AutomationProperties.Name="Shortened URL"/>
+                <TextBlock Grid.Row="9" Text="Tags" VerticalAlignment="Top" Margin="0,8,0,0"/>
+                <TextBox Grid.Row="9" Grid.Column="1" Text="{Binding Tags}" Height="110" AcceptsReturn="True" TextWrapping="NoWrap"
+                         PlaceholderText="One key=value pair per line" AutomationProperties.Name="Tags"/>
+            </Grid>
+        </ScrollViewer>
+        <StackPanel Grid.Row="2" Orientation="Horizontal" HorizontalAlignment="Right" Spacing="8">
+            <Button Content="Cancel" Command="{Binding CancelCommand}" IsCancel="True"/>
+            <Button Content="Save" Command="{Binding SaveCommand}" Classes="accent" IsDefault="True"/>
+        </StackPanel>
+    </Grid>
+</UserControl>

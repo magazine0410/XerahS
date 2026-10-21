@@ -73,6 +73,9 @@ public class ViewLocator : IDataTemplate
             [typeof(AfterCaptureViewModel)] = static () => new AfterCaptureWindow(),
             [typeof(SendToPromptViewModel)] = static () => new SendToPromptWindow(),
             [typeof(SimplePromptViewModel)] = static () => new SimplePromptView(),
+            [typeof(HistoryItemEditViewModel)] = static () => new HistoryItemEditDialog(),
+            [typeof(HistoryImportViewModel)] = static () => new HistoryImportDialog(),
+            [typeof(HistoryStatsViewModel)] = static () => new HistoryStatsDialog(),
         };
 
     public Control? Build(object? data)

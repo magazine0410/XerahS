@@ -45,7 +45,17 @@ public sealed class HistoryItemActions : ObservableObject
         OpenDeletionUrlCommand = new RelayCommand(() => _viewModel.OpenHistoryUrl(_item.DeletionURL), () => !string.IsNullOrWhiteSpace(_item.DeletionURL));
         ToggleFavoriteCommand = new AsyncRelayCommand(() => _viewModel.ToggleFavoriteCommand.ExecuteAsync(_item), () => _item.Id > 0);
         ShowErrorsCommand = new AsyncRelayCommand(() => _viewModel.ShowHistoryErrorsAsync(_item), () => _item.HasErrors);
+        // As in ShareX: tag and item editing act on one entry, renaming needs a file path with an extension,
+        // and deleting the file acts on every selected entry that has a file path.
+        EditTagCommand = new AsyncRelayCommand(() => _viewModel.EditTagCommand.ExecuteAsync(_item), IsSingle);
+        EditItemCommand = new AsyncRelayCommand(() => _viewModel.EditItemCommand.ExecuteAsync(_item), IsSingle);
+        RenameFileCommand = new AsyncRelayCommand(() => _viewModel.RenameFileCommand.ExecuteAsync(_item),
+            () => IsSingle() && !string.IsNullOrWhiteSpace(_item.FilePath) && Path.HasExtension(_item.FilePath));
+        DeleteFileCommand = new AsyncRelayCommand(() => _viewModel.DeleteFileCommand.ExecuteAsync(_item),
+            () => _viewModel.GetHistoryActionItems(_item).Any(item => !string.IsNullOrWhiteSpace(item.FilePath)));
     }
+
+    private bool IsSingle() => _viewModel.GetHistoryActionItems(_item).Count == 1;
 
     public string FavoriteHeader => _item.Favorite ? "Unfavorite" : "Favorite";
     public IAsyncRelayCommand<HistoryCopyFormat> CopyCommand { get; }
@@ -54,6 +64,10 @@ public sealed class HistoryItemActions : ObservableObject
     public IRelayCommand OpenDeletionUrlCommand { get; }
     public IAsyncRelayCommand ToggleFavoriteCommand { get; }
     public IAsyncRelayCommand ShowErrorsCommand { get; }
+    public IAsyncRelayCommand EditTagCommand { get; }
+    public IAsyncRelayCommand EditItemCommand { get; }
+    public IAsyncRelayCommand RenameFileCommand { get; }
+    public IAsyncRelayCommand DeleteFileCommand { get; }
 
     private bool CanCopy(HistoryCopyFormat format)
     {
@@ -76,5 +90,9 @@ public sealed class HistoryItemActions : ObservableObject
         OpenDeletionUrlCommand.NotifyCanExecuteChanged();
         ToggleFavoriteCommand.NotifyCanExecuteChanged();
         ShowErrorsCommand.NotifyCanExecuteChanged();
+        EditTagCommand.NotifyCanExecuteChanged();
+        EditItemCommand.NotifyCanExecuteChanged();
+        RenameFileCommand.NotifyCanExecuteChanged();
+        DeleteFileCommand.NotifyCanExecuteChanged();
     }
 }

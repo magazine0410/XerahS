@@ -130,6 +130,17 @@ namespace XerahS.UI.Views
             e.Handled = true;
         }
 
+        /// <summary>As in ShareX: Delete removes the selected entries from history, Shift+Delete also deletes their files.</summary>
+        private async void OnHistoryKeyDown(object? sender, KeyEventArgs e)
+        {
+            if (e.Key != Key.Delete || DataContext is not HistoryViewModel vm) return;
+            HistoryItem? item = vm.SelectedHistoryItems.FirstOrDefault();
+            if (item == null) return;
+            e.Handled = true;
+            if (e.KeyModifiers.HasFlag(KeyModifiers.Shift)) await vm.DeleteFileCommand.ExecuteAsync(item);
+            else await vm.DeleteItemCommand.ExecuteAsync(item);
+        }
+
         private static void SyncSelection(ListBox? targetListBox, ListBox sourceListBox, IReadOnlyCollection<HistoryItem> selectedItems)
         {
             if (targetListBox == null || ReferenceEquals(targetListBox, sourceListBox) || targetListBox.SelectedItems == null)

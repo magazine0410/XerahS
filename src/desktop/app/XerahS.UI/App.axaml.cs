@@ -729,6 +729,11 @@ public partial class App : Application
                     ApplyMenuContext(menuItem.Items, context);
                 }
             }
+            else if (item is Separator separator)
+            {
+                // A separator that is only shown in one context binds its visibility to the context too.
+                separator.DataContext = context;
+            }
         }
     }
 

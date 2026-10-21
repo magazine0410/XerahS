@@ -36,6 +36,65 @@ namespace XerahS.History
             return string.Format("{0}: {1} ({2:N0}%)", grouping.Key, grouping.Count(), percentage);
         }
 
+        /// <summary>
+        /// Formats tags for editing, one <c>key=value</c> per line, ordered by key, as ShareX's "Edit item" does.
+        /// </summary>
+        public static string FormatTags(IDictionary<string, string?>? tags)
+        {
+            if (tags == null || tags.Count == 0) return string.Empty;
+            return string.Join(Environment.NewLine, tags.OrderBy(pair => pair.Key, StringComparer.Ordinal).Select(pair => $"{pair.Key}={pair.Value}"));
+        }
+
+        /// <summary>
+        /// Parses tags edited as one <c>key=value</c> per line, as ShareX's "Edit item" does: a line without "=" is a key with no value.
+        /// </summary>
+        public static Dictionary<string, string?> ParseTags(string? text)
+        {
+            Dictionary<string, string?> tags = new();
+            foreach (string line in (text ?? string.Empty).Split(["\r\n", "\n"], StringSplitOptions.RemoveEmptyEntries))
+            {
+                int separator = line.IndexOf('=');
+                string key = (separator >= 0 ? line[..separator] : line).Trim();
+                if (!string.IsNullOrWhiteSpace(key))
+                {
+                    tags[key] = separator >= 0 ? line[(separator + 1)..] : null;
+                }
+            }
+            return tags;
+        }
+
+        /// <summary>
+        /// Creates history items for every file in a folder and its subfolders, dated by the file's last write time and
+        /// ordered by it, as ShareX's "Import folder" does. <paramref name="existingFilePaths"/> are skipped.
+        /// </summary>
+        public static List<HistoryItem> CreateImportItems(string folderPath, bool onlyImages, ISet<string>? existingFilePaths = null)
+        {
+            IEnumerable<string> files = Directory.EnumerateFiles(folderPath, "*.*", SearchOption.AllDirectories);
+            if (onlyImages)
+            {
+                files = files.Where(FileHelpers.IsImageFile);
+            }
+
+            List<HistoryItem> imported = [];
+            foreach (string file in files.OrderBy(File.GetLastWriteTime))
+            {
+                if (existingFilePaths != null && existingFilePaths.Count > 0 && existingFilePaths.Contains(file))
+                {
+                    continue;
+                }
+
+                imported.Add(new HistoryItem
+                {
+                    FileName = Path.GetFileName(file),
+                    FilePath = file,
+                    DateTime = File.GetLastWriteTime(file),
+                    Type = FileHelpers.IsImageFile(file) ? "Image" : FileHelpers.IsTextFile(file) ? "Text" : "File"
+                });
+            }
+
+            return imported;
+        }
+
         public static string OutputStats(List<HistoryItem> historyItems)
         {
             string empty = "(empty)";
@@ -43,7 +102,7 @@ namespace XerahS.History
 
             StringBuilder sb = new StringBuilder();
 
-            sb.AppendLine("History item counts");
+            sb.AppendLine("History item counts:");
             sb.AppendLine("Total: " + totalCount);
 
             IEnumerable<string> types = historyItems.
@@ -54,7 +113,7 @@ namespace XerahS.History
             sb.AppendLine(string.Join(Environment.NewLine, types));
 
             sb.AppendLine();
-            sb.AppendLine("Yearly usage");
+            sb.AppendLine("Yearly usages:");
 
             IEnumerable<string> yearlyUsages = historyItems.
                 GroupBy(x => x.DateTime.Year).
@@ -64,7 +123,7 @@ namespace XerahS.History
             sb.AppendLine(string.Join(Environment.NewLine, yearlyUsages));
 
             sb.AppendLine();
-            sb.AppendLine("File extensions");
+            sb.AppendLine("File extensions:");
 
             IEnumerable<string> fileExtensions = historyItems.
                 Where(x => !string.IsNullOrEmpty(x.FileName) && !x.FileName.EndsWith(")")).
@@ -76,7 +135,7 @@ namespace XerahS.History
             sb.AppendLine(string.Join(Environment.NewLine, fileExtensions));
 
             sb.AppendLine();
-            sb.AppendLine("Hosts");
+            sb.AppendLine("Hosts:");
 
             IEnumerable<string> hosts = historyItems.
                 GroupBy(x => string.IsNullOrWhiteSpace(x.Host) ? empty : x.Host).
@@ -86,7 +145,7 @@ namespace XerahS.History
             sb.AppendLine(string.Join(Environment.NewLine, hosts));
 
             sb.AppendLine();
-            sb.AppendLine("Process names");
+            sb.AppendLine("Process names:");
 
             IEnumerable<string> processNames = historyItems.
                 GroupBy(x => string.IsNullOrWhiteSpace(x.TagsProcessName) ? empty : x.TagsProcessName).

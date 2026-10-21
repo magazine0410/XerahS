@@ -44,6 +44,7 @@ public partial class HistoryViewModel
     [ObservableProperty] private string? _selectedType;
     [ObservableProperty] private bool _filterHost;
     [ObservableProperty] private string _hostFilter = string.Empty;
+    [ObservableProperty] private string _urlFilter = string.Empty;
     [ObservableProperty] private ObservableCollection<string> _availableTypes = new();
     [ObservableProperty] private bool _favoritesOnly;
     [ObservableProperty] private bool _rememberSearchText;
@@ -105,6 +106,7 @@ public partial class HistoryViewModel
     partial void OnSelectedTypeChanged(string? value) => ScheduleHistoryFilter();
     partial void OnFilterHostChanged(bool value) => ScheduleHistoryFilter();
     partial void OnHostFilterChanged(string value) => ScheduleHistoryFilter();
+    partial void OnUrlFilterChanged(string value) => ScheduleHistoryFilter();
 
     partial void OnFavoritesOnlyChanged(bool value)
     {
@@ -187,6 +189,7 @@ public partial class HistoryViewModel
         FromDate = ToDate = DateTime.Today;
         SelectedType = null;
         HostFilter = string.Empty;
+        UrlFilter = string.Empty;
         // As in ShareX, Reset filters leaves Favorites and the search text alone.
         ScheduleHistoryFilter();
     }

@@ -1,0 +1,31 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:XerahS.UI.ViewModels"
+             x:Class="XerahS.UI.Views.HistoryImportDialog"
+             x:DataType="vm:HistoryImportViewModel"
+             Width="540">
+
+    <Design.DataContext>
+        <vm:HistoryImportViewModel/>
+    </Design.DataContext>
+
+    <!-- ShareX's "Import folder" dialog. -->
+    <StackPanel Margin="24" Spacing="16">
+        <TextBlock Text="Import folder" Theme="{StaticResource SubtitleTextBlockStyle}"/>
+        <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
+            <TextBox Text="{Binding FolderPath, UpdateSourceTrigger=PropertyChanged}" PlaceholderText="Folder path"
+                     AutomationProperties.Name="Folder path"/>
+            <Button Grid.Column="1" Content="Browse..." Command="{Binding BrowseFolderCommand}" AutomationProperties.Name="Browse folder"/>
+        </Grid>
+        <StackPanel Spacing="8">
+            <CheckBox Content="Only import image files" IsChecked="{Binding OnlyImages}"/>
+            <CheckBox Content="Skip duplicate files" IsChecked="{Binding SkipDuplicates}"/>
+        </StackPanel>
+        <TextBlock Text="{Binding Status}" TextWrapping="Wrap" IsVisible="{Binding !!Status}"
+                   Foreground="{DynamicResource TextFillColorSecondaryBrush}"/>
+        <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Spacing="8">
+            <Button Content="Cancel" Command="{Binding CloseCommand}" IsCancel="True"/>
+            <Button Content="Import" Command="{Binding ImportCommand}" Classes="accent" IsDefault="True"/>
+        </StackPanel>
+    </StackPanel>
+</UserControl>

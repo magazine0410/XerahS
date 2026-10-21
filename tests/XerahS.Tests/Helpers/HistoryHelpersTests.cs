@@ -40,4 +40,25 @@ public class HistoryHelpersTests
         Assert.That(stats, Does.Not.Contain("NaN"));
         Assert.That(stats, Does.Not.Contain("∞"));
     }
+
+    [Test]
+    public void ParseTags_ReadsOneKeyValuePerLine_LikeShareX()
+    {
+        var tags = HistoryHelpers.ParseTags("WindowTitle=A=B\r\n Favorite \n\n=skipped\nEmpty=");
+        Assert.That(tags, Is.EqualTo(new Dictionary<string, string?>
+        {
+            ["WindowTitle"] = "A=B",
+            ["Favorite"] = null,
+            ["Empty"] = string.Empty
+        }));
+        Assert.That(HistoryHelpers.ParseTags(null), Is.Empty);
+    }
+
+    [Test]
+    public void FormatTags_ListsTagsByKey_OneKeyValuePerLine()
+    {
+        string text = HistoryHelpers.FormatTags(new Dictionary<string, string?> { ["b"] = "2", ["a"] = null });
+        Assert.That(text, Is.EqualTo("a=" + Environment.NewLine + "b=2"));
+        Assert.That(HistoryHelpers.FormatTags(null), Is.Empty);
+    }
 }

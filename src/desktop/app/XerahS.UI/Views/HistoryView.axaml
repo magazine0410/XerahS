@@ -73,6 +73,12 @@
                         </Button.Flyout>
                     </Button>
 
+                    <!-- As in ShareX's toolbar: statistics and folder import. -->
+                    <Button Content="Stats" Margin="0,0,8,0" Command="{Binding ShowStatsCommand}"
+                            IsEnabled="{Binding !IsLoading}" AutomationProperties.Name="History statistics"/>
+                    <Button Content="Import" Margin="0,0,8,0" Command="{Binding ImportFolderCommand}"
+                            IsEnabled="{Binding !IsLoading}" AutomationProperties.Name="Import folder"/>
+
                     <Button Content="Refresh" Command="{Binding RefreshHistoryCommand}" 
                             IsEnabled="{Binding !IsLoading}"
                             AutomationProperties.Name="Refresh History"/>
@@ -127,7 +133,10 @@
                                       IsEnabled="{Binding FilterType}" Margin="0,0,16,0" AutomationProperties.Name="File type"/>
                             <CheckBox Content="Host" IsChecked="{Binding FilterHost}" Margin="0,0,8,0"/>
                             <TextBox Text="{Binding HostFilter}" IsEnabled="{Binding FilterHost}" MinWidth="160"
-                                     PlaceholderText="Host contains" AutomationProperties.Name="Host"/>
+                                     PlaceholderText="Host contains" Margin="0,0,16,0" AutomationProperties.Name="Host"/>
+                            <TextBlock Text="URL" VerticalAlignment="Center" Margin="0,0,8,0"/>
+                            <TextBox Text="{Binding UrlFilter}" MinWidth="200"
+                                     PlaceholderText="URL contains" AutomationProperties.Name="URL"/>
                         </WrapPanel>
                         <Button Content="Reset filters" Command="{Binding ResetFiltersCommand}"/>
                     </StackPanel>
@@ -173,6 +182,7 @@
         <!-- Grid View -->
         <ListBox x:Name="GridHistoryListBox"
                  Grid.Row="2"
+                 KeyDown="OnHistoryKeyDown"
                  ItemsSource="{Binding HistoryItems}"
                  IsVisible="{Binding IsGridView}"
                  IsEnabled="{Binding !IsLoading}"
@@ -274,6 +284,7 @@
         <!-- List View -->
         <ListBox x:Name="ListHistoryListBox"
                  Grid.Row="2"
+                 KeyDown="OnHistoryKeyDown"
                  ItemsSource="{Binding HistoryItems}"
                  IsVisible="{Binding !IsGridView}"
                  IsEnabled="{Binding !IsLoading}"

@@ -220,6 +220,7 @@ namespace XerahS.UI.ViewModels
                 Type = SelectedType ?? string.Empty,
                 FilterHost = FilterHost,
                 Host = HostFilter ?? string.Empty,
+                URL = UrlFilter ?? string.Empty,
                 ImageOnly = IsGridView && ImagesOnly,
                 FilterMissingFiles = IsGridView && HideMissingFiles,
                 RequireFilePath = IsGridView
@@ -556,10 +557,19 @@ namespace XerahS.UI.ViewModels
                 await PersistHistoryItemAsync(item);
             }
 
+            ReplaceLoadedHistoryItem(item);
+        }
+
+        /// <summary>
+        /// Shows an entry's current values in the loaded rows by replacing it with a copy (the row templates bind once),
+        /// keeping the selection, as ShareX's RefreshVisibleItem does. Returns the copy, or null when the entry is not loaded.
+        /// </summary>
+        private HistoryItem? ReplaceLoadedHistoryItem(HistoryItem item)
+        {
             int index = HistoryItems.IndexOf(item);
             if (index < 0)
             {
-                return;
+                return null;
             }
 
             bool wasSelected = SelectedHistoryItems.Contains(item);
@@ -576,6 +586,8 @@ namespace XerahS.UI.ViewModels
                 SelectedHistoryItems.Add(refreshedItem);
                 NotifySelectionStateChanged();
             }
+
+            return refreshedItem;
         }
 
         private static bool SynchronizeAnnotationSidecarPath(HistoryItem item)
@@ -985,51 +997,51 @@ namespace XerahS.UI.ViewModels
             }
         }
 
+        /// <summary>"Delete from history...": deletes the entry, or every selected entry when the entry is selected, after one confirmation, as in ShareX.</summary>
         [RelayCommand]
-        private async Task DeleteItem(HistoryItem? item)
-        {
-            if (item == null) return;
+        private Task DeleteItem(HistoryItem? item) => DeleteHistoryItemsAsync(item, deleteFiles: false);
 
-            // Show confirmation dialog
-            var confirmDelete = await ShowDeleteConfirmationDialog(item.FileName);
-            if (!confirmDelete) return;
-
-            // Remove from the observable collection (UI update)
-            HistoryItems.Remove(item);
-
-            // Persist deletion to database
-            lock (_databaseLock) _historyManager.Delete(item);
-            new HistoryOcrIndexStore(SettingsManager.GetHistoryFilePath()).Delete(item.Id);
-            DebugHelper.WriteLine($"Deleted history item: {item.FileName}");
-            RemoveFromLoadedHistory(item);
-        }
+        /// <summary>"Delete file and history item...": also deletes the entries' files, as in ShareX.</summary>
+        [RelayCommand]
+        private Task DeleteFile(HistoryItem? item) => DeleteHistoryItemsAsync(item, deleteFiles: true);
 
         /// <summary>
-        /// Removes a deleted entry without reading the history again, so the grid keeps its loaded
+        /// Removes deleted entries without reading the history again, so the grid keeps its loaded
         /// batches and scroll position, and a list page is topped up from the next one.
         /// </summary>
-        private void RemoveFromLoadedHistory(HistoryItem item)
+        private void RemoveFromLoadedHistory(IReadOnlyCollection<HistoryItem> items)
         {
-            _allHistoryItems?.Remove(item);
-            int filteredIndex = _filteredHistoryItems.IndexOf(item);
-            if (filteredIndex < 0) return;
-            _filteredHistoryItems.RemoveAt(filteredIndex);
+            var removed = new HashSet<HistoryItem>(items);
+            foreach (HistoryItem item in items)
+            {
+                HistoryItems.Remove(item);
+                SelectedHistoryItems.Remove(item);
+            }
+
+            _allHistoryItems?.RemoveAll(removed.Contains);
+            if (_filteredHistoryItems.RemoveAll(removed.Contains) == 0)
+            {
+                NotifyImageBatchChanged();
+                return;
+            }
+
             TotalItems = _filteredHistoryItems.Count;
             TotalPages = Math.Max(1, (int)Math.Ceiling((double)TotalItems / Math.Max(1, PageSize)));
 
             if (!IsGridView)
             {
                 int pageSize = Math.Max(1, PageSize);
-                int pageEnd = CurrentPage * pageSize;
                 if (HistoryItems.Count == 0 && CurrentPage > 1)
                 {
                     CurrentPage = Math.Min(CurrentPage - 1, TotalPages);
                     ShowCurrentItems();
                     return;
                 }
-                if (HistoryItems.Count < pageSize && pageEnd - 1 < _filteredHistoryItems.Count)
+
+                int pageStart = (CurrentPage - 1) * pageSize;
+                for (int next = pageStart + HistoryItems.Count; HistoryItems.Count < pageSize && next < _filteredHistoryItems.Count; next++)
                 {
-                    HistoryItems.Add(_filteredHistoryItems[pageEnd - 1]);
+                    HistoryItems.Add(_filteredHistoryItems[next]);
                 }
             }
 
@@ -1069,13 +1081,6 @@ namespace XerahS.UI.ViewModels
             ShowCloudToast(
                 deleted ? "Deleted from host" : "Delete from host failed",
                 deleted ? item.FileName : "See the XerahS log for details.");
-        }
-
-        private Task<bool> ShowDeleteConfirmationDialog(string fileName)
-        {
-            return _coreDialogService.ShowConfirmationAsync(
-                "Confirm Delete",
-                $"Are you sure you want to delete '{fileName}' from history?\n\nThis action cannot be undone.");
         }
 
         private TaskSettings GetUploadTaskSettings()
