@@ -99,8 +99,10 @@ public sealed class OverlayManager : IDisposable
                 : null;
             initialActiveMonitor = ActiveMonitorCoordinator.ResolveInitialActiveMonitor(monitors, cursor);
 
-            // With the cursor confined to the active monitor (Windows), the other monitors need no overlay.
-            if (initialActiveMonitor != null && CursorConfinementService.IsSupported)
+            // With the cursor reliably confined to the active monitor (Windows), the other monitors need no
+            // overlay. An X pointer grab can be refused or dropped by the compositor without notice, so on
+            // Linux the other monitors keep their inactive overlays behind the confinement.
+            if (initialActiveMonitor != null && CursorConfinementService.ConfinesReliably)
                 monitors = [initialActiveMonitor];
         }
         else

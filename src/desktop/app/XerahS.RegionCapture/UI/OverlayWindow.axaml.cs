@@ -211,8 +211,7 @@ public partial class OverlayWindow : Window
 
         // The capture pointer handlers also apply the active monitor mode state; see OverlayWindow.ActiveMonitor.cs.
         AddHandler(PointerWheelChangedEvent, OnMonitorStatePointerEvent, Avalonia.Interactivity.RoutingStrategies.Tunnel);
-        Activated += (_, _) => UpdateCursorConfinement();
-        Deactivated += (_, _) => UpdateCursorConfinement();
+        // The cursor confinement follows IsActive (see OnPropertyChanged in OverlayWindow.ActiveMonitor.cs).
 
         AddHandler(PointerPressedEvent, OnCapturePointerPressed, Avalonia.Interactivity.RoutingStrategies.Tunnel);
         AddHandler(PointerMovedEvent, OnCapturePointerMoved, Avalonia.Interactivity.RoutingStrategies.Tunnel);

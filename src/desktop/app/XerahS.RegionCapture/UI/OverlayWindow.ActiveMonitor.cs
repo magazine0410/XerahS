@@ -23,8 +23,10 @@
 
 #endregion License Information (GPL v3)
 
+using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Input;
+using XerahS.Common;
 using XerahS.RegionCapture.Services;
 
 namespace XerahS.RegionCapture.UI;
@@ -47,7 +49,14 @@ internal enum OverlayMonitorState
 public partial class OverlayWindow
 {
     private OverlayMonitorState _monitorState = OverlayMonitorState.Active;
-    private bool _cursorConfined;
+    private CursorConfinement? _cursorConfinement;
+    private long _nextConfinementRetryTick;
+
+    /// <summary>How long a failed cursor confinement waits before pointer movement retries it.</summary>
+    internal static int ConfinementRetryIntervalMs { get; set; } = 1000;
+
+    /// <summary>The cursor is confined to this overlay's monitor.</summary>
+    internal bool IsCursorConfined => _cursorConfinement is { IsReleased: false };
 
     internal OverlayMonitorState MonitorState => _monitorState;
 
@@ -77,6 +86,7 @@ public partial class OverlayWindow
     protected override void OnPointerEntered(PointerEventArgs e)
     {
         base.OnPointerEntered(e);
+        KeepCursorConfined(pointerEntered: true);
         // Compositors send an enter when the overlay appears under a stationary pointer.
         // This must choose the monitor even before the first motion or button event.
         if (!HandleMonitorStatePointerEvent(e))
@@ -140,7 +150,11 @@ public partial class OverlayWindow
     /// </summary>
     private bool HandleMonitorStatePointerEvent(PointerEventArgs e)
     {
-        if (_monitorState == OverlayMonitorState.Pending)
+        if (_monitorState == OverlayMonitorState.Active)
+        {
+            KeepCursorConfined(pointerEntered: false);
+        }
+        else if (_monitorState == OverlayMonitorState.Pending)
         {
             PointerActivity?.Invoke(this);
         }
@@ -197,25 +211,69 @@ public partial class OverlayWindow
             _annotationCanvas.Cursor = arrow;
     }
 
+    protected override void OnPropertyChanged(AvaloniaPropertyChangedEventArgs change)
+    {
+        base.OnPropertyChanged(change);
+
+        // Avalonia raises Activated before it sets IsActive and Deactivated after it clears it, so the
+        // confinement follows the property: ShareX clips on Activated and releases on Deactivate.
+        if (change.Property == IsActiveProperty)
+            UpdateCursorConfinement();
+    }
+
     /// <summary>
-    /// Confines the cursor to the active monitor while its overlay has focus, like ShareX does.
-    /// Only supported on Windows; elsewhere the inactive overlays block input on other monitors instead.
+    /// Confines the cursor to the active monitor while its overlay has focus, like ShareX does
+    /// (Helpers.LockCursorToWindow clips on Activated and releases on Deactivate). Windows clips the
+    /// cursor; on X11 and XWayland the overlay holds a pointer grab confined to its window.
     /// </summary>
     private void UpdateCursorConfinement()
     {
-        bool confine = _options.ActiveMonitorMode &&
-                       _monitorState == OverlayMonitorState.Active &&
-                       IsActive &&
-                       !_windowClosed;
+        if (ShouldConfineCursor())
+        {
+            if (IsCursorConfined || !CursorConfinementService.IsSupported)
+                return;
 
-        if (confine && !_cursorConfined)
-        {
-            _cursorConfined = CursorConfinementService.TryConfine(_monitor.PhysicalBounds);
+            _cursorConfinement = CursorConfinementService.TryConfine(this, _monitor.PhysicalBounds);
+            if (_cursorConfinement != null)
+                DebugHelper.WriteLine($"[OverlayWindow] {_monitor.DeviceName}: cursor confined to the active monitor");
         }
-        else if (!confine && _cursorConfined)
+        else if (_cursorConfinement != null)
         {
-            CursorConfinementService.Release();
-            _cursorConfined = false;
+            _cursorConfinement.Release();
+            _cursorConfinement = null;
         }
+    }
+
+    private bool ShouldConfineCursor() =>
+        _options.ActiveMonitorMode &&
+        _monitorState == OverlayMonitorState.Active &&
+        IsActive &&
+        !_windowClosed;
+
+    /// <summary>
+    /// Called on pointer input. A confinement that failed (the overlay was not viewable yet, or another
+    /// client held the pointer) is retried, at most once per <see cref="ConfinementRetryIntervalMs"/> on
+    /// movement and always on entry. A held confinement is re-asserted when the pointer re-enters the
+    /// overlay: through XWayland the compositor drops its constraint whenever another surface, such as a
+    /// flyout of this overlay, takes the pointer, and only a new grab brings it back.
+    /// </summary>
+    private void KeepCursorConfined(bool pointerEntered)
+    {
+        if (!ShouldConfineCursor() || !CursorConfinementService.IsSupported)
+            return;
+
+        if (IsCursorConfined)
+        {
+            if (pointerEntered)
+                _cursorConfinement!.Reassert();
+            return;
+        }
+
+        long now = Environment.TickCount64;
+        if (!pointerEntered && now < _nextConfinementRetryTick)
+            return;
+
+        _nextConfinementRetryTick = now + ConfinementRetryIntervalMs;
+        UpdateCursorConfinement();
     }
 }

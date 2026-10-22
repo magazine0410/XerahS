@@ -11,6 +11,14 @@
         WindowStartupLocation="Manual"
         ExtendClientAreaToDecorationsHint="True">
 
+    <Window.Styles>
+        <!-- Tooltips are drawn inside the overlay window. As windows of their own they would take the pointer
+             from the overlay's surface on XWayland, which ends the cursor confinement of active monitor mode. -->
+        <Style Selector=":is(Control)">
+            <Setter Property="ToolTip.ShouldUseOverlayLayer" Value="True"/>
+        </Style>
+    </Window.Styles>
+
     <Grid x:Name="OverlayRoot">
         <!-- Region Capture Control Layer -->
         <Panel x:Name="RootPanel" IsHitTestVisible="True">

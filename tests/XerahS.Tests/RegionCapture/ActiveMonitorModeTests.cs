@@ -66,6 +66,50 @@ public class ActiveMonitorModeTests
     [TearDown]
     public void RestoreFocusRetries() => OverlayWindow.FocusRetryDelayMs = _focusRetryDelays;
 
+    private ConfinementLog _confinements = new();
+
+    // The platform confinement (ClipCursor, an X pointer grab) is replaced by a recorder, so every test
+    // sees the same requests whatever the machine running it offers.
+    [SetUp]
+    public void RecordConfinements()
+    {
+        _confinements = new ConfinementLog();
+        CursorConfinementService.ConfineOverride = _confinements.Confine;
+    }
+
+    [TearDown]
+    public void ForgetConfinements()
+    {
+        CursorConfinementService.ReleaseCurrent();
+        CursorConfinementService.ConfineOverride = null;
+    }
+
+    private sealed class ConfinementLog
+    {
+        public List<(Window Overlay, CaptureRect Bounds)> Attempts { get; } = [];
+        public List<CursorConfinement> Granted { get; } = [];
+        public int Reasserted { get; private set; }
+        public bool Refuse { get; set; }
+
+        public CursorConfinement? Confine(Window overlay, CaptureRect bounds)
+        {
+            Attempts.Add((overlay, bounds));
+            if (Refuse)
+                return null;
+
+            var confinement = new CursorConfinement(release: () => { }, reassert: () => Reasserted++);
+            Granted.Add(confinement);
+            return confinement;
+        }
+    }
+
+    private static void EnterPointer(OverlayWindow window)
+    {
+        using var pointer = new Pointer(Pointer.GetNextFreeId(), PointerType.Mouse, true);
+        window.RaiseEvent(new PointerEventArgs(InputElement.PointerEnteredEvent, window, pointer,
+            window, new Point(100, 100), 0, new PointerPointProperties(), KeyModifiers.None));
+    }
+
     private sealed class Session : IDisposable
     {
         public required OverlayWindow Left { get; init; }
@@ -384,5 +428,113 @@ public class ActiveMonitorModeTests
         session.Left.RetryFocus();
         Assert.That(session.Right.IsKeyboardFocusWithin, Is.True);
         Assert.That(session.Left.IsKeyboardFocusWithin, Is.False);
+    }
+
+    [AvaloniaTest]
+    public void ActiveOverlay_ConfinesTheCursorToItsMonitorOnceActivated_AndReleasesItWhenClosed()
+    {
+        using var session = Open(rightIsInitiallyActive: true);
+        Assert.That(_confinements.Attempts, Is.Empty, "No confinement before the overlay is activated.");
+
+        Dispatcher.UIThread.RunJobs();
+        Assert.That(_confinements.Attempts, Is.EqualTo(new[] { (session.Right, RightBounds) }));
+        Assert.That(session.Right.IsCursorConfined, Is.True);
+        Assert.That(session.Left.IsCursorConfined, Is.False);
+        Assert.That(CursorConfinementService.Current, Is.SameAs(_confinements.Granted.Single()));
+
+        session.Right.Close();
+        Assert.That(_confinements.Granted.Single().IsReleased, Is.True);
+        Assert.That(session.Right.IsCursorConfined, Is.False);
+        Assert.That(CursorConfinementService.Current, Is.Null);
+    }
+
+    [AvaloniaTest]
+    public void UnknownCursor_FirstPointerInputConfinesTheCursorToThatMonitor()
+    {
+        using var session = Open();
+        Dispatcher.UIThread.RunJobs();
+        Assert.That(_confinements.Attempts, Is.Empty, "Pending overlays do not confine the cursor.");
+
+        session.Right.MouseMove(new Point(100, 100));
+        Assert.That(_confinements.Attempts, Is.EqualTo(new[] { (session.Right, RightBounds) }));
+        Assert.That(session.Right.IsCursorConfined, Is.True);
+
+        session.Left.MouseMove(new Point(100, 100));
+        Assert.That(_confinements.Attempts, Has.Count.EqualTo(1), "The inactive overlay never confines the cursor.");
+        Assert.That(session.Left.IsCursorConfined, Is.False);
+    }
+
+    [AvaloniaTest]
+    public void RefusedConfinement_IsRetriedOnMovementAfterTheInterval_AndWhenThePointerEnters()
+    {
+        _confinements.Refuse = true;
+        using var session = Open(rightIsInitiallyActive: true);
+        Dispatcher.UIThread.RunJobs();
+        Assert.That(_confinements.Attempts, Has.Count.EqualTo(1));
+        Assert.That(session.Right.IsCursorConfined, Is.False);
+
+        // The first movement retries at once; the next one waits for the retry interval.
+        session.Right.MouseMove(new Point(100, 100));
+        session.Right.MouseMove(new Point(110, 100));
+        Assert.That(_confinements.Attempts, Has.Count.EqualTo(2));
+
+        _confinements.Refuse = false;
+        EnterPointer(session.Right);
+        Assert.That(_confinements.Attempts, Has.Count.EqualTo(3));
+        Assert.That(session.Right.IsCursorConfined, Is.True);
+        Assert.That(_confinements.Reasserted, Is.Zero);
+    }
+
+    [AvaloniaTest]
+    public void PointerReturningToTheOverlay_ReassertsTheConfinement()
+    {
+        using var session = Open(rightIsInitiallyActive: true);
+        Dispatcher.UIThread.RunJobs();
+        Assert.That(session.Right.IsCursorConfined, Is.True);
+
+        EnterPointer(session.Right);
+        EnterPointer(session.Right);
+        Assert.That(_confinements.Reasserted, Is.EqualTo(2));
+        Assert.That(_confinements.Attempts, Has.Count.EqualTo(1), "A held confinement is re-asserted, not replaced.");
+
+        // Movement alone does not re-assert.
+        session.Right.MouseMove(new Point(100, 100));
+        Assert.That(_confinements.Reasserted, Is.EqualTo(2));
+
+        // Entering the inactive overlay changes nothing.
+        EnterPointer(session.Left);
+        Assert.That(_confinements.Reasserted, Is.EqualTo(2));
+        Assert.That(_confinements.Attempts, Has.Count.EqualTo(1));
+    }
+
+    [AvaloniaTest]
+    public void Deactivation_ReleasesTheConfinement_AndActivationConfinesAgain()
+    {
+        using var session = Open(rightIsInitiallyActive: true);
+        Dispatcher.UIThread.RunJobs();
+        var first = _confinements.Granted.Single();
+
+        session.Right.Hide();
+        Dispatcher.UIThread.RunJobs();
+        Assert.That(first.IsReleased, Is.True);
+        Assert.That(session.Right.IsCursorConfined, Is.False);
+
+        session.Right.Show();
+        Dispatcher.UIThread.RunJobs();
+        Assert.That(_confinements.Granted, Has.Count.EqualTo(2));
+        Assert.That(session.Right.IsCursorConfined, Is.True);
+        Assert.That(_confinements.Granted[1].IsReleased, Is.False);
+    }
+
+    [AvaloniaTest]
+    public void OverlayTurnedInactive_ReleasesItsConfinement()
+    {
+        using var session = Open(rightIsInitiallyActive: true);
+        Dispatcher.UIThread.RunJobs();
+        Assert.That(session.Right.IsCursorConfined, Is.True);
+
+        session.Right.SetMonitorState(OverlayMonitorState.Inactive);
+        Assert.That(_confinements.Granted.Single().IsReleased, Is.True);
+        Assert.That(session.Right.IsCursorConfined, Is.False);
     }
 }
