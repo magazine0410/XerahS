@@ -527,6 +527,29 @@ namespace XerahS.Platform.Linux
             }
 
             bool transparent = options?.CaptureTransparent == true && options.CaptureClientArea != true;
+            // As in ShareX, "Hide taskbar when it intersects a captured window" hides the panels under the area the
+            // capture covers: the window (widened by the shadow offset for a shadowed transparent capture) or its client area.
+            IAsyncDisposable? hiddenPanels = null;
+            if (options?.AutoHideTaskbar == true && PlatformServices.CapturePreparation is { CanHidePanels: true } preparation)
+            {
+                var area = options.CaptureClientArea ? windowService.GetWindowClientBounds(windowHandle) : windowService.GetWindowBounds(windowHandle);
+                if (transparent && options.CaptureShadow) area.Inflate(options.ShadowOffset, options.ShadowOffset);
+                try { hiddenPanels = await preparation.HidePanelsIntersectingAsync(area, CancellationToken.None).ConfigureAwait(false); }
+                catch (Exception ex) { DebugHelper.WriteException(ex, "LinuxScreenCaptureService: the panels could not be hidden for the capture"); }
+            }
+
+            try
+            {
+                return await CaptureWindowCoreAsync(windowHandle, windowService, options, transparent).ConfigureAwait(false);
+            }
+            finally
+            {
+                if (hiddenPanels != null) await hiddenPanels.DisposeAsync().ConfigureAwait(false);
+            }
+        }
+
+        private async Task<SKBitmap?> CaptureWindowCoreAsync(IntPtr windowHandle, IWindowService windowService, CaptureOptions? options, bool transparent)
+        {
             if (transparent && KWinWindowManager.TryGetId(windowHandle, out string kwinWindowId))
             {
                 var transparentBitmap = await KdeDbusScreenCapture.CaptureWindowAsync(kwinWindowId, options).ConfigureAwait(false);

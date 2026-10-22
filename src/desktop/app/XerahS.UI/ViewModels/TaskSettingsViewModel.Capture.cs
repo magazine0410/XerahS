@@ -578,6 +578,33 @@ namespace XerahS.UI.ViewModels
             }
         }
 
+        public bool CaptureAutoHideDesktopIcons
+        {
+            get => CaptureSource.CaptureSettings.CaptureAutoHideDesktopIcons;
+            set
+            {
+                if (CaptureSource.CaptureSettings.CaptureAutoHideDesktopIcons != value)
+                {
+                    CaptureSource.CaptureSettings.CaptureAutoHideDesktopIcons = value;
+                    OnPropertyChanged();
+                }
+            }
+        }
+
+        public int CaptureShadowOffset
+        {
+            get => CaptureSource.CaptureSettings.CaptureShadowOffset;
+            set
+            {
+                int clamped = Math.Clamp(value, 0, 1000);
+                if (CaptureSource.CaptureSettings.CaptureShadowOffset != clamped)
+                {
+                    CaptureSource.CaptureSettings.CaptureShadowOffset = clamped;
+                    OnPropertyChanged();
+                }
+            }
+        }
+
         public string CaptureCustomWindow
         {
             get => CaptureSource.CaptureSettings.CaptureCustomWindow;

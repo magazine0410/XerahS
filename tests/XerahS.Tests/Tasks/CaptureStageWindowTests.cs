@@ -85,6 +85,40 @@ public class CaptureStageWindowTests
         });
     }
 
+    [Test]
+    public async Task Workflow_ForwardsShadowOffsetAndTaskbarHiding()
+    {
+        var settings = new TaskSettings { Job = WorkflowType.ActiveWindow };
+        settings.CaptureSettings.CaptureShadowOffset = 42;
+        settings.CaptureSettings.CaptureAutoHideTaskbar = true;
+        using var worker = WorkerTask.Create(settings);
+        await new CaptureStage(worker).ExecuteAsync(new PipelineContext { Info = worker.Info }, CancellationToken.None);
+        Assert.Multiple(() =>
+        {
+            Assert.That(Capture.Options!.ShadowOffset, Is.EqualTo(42));
+            Assert.That(Capture.Options.AutoHideTaskbar, Is.True);
+        });
+    }
+
+    [TestCase(WorkflowType.PrintScreen, true, true), TestCase(WorkflowType.ActiveWindow, true, true), TestCase(WorkflowType.PrintScreen, false, false),
+     TestCase(WorkflowType.ClipboardUpload, true, false)]
+    public async Task DesktopIcons_AreHiddenAroundScreenCapturesOnly_AndShownAgainAfterAFailure(WorkflowType job, bool option, bool expected)
+    {
+        var preparation = new PreparationFake();
+        PlatformServices.CapturePreparation = preparation;
+        Capture.ThrowOnCapture = true;
+        var settings = new TaskSettings { Job = job };
+        settings.CaptureSettings.CaptureAutoHideDesktopIcons = option;
+        using var worker = WorkerTask.Create(settings);
+        try { await new CaptureStage(worker).ExecuteAsync(new PipelineContext { Info = worker.Info }, CancellationToken.None); }
+        catch (IOException) { /* the capture's failure propagates, as before */ }
+        Assert.Multiple(() =>
+        {
+            Assert.That(preparation.Hidden, Is.EqualTo(expected));
+            Assert.That(preparation.Active, Is.False, "The icons are shown again when the capture ends, even by an exception.");
+        });
+    }
+
     [TestCase(false), TestCase(true)]
     public async Task CustomWindow_CapturesSelectedIdentityAfterRestoreAndActivation(bool named)
     {
@@ -142,6 +176,27 @@ public class CaptureStageWindowTests
     }
 
     private static T Stub<T>() where T : class => DispatchProxy.Create<T, EmptyProxy>();
+
+    private sealed class PreparationFake : ICapturePreparationService
+    {
+        public bool Hidden, Active;
+        public bool CanHidePanels => true;
+        public bool CanHideDesktopIcons => true;
+        public Task<IAsyncDisposable?> HidePanelsIntersectingAsync(Rectangle bounds, CancellationToken token) => Task.FromResult<IAsyncDisposable?>(null);
+
+        public Task<IAsyncDisposable?> HideDesktopIconsAsync(CancellationToken token)
+        {
+            Hidden = Active = true;
+            return Task.FromResult<IAsyncDisposable?>(new Scope(this));
+        }
+
+        public Task RecoverAsync() => Task.CompletedTask;
+
+        private sealed class Scope(PreparationFake owner) : IAsyncDisposable
+        {
+            public ValueTask DisposeAsync() { owner.Active = false; return ValueTask.CompletedTask; }
+        }
+    }
     public class EmptyProxy : DispatchProxy
     {
         protected override object? Invoke(MethodInfo? method, object?[]? args) =>

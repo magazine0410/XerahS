@@ -61,6 +61,20 @@ public class KWinWindowManagerTests
         }
         """;
 
+    [Test]
+    public void ParseSnapshot_KeepsTheDockAndFullScreenFlags()
+    {
+        string json = SnapshotJson.Replace("\"maximized\": true,", "\"maximized\": true, \"fullScreen\": true,");
+        using var document = JsonDocument.Parse(json);
+        KWinSnapshot snapshot = KWinWindowManager.ParseSnapshot(document.RootElement)!;
+        Assert.Multiple(() =>
+        {
+            Assert.That(snapshot.Windows.Single(w => w.Id == "{ffff}").Dock, Is.True);
+            Assert.That(snapshot.Windows.Single(w => w.Id == "{bbbb}").FullScreen, Is.True);
+            Assert.That(snapshot.Windows.Single(w => w.Id == "{aaaa}").FullScreen, Is.False);
+        });
+    }
+
     private static KWinSnapshot Parse()
     {
         using var document = JsonDocument.Parse(SnapshotJson);

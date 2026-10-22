@@ -69,6 +69,15 @@ namespace XerahS.Platform.Abstractions
         public bool UseTransparentOverlay { get; set; } = false;
 
         public bool CaptureShadow { get; set; } = true;
+
+        /// <summary>
+        /// ShareX's shadow offset: how far around a window the capture reaches for its shadow. On Linux the
+        /// compositor supplies the shadow itself, so the offset only widens the area checked for panels to hide.
+        /// </summary>
+        public int ShadowOffset { get; set; } = 100;
+
+        /// <summary>For window captures: hide the panels ("taskbar") that the captured window intersects, as in ShareX.</summary>
+        public bool AutoHideTaskbar { get; set; }
         public bool CaptureClientArea { get; set; } = false;
 
         /// <summary>

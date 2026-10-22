@@ -141,6 +141,13 @@ namespace XerahS.Platform.Linux
             PlatformServices.SoundPlayback = new LinuxSoundPlaybackService();
 
             PlatformServices.ScrollingCapture = new LinuxScrollingCaptureService();
+            // ShareX's capture preparation (hide intersecting panels, hide desktop icons) through Plasma's shell scripting.
+            if (!environment.IsSandboxed && Services.Kde.KdeTemporaryShortcut.IsKdeSession())
+            {
+                var preparation = new Services.Kde.KdeCapturePreparationService();
+                PlatformServices.CapturePreparation = preparation;
+                _ = Task.Run(preparation.RecoverAsync);
+            }
 
             // Initialize theme service for dark mode detection
             PlatformServices.Theme = new LinuxThemeService();

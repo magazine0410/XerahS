@@ -105,8 +105,16 @@
                                     <StackPanel Spacing="10">
                                         <CheckBox IsChecked="{Binding CaptureTransparent}" Content="Capture transparency"/>
                                         <CheckBox IsChecked="{Binding CaptureShadow}" Content="Capture window shadow" IsEnabled="{Binding CaptureTransparent}" Margin="24,0,0,0"/>
+                                        <StackPanel Orientation="Horizontal" Spacing="8" Margin="24,0,0,0" IsEnabled="{Binding CaptureTransparent}">
+                                            <TextBlock Text="Shadow offset:" VerticalAlignment="Center"/>
+                                            <NumericUpDown Value="{Binding CaptureShadowOffset}" Minimum="0" Maximum="1000" Increment="10" FormatString="0" MinWidth="120"
+                                                           AutomationProperties.Name="Shadow offset"/>
+                                        </StackPanel>
+                                        <TextBlock Text="On Linux the compositor supplies the shadow at its real size; the offset only widens the area checked for panels to hide."
+                                                   Margin="24,0,0,0" FontSize="12" TextWrapping="Wrap" Foreground="{DynamicResource TextFillColorSecondaryBrush}"/>
                                         <CheckBox IsChecked="{Binding CaptureClientArea}" Content="Capture client area (remove window chrome)"/>
-                                        <CheckBox IsChecked="{Binding CaptureAutoHideTaskbar}" Content="Auto hide taskbar during capture"/>
+                                        <CheckBox IsChecked="{Binding CaptureAutoHideTaskbar}" Content="Hide taskbar when it intersects a captured window"/>
+                                        <CheckBox IsChecked="{Binding CaptureAutoHideDesktopIcons}" Content="Automatically hide desktop icons"/>
                                     </StackPanel>
                                 </StackPanel>
                             </Border>

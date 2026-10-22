@@ -159,7 +159,6 @@ namespace XerahS.Core.Tasks.Pipeline
 
             XerahS.Common.TroubleshootingHelper.Log(taskSettings!.Job.ToString(), "WORKER_TASK", "Entering capture phase (pipeline)");
 
-            SKBitmap? image = null;
             var captureStopwatch = Stopwatch.StartNew();
             DebugHelper.WriteLine($"Capture start: Job={taskSettings.Job}");
 
@@ -186,6 +185,8 @@ namespace XerahS.Core.Tasks.Pipeline
                 UseTransparentOverlay = useTransparentOverlay,
                 CaptureTransparent = captureSettings.CaptureTransparent,
                 CaptureShadow = captureSettings.CaptureShadow,
+                ShadowOffset = captureSettings.CaptureShadowOffset,
+                AutoHideTaskbar = captureSettings.CaptureAutoHideTaskbar,
                 CaptureClientArea = captureSettings.CaptureClientArea,
                 WorkflowId = taskSettings.WorkflowId,
                 WorkflowCategory = workflowCategory
@@ -208,6 +209,33 @@ namespace XerahS.Core.Tasks.Pipeline
                 return PipelineStageResult.Stop;
             }
 
+            // As in ShareX, "Automatically hide desktop icons" hides them before a screen capture, including its
+            // region selection, and shows them again when the capture has ended, however it ended.
+            IAsyncDisposable? hiddenDesktopIcons = null;
+            if (captureSettings.CaptureAutoHideDesktopIcons &&
+                workflowCategory == EnumExtensions.WorkflowType_Category_ScreenCapture &&
+                PlatformServices.CapturePreparation is { CanHideDesktopIcons: true } preparation)
+            {
+                try { hiddenDesktopIcons = await preparation.HideDesktopIconsAsync(token); }
+                catch (Exception ex) { DebugHelper.WriteException(ex, "The desktop icons could not be hidden for the capture"); }
+            }
+
+            try
+            {
+                return await CaptureJobAsync(context, taskSettings, captureSettings, metadata, captureOptions, isScreenCaptureDelay, isScreenRecordDelay,
+                    captureDelaySeconds, workflowCategory, captureStopwatch, token);
+            }
+            finally
+            {
+                if (hiddenDesktopIcons != null) await hiddenDesktopIcons.DisposeAsync();
+            }
+        }
+
+        private async Task<PipelineStageResult> CaptureJobAsync(PipelineContext context, TaskSettings taskSettings, TaskSettingsCapture captureSettings,
+            TaskMetadata metadata, CaptureOptions captureOptions, bool isScreenCaptureDelay, bool isScreenRecordDelay, double captureDelaySeconds, string workflowCategory,
+            Stopwatch captureStopwatch, CancellationToken token)
+        {
+            SKBitmap? image = null;
             switch (taskSettings.Job)
             {
                 case WorkflowType.ClipboardUpload:

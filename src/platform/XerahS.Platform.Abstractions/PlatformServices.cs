@@ -217,6 +217,9 @@ namespace XerahS.Platform.Abstractions
         /// <summary>Optional platform notification sound playback.</summary>
         public static ISoundPlaybackService? SoundPlayback { get; set; }
 
+        /// <summary>Optional temporary desktop changes around a capture (panel and desktop icon hiding).</summary>
+        public static ICapturePreparationService? CapturePreparation { get; set; }
+
         private static IScrollingCaptureService? _scrollingCaptureService;
 
         /// <summary>
@@ -365,6 +368,7 @@ namespace XerahS.Platform.Abstractions
         public static void Reset()
         {
             SoundPlayback = null;
+            CapturePreparation = null;
             lock (InitializedCallbacksLock)
             {
                 _initializedCallbacks = new List<Action>();

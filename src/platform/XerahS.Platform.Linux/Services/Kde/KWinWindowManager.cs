@@ -44,7 +44,10 @@ internal sealed record KWinWindow(
     bool KeepAbove,
     bool NoBorder,
     bool Listed,
-    bool IsNotification = false);
+    bool IsNotification = false,
+    bool Dock = false,
+    bool FullScreen = false,
+    bool Hidden = false);
 
 /// <summary>The window stack (bottom to top), the active window, and the pointer position.</summary>
 internal sealed record KWinSnapshot(IReadOnlyList<KWinWindow> Windows, string? ActiveWindowId, Point CursorPosition);
@@ -214,6 +217,7 @@ internal sealed class KWinWindowManager
                     client: rect(w.clientGeometry),
                     minimized: w.minimized,
                     maximized: w.maximizeMode === 3,
+                    fullScreen: w.fullScreen,
                     keepAbove: w.keepAbove,
                     noBorder: w.noBorder,
                     managed: w.managed,
@@ -280,7 +284,10 @@ internal sealed class KWinWindowManager
                 GetBool(element, "keepAbove"),
                 GetBool(element, "noBorder"),
                 listed,
-                GetBool(element, "notification")));
+                GetBool(element, "notification"),
+                GetBool(element, "dock"),
+                GetBool(element, "fullScreen"),
+                GetBool(element, "hidden")));
         }
 
         return new KWinSnapshot(windows, GetString(root, "active"), cursor);
