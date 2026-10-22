@@ -24,6 +24,7 @@
 #endregion License Information (GPL v3)
 
 using System.IO.Pipes;
+using System.Net.Sockets;
 using System.Security.Cryptography;
 using System.Text;
 
@@ -38,8 +39,16 @@ namespace XerahS.Common
         public bool IsSingleInstance { get; private set; }
         public bool IsFirstInstance { get; private set; }
 
+        /// <summary>
+        /// Set when this instance is not the first one and could not pass its arguments to the first instance.
+        /// </summary>
+        public Exception? RedirectError { get; private set; }
+
         private const int MaxArgumentsLength = 100;
-        private const int ConnectTimeout = 5000;
+        private const int DefaultConnectTimeout = 5000;
+        private const int SocketProbeTimeout = 1000;
+
+        private readonly int connectTimeout;
 
         /// <summary>
         /// Darwin <c>sockaddr_un.sun_path</c> is 104 bytes. Linux allows 108.
@@ -65,18 +74,32 @@ namespace XerahS.Common
         }
 
         public SingleInstanceManager(string mutexName, string pipeName, bool isSingleInstance, string[] args)
+            : this(mutexName, pipeName, isSingleInstance, args, DefaultConnectTimeout)
+        {
+        }
+
+        internal SingleInstanceManager(string mutexName, string pipeName, bool isSingleInstance, string[] args, int connectTimeout)
         {
             MutexName = mutexName;
             PipeName = GetPlatformPipeName(pipeName);
             IsSingleInstance = isSingleInstance;
+            this.connectTimeout = connectTimeout;
 
             IsFirstInstance = !IsSingleInstance || TryAcquirePrimaryLock();
+
+            if (IsSingleInstance && IsFirstInstance && IsUnixSocketPath(PipeName) && IsUnixSocketListening(PipeName))
+            {
+                // The lock was free, yet an instance answers on the socket, for example one started by a version
+                // that kept its lock elsewhere. Creating a listener would unlink that instance's socket.
+                DebugHelper.WriteLine($"SingleInstanceManager: An instance is already listening on '{PipeName}'; passing the arguments to it.");
+                IsFirstInstance = false;
+            }
 
             if (IsSingleInstance)
             {
                 if (IsFirstInstance)
                 {
-                    TryRemoveStaleUnixSocket();
+                    TryRemoveStaleUnixSocket(PipeName);
                     cts = new CancellationTokenSource();
 
                     Task.Run(ListenForConnectionsAsync, cts.Token);
@@ -129,23 +152,73 @@ namespace XerahS.Common
             return path.Length >= 1 && path.Length <= UnixDomainSocketPathMaxLength;
         }
 
-        private void TryRemoveStaleUnixSocket()
+        private static bool IsUnixSocketPath(string pipeName)
         {
-            if (OperatingSystem.IsWindows() || !Path.IsPathRooted(PipeName))
+            return !OperatingSystem.IsWindows() && Path.IsPathRooted(pipeName);
+        }
+
+        /// <summary>
+        /// True when something accepts connections on the Unix domain socket at <paramref name="path"/>.
+        /// A missing file or a refused connection means nothing is listening. Any other failure counts as
+        /// listening, so an uncertain socket is never deleted.
+        /// </summary>
+        internal static bool IsUnixSocketListening(string path)
+        {
+            if (!File.Exists(path))
             {
-                return;
+                return false;
             }
 
             try
             {
-                if (File.Exists(PipeName))
-                {
-                    File.Delete(PipeName);
-                }
+                using Socket socket = new Socket(AddressFamily.Unix, SocketType.Stream, ProtocolType.Unspecified);
+                using CancellationTokenSource timeout = new CancellationTokenSource(SocketProbeTimeout);
+                socket.ConnectAsync(new UnixDomainSocketEndPoint(path), timeout.Token).AsTask().GetAwaiter().GetResult();
+                return true;
+            }
+            catch (SocketException e) when (e.SocketErrorCode is SocketError.ConnectionRefused or SocketError.AddressNotAvailable)
+            {
+                return false;
             }
             catch (Exception e)
             {
-                DebugHelper.WriteLine($"SingleInstanceManager: Could not remove stale socket '{PipeName}': {e.Message}");
+                DebugHelper.WriteLine($"SingleInstanceManager: Could not tell whether '{path}' has a listener: {e.Message}");
+                return true;
+            }
+        }
+
+        /// <summary>
+        /// Deletes a socket file left behind by an instance that exited without removing it.
+        /// A socket that still has a listener belongs to a running instance and is kept.
+        /// Returns true when no socket file remains at <paramref name="path"/>.
+        /// </summary>
+        internal static bool TryRemoveStaleUnixSocket(string path)
+        {
+            if (!IsUnixSocketPath(path))
+            {
+                return true;
+            }
+
+            try
+            {
+                if (!File.Exists(path))
+                {
+                    return true;
+                }
+
+                if (IsUnixSocketListening(path))
+                {
+                    DebugHelper.WriteLine($"SingleInstanceManager: Socket '{path}' has a listener; not removing it.");
+                    return false;
+                }
+
+                File.Delete(path);
+                return true;
+            }
+            catch (Exception e)
+            {
+                DebugHelper.WriteLine($"SingleInstanceManager: Could not remove stale socket '{path}': {e.Message}");
+                return false;
             }
         }
 
@@ -158,25 +231,27 @@ namespace XerahS.Common
         {
             if (cts == null) return;
 
-            while (!cts.IsCancellationRequested)
+            NamedPipeServerStream? nextNamedPipeServer = null;
+
+            try
             {
-                bool namedPipeServerCreated = false;
-
-                try
+                while (!cts.IsCancellationRequested)
                 {
-                    // Removed Windows specific PipeSecurity for cross-platform compatibility
-                    // On Windows we might want to AddAccessRule but for now we simplify.
+                    bool namedPipeServerCreated = false;
+                    NamedPipeServerStream? namedPipeServer = null;
 
-                    using (NamedPipeServerStream namedPipeServer = new NamedPipeServerStream(
-                        PipeName,
-                        PipeDirection.InOut,
-                        1,
-                        PipeTransmissionMode.Byte,
-                        PipeOptions.Asynchronous | PipeOptions.CurrentUserOnly))
+                    try
                     {
+                        namedPipeServer = nextNamedPipeServer ?? CreateNamedPipeServer();
+                        nextNamedPipeServer = null;
                         namedPipeServerCreated = true;
 
                         await namedPipeServer.WaitForConnectionAsync(cts.Token).ConfigureAwait(false);
+
+                        // On Unix, server streams with the same name share one listening socket, which is unlinked
+                        // when the last of them is disposed. Opening the next one before this one is disposed keeps
+                        // the socket file in place, so a launch between two connections still finds this instance.
+                        nextNamedPipeServer = TryCreateNamedPipeServer();
 
                         using (BinaryReader reader = new BinaryReader(namedPipeServer, Encoding.UTF8))
                         {
@@ -197,19 +272,59 @@ namespace XerahS.Common
                             OnArgumentsReceived(args);
                         }
                     }
-                }
-                catch (OperationCanceledException)
-                {
-                }
-                catch (Exception e)
-                {
-                    DebugHelper.WriteException(e);
-
-                    if (!namedPipeServerCreated)
+                    catch (OperationCanceledException)
                     {
-                        break;
+                    }
+                    catch (EndOfStreamException)
+                    {
+                        // IsUnixSocketListening in another process connects and closes without sending anything.
+                        DebugHelper.WriteLine("SingleInstanceManager: A connection closed without sending arguments.");
+                    }
+                    catch (Exception e)
+                    {
+                        DebugHelper.WriteException(e);
+
+                        if (!namedPipeServerCreated)
+                        {
+                            break;
+                        }
+                    }
+                    finally
+                    {
+                        namedPipeServer?.Dispose();
                     }
                 }
+            }
+            finally
+            {
+                nextNamedPipeServer?.Dispose();
+            }
+        }
+
+        private NamedPipeServerStream CreateNamedPipeServer()
+        {
+            // Removed Windows specific PipeSecurity for cross-platform compatibility
+            // On Windows we might want to AddAccessRule but for now we simplify.
+
+            // Two instances: the one reading a connection and the next one waiting for a connection.
+            return new NamedPipeServerStream(
+                PipeName,
+                PipeDirection.InOut,
+                2,
+                PipeTransmissionMode.Byte,
+                PipeOptions.Asynchronous | PipeOptions.CurrentUserOnly);
+        }
+
+        private NamedPipeServerStream? TryCreateNamedPipeServer()
+        {
+            try
+            {
+                return CreateNamedPipeServer();
+            }
+            catch (Exception e)
+            {
+                DebugHelper.WriteLine($"SingleInstanceManager: Could not open the next pipe server on '{PipeName}': {e.Message}");
+                return null;
             }
         }
 
@@ -312,10 +427,26 @@ namespace XerahS.Common
 
         private string GetLockFilePath()
         {
-            string tempPath = Path.GetTempPath();
-            var sb = new StringBuilder(MutexName.Length);
+            return GetLockFilePath(MutexName, PipeName);
+        }
 
-            foreach (char c in MutexName)
+        /// <summary>
+        /// On Unix the lock file sits next to the socket, both at fixed paths. The temporary folder follows
+        /// TMPDIR, so a lock there would be missed by a process started with another TMPDIR, which would then
+        /// take over the running instance's socket. The named mutex also follows TMPDIR, so the lock file is
+        /// the lock that all processes of one identity share.
+        /// </summary>
+        internal static string GetLockFilePath(string mutexName, string platformPipeName)
+        {
+            if (IsUnixSocketPath(platformPipeName))
+            {
+                return Path.ChangeExtension(platformPipeName, ".lock");
+            }
+
+            string tempPath = Path.GetTempPath();
+            var sb = new StringBuilder(mutexName.Length);
+
+            foreach (char c in mutexName)
             {
                 sb.Append(char.IsLetterOrDigit(c) ? char.ToLowerInvariant(c) : '_');
             }
@@ -366,7 +497,7 @@ namespace XerahS.Common
                     PipeDirection.Out,
                     PipeOptions.CurrentUserOnly))
                 {
-                    namedPipeClient.Connect(ConnectTimeout);
+                    namedPipeClient.Connect(connectTimeout);
 
                     using (BinaryWriter writer = new BinaryWriter(namedPipeClient, Encoding.UTF8))
                     {
@@ -381,7 +512,8 @@ namespace XerahS.Common
             }
             catch (Exception e)
             {
-                DebugHelper.WriteException(e);
+                RedirectError = e;
+                DebugHelper.WriteException(e, $"SingleInstanceManager: Could not pass the arguments to the running instance on '{PipeName}'");
             }
         }
 

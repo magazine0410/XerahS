@@ -99,7 +99,14 @@ namespace XerahS.App
 
                 if (!_singleInstanceManager.IsFirstInstance)
                 {
-                    // Arguments have been passed to the first instance, exit this instance
+                    // Arguments have been passed to the first instance, exit this instance.
+                    // SingleInstanceManager has already written a failed hand-off to the error log.
+                    if (_singleInstanceManager.RedirectError != null)
+                    {
+                        HandOffFailureNotice.Report(_startupArguments, HandOffFailureNotice.NotifyDesktop);
+                        Environment.ExitCode = 1;
+                    }
+
                     _singleInstanceManager.Dispose();
                     return;
                 }
