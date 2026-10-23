@@ -173,6 +173,8 @@ public class ApplicationConfig : SettingsBase<ApplicationConfig>
 
     public bool ShowMenu = true;
     public TaskViewMode TaskViewMode = TaskViewMode.ThumbnailView;
+    /// <summary>ShareX's hidden tools: the tools left out of the Tools menus, by their menu id.</summary>
+    public List<string> HiddenTools = new List<string>();
 
     // Thumbnail view
     public bool ShowThumbnailTitle = true;
@@ -452,6 +454,17 @@ public class RecentTask
     public string ThumbnailURL { get; set; } = "";
     public string DeletionURL { get; set; } = "";
     public string ShortenedURL { get; set; } = "";
+    public DateTime Time { get; set; } = DateTime.Now;
+
+    /// <summary>ShareX's tray menu text: the time, then the end of the shortened URL, URL, or file path.</summary>
+    public string TrayMenuText => $"[{Time:HH:mm:ss}] {ToString().Truncate(50, "...", false)}";
+
+    public override string ToString()
+    {
+        if (!string.IsNullOrEmpty(ShortenedURL)) return ShortenedURL;
+        if (!string.IsNullOrEmpty(URL)) return URL;
+        return FilePath ?? "";
+    }
 }
 
 public class AssistantProviderConfig

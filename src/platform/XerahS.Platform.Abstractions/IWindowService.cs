@@ -54,6 +54,12 @@ namespace XerahS.Platform.Abstractions
         bool ToggleActiveWindowTopmost() => false;
 
         /// <summary>
+        /// The handle under which the window tools list one of XerahS's own windows, given its native handle.
+        /// The same handle, except where another window list is used (KWin's on KDE Plasma Wayland).
+        /// </summary>
+        IntPtr GetListedWindowHandle(IntPtr nativeHandle) => nativeHandle;
+
+        /// <summary>
         /// Gets the handle of the foreground window
         /// </summary>
         IntPtr GetForegroundWindow();

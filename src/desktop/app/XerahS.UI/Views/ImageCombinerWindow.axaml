@@ -106,6 +106,15 @@
                        AutomationProperties.Name="Spacing" />
       </StackPanel>
 
+      <StackPanel Orientation="Horizontal" Spacing="6">
+        <TextBlock Text="Wrap after:" VerticalAlignment="Center" />
+        <NumericUpDown Value="{Binding WrapAfter}"
+                       Minimum="0" Maximum="1000" Increment="1" FormatString="0"
+                       MinWidth="80"
+                       ToolTip.Tip="Start a new row (or column) after this many images. 0 keeps them all in one."
+                       AutomationProperties.Name="Wrap after" />
+      </StackPanel>
+
       <CheckBox Content="Fill background"
                 IsChecked="{Binding AutoFillBackground}"
                 VerticalAlignment="Center"

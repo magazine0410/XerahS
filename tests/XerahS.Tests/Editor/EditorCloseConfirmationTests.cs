@@ -105,6 +105,8 @@ public class EditorCloseConfirmationTests
         try
         {
             window.Show();
+            // The main window opens on the Tasks page.
+            window.NavigateToEditor(activate: false);
             viewModel.RequestClose();
 
             var contentFrame = window.FindControl<ContentControl>("ContentFrame");

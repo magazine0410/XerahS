@@ -36,7 +36,12 @@ internal static class MouseHighlighterManager
     private static bool _shutdown;
     private static bool _manualActive;
     private static int _recordingRequests;
-    private static readonly List<IAsyncDisposable> _nativeRecordingHighlights = new();
+    // The compositor's highlight (KWin's Mouse Click Animation) is one desktop setting, so the manual highlighter
+    // and recordings share one use of it, ended when the last of them stops.
+    private static IAsyncDisposable? _nativeHighlight;
+    private static int _nativeUsers;
+    private static readonly SemaphoreSlim _nativeLock = new(1, 1);
+    private static IAsyncDisposable? _manualNativeLease;
     public static bool IsManuallyActive => _manualActive;
     public static event Action? StateChanged;
 
@@ -45,7 +50,7 @@ internal static class MouseHighlighterManager
         if (_shutdown) return;
         if (!WorkflowCatalog.IsAvailable(WorkflowType.MouseHighlighter))
         {
-            UploadWorkflowService.ReportError(new PlatformNotSupportedException("Mouse highlighting requires Windows or X11 with global input and click-through overlay support."));
+            UploadWorkflowService.ReportError(new PlatformNotSupportedException("Mouse highlighting requires Windows, X11 with global input and click-through overlay support, or KDE Plasma on Wayland."));
             return;
         }
         if (_settingsWindow == null)
@@ -63,9 +68,24 @@ internal static class MouseHighlighterManager
         catch (Exception ex) { UploadWorkflowService.ReportError(ex, "Could not start mouse highlighting"); }
     }
 
+    /// <summary>
+    /// Whether the highlighter is KWin's Mouse Click Animation (KDE Plasma Wayland), where XerahS cannot see the mouse
+    /// to draw its own; ShareX's highlighter options do not apply to it.
+    /// </summary>
+    internal static bool UsesCompositorHighlight =>
+        Platform.Abstractions.PlatformServices.IsInputServiceInitialized &&
+        Platform.Abstractions.PlatformServices.IsWindowServiceInitialized &&
+        Platform.Abstractions.PlatformServices.Input.SupportsCompositorMouseHighlight &&
+        !(Platform.Abstractions.PlatformServices.Input.SupportsGlobalMouseMonitoring && Platform.Abstractions.PlatformServices.Window.SupportsClickThrough);
+
     internal static void SetManualActive(bool active, MouseHighlighterOptions options)
     {
         if (_shutdown) return;
+        if (UsesCompositorHighlight)
+        {
+            SetManualCompositorActive(active);
+            return;
+        }
         if (active)
         {
             if (!WorkflowCatalog.IsAvailable(WorkflowType.MouseHighlighter))
@@ -89,15 +109,14 @@ internal static class MouseHighlighterManager
     public static async Task<IAsyncDisposable> BeginRecordingAsync(MouseHighlighterOptions options)
     {
         if (_shutdown) throw new ObjectDisposedException(nameof(MouseHighlighterManager));
-        if (await Platform.Abstractions.PlatformServices.Input.BeginRecordingHighlightAsync() is { } native)
+        if (await AcquireNativeAsync() is { } native)
         {
             if (_shutdown)
             {
                 await native.DisposeAsync();
                 throw new ObjectDisposedException(nameof(MouseHighlighterManager));
             }
-            _nativeRecordingHighlights.Add(native);
-            return new NativeRecordingLease(native);
+            return native;
         }
         if (_service == null) _service = new MouseHighlighterService(options);
         _recordingRequests++;
@@ -120,10 +139,88 @@ internal static class MouseHighlighterManager
         }
     }
 
-    private sealed class NativeRecordingLease(IAsyncDisposable native) : IAsyncDisposable
+    private static void SetManualCompositorActive(bool active)
     {
-        public ValueTask DisposeAsync() =>
-            _nativeRecordingHighlights.Remove(native) ? native.DisposeAsync() : ValueTask.CompletedTask;
+        if (active == _manualActive) return;
+        _manualActive = active;
+        StateChanged?.Invoke();
+        _ = active ? StartManualCompositorAsync() : StopManualCompositorAsync();
+    }
+
+    private static async Task StartManualCompositorAsync()
+    {
+        try
+        {
+            IAsyncDisposable lease = await AcquireNativeAsync()
+                ?? throw new PlatformNotSupportedException("Global mouse highlighting is not supported on this window system.");
+            // Stopped (or started again) while KWin was being asked.
+            if (!_manualActive || _shutdown || _manualNativeLease != null)
+            {
+                await lease.DisposeAsync();
+                return;
+            }
+            _manualNativeLease = lease;
+        }
+        catch (Exception ex)
+        {
+            _manualActive = false;
+            StateChanged?.Invoke();
+            UploadWorkflowService.ReportError(ex, "Could not start mouse highlighting");
+        }
+    }
+
+    private static async Task StopManualCompositorAsync()
+    {
+        IAsyncDisposable? lease = _manualNativeLease;
+        _manualNativeLease = null;
+        try
+        {
+            if (lease != null) await lease.DisposeAsync();
+        }
+        catch (Exception ex) { Common.DebugHelper.WriteException(ex, "Could not stop the mouse highlight"); }
+    }
+
+    /// <summary>Starts the compositor's highlight, or shares the running one. Null where there is none (X11, Windows).</summary>
+    private static async Task<IAsyncDisposable?> AcquireNativeAsync()
+    {
+        await _nativeLock.WaitAsync();
+        try
+        {
+            if (_nativeHighlight == null)
+            {
+                _nativeHighlight = await Platform.Abstractions.PlatformServices.Input.BeginRecordingHighlightAsync();
+                if (_nativeHighlight == null) return null;
+            }
+            _nativeUsers++;
+            return new NativeHighlightLease();
+        }
+        finally
+        {
+            _nativeLock.Release();
+        }
+    }
+
+    private static async ValueTask ReleaseNativeAsync()
+    {
+        await _nativeLock.WaitAsync();
+        try
+        {
+            if (_nativeUsers > 0 && --_nativeUsers == 0 && _nativeHighlight is { } native)
+            {
+                _nativeHighlight = null;
+                await native.DisposeAsync();
+            }
+        }
+        finally
+        {
+            _nativeLock.Release();
+        }
+    }
+
+    private sealed class NativeHighlightLease : IAsyncDisposable
+    {
+        private int _disposed;
+        public ValueTask DisposeAsync() => Interlocked.Exchange(ref _disposed, 1) == 0 ? ReleaseNativeAsync() : ValueTask.CompletedTask;
     }
 
     public static void RefreshOptions(MouseHighlighterOptions options)
@@ -134,17 +231,18 @@ internal static class MouseHighlighterManager
     public static void Shutdown()
     {
         _shutdown = true;
-        // A compositor effect enabled for a recording is restored even when XerahS exits during the recording.
-        foreach (var native in _nativeRecordingHighlights.ToArray())
+        // A compositor effect enabled for highlighting or a recording is restored even when XerahS exits meanwhile.
+        if (_nativeHighlight is { } native)
         {
+            _nativeHighlight = null;
+            _nativeUsers = 0;
             try
             {
                 if (native is IDisposable disposable) disposable.Dispose();
                 else native.DisposeAsync().AsTask().GetAwaiter().GetResult();
             }
-            catch (Exception ex) { Common.DebugHelper.WriteException(ex, "Could not restore the recording mouse highlight"); }
+            catch (Exception ex) { Common.DebugHelper.WriteException(ex, "Could not restore the mouse highlight"); }
         }
-        _nativeRecordingHighlights.Clear();
         _service?.Dispose();
         _service = null;
         _settingsWindow?.Close();

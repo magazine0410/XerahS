@@ -72,12 +72,72 @@ public partial class VideoThumbnailerViewModel : ViewModelBase
     [ObservableProperty]
     private bool _hasInput;
 
+    /// <summary>ShareX's "Upload created thumbnails": each created file is uploaded as a file upload task.</summary>
+    [ObservableProperty]
+    private bool _uploadThumbnails = true;
+
+    /// <summary>ShareX's "Open output folder when finished".</summary>
+    [ObservableProperty]
+    private bool _openDirectory;
+
     public event EventHandler? FilePickerRequested;
     public event EventHandler? FolderPickerRequested;
 
-    public VideoThumbnailerViewModel()
+    private readonly TaskSettings? _taskSettings;
+    private readonly Core.VideoThumbnailOptions? _options;
+
+    public VideoThumbnailerViewModel(TaskSettings? taskSettings = null)
     {
         OutputFolder = TaskHelpers.GetScreenshotsFolder();
+        _taskSettings = taskSettings;
+        _options = taskSettings?.ToolsSettingsReference.VideoThumbnailOptions;
+        if (_options == null) return;
+
+        _thumbnailCount = _options.ThumbnailCount;
+        _columnCount = _options.ColumnCount;
+        _maxThumbnailWidth = _options.MaxThumbnailWidth;
+        _combineScreenshots = _options.CombineScreenshots;
+        _addVideoInfo = _options.AddVideoInfo;
+        _addTimestamp = _options.AddTimestamp;
+        _uploadThumbnails = _options.UploadThumbnails;
+        _openDirectory = _options.OpenDirectory;
+    }
+
+    partial void OnThumbnailCountChanged(int value) => SaveOptions();
+    partial void OnColumnCountChanged(int value) => SaveOptions();
+    partial void OnMaxThumbnailWidthChanged(int value) => SaveOptions();
+    partial void OnCombineScreenshotsChanged(bool value) => SaveOptions();
+    partial void OnAddVideoInfoChanged(bool value) => SaveOptions();
+    partial void OnAddTimestampChanged(bool value) => SaveOptions();
+    partial void OnUploadThumbnailsChanged(bool value) => SaveOptions();
+    partial void OnOpenDirectoryChanged(bool value) => SaveOptions();
+
+    /// <summary>As in ShareX, the options are kept in the workflow's tool settings.</summary>
+    private void SaveOptions()
+    {
+        if (_options == null) return;
+
+        _options.ThumbnailCount = ThumbnailCount;
+        _options.ColumnCount = ColumnCount;
+        _options.MaxThumbnailWidth = MaxThumbnailWidth;
+        _options.CombineScreenshots = CombineScreenshots;
+        _options.AddVideoInfo = AddVideoInfo;
+        _options.AddTimestamp = AddTimestamp;
+        _options.UploadThumbnails = UploadThumbnails;
+        _options.OpenDirectory = OpenDirectory;
+        _ = SaveWorkflowsAsync();
+    }
+
+    private static async Task SaveWorkflowsAsync()
+    {
+        try
+        {
+            await SettingsManager.SaveWorkflowsConfigAsync(raiseSettingsChanged: false);
+        }
+        catch (Exception ex)
+        {
+            DebugHelper.WriteException(ex, "Failed to save the video thumbnailer options");
+        }
     }
 
     [RelayCommand]
@@ -133,7 +193,7 @@ public partial class VideoThumbnailerViewModel : ViewModelBase
                 AddTimestamp = AddTimestamp,
                 DefaultOutputDirectory = outputDir,
                 OutputLocation = XerahS.Media.ThumbnailLocationType.DefaultFolder,
-                OpenDirectory = false
+                OpenDirectory = OpenDirectory
             };
 
             var thumbnails = await Task.Run(() =>
@@ -157,7 +217,19 @@ public partial class VideoThumbnailerViewModel : ViewModelBase
             {
                 ProgressPercent = 100;
                 StatusText = $"Generated {thumbnails.Count} thumbnail(s)";
-                FileHelpers.OpenFolderWithFile(thumbnails[0].FilePath);
+
+                // ShareX's OpenVideoThumbnailer: each created file (the combined sheet, or every frame when the
+                // frames are not combined) is uploaded with the tool's task settings.
+                if (UploadThumbnails)
+                {
+                    TaskSettings settings = _taskSettings ?? TaskSettings.GetSafeTaskSettings(SettingsManager.DefaultTaskSettings);
+                    foreach (var thumbnail in thumbnails)
+                    {
+                        TaskSettings fileSettings = TaskSettings.GetSafeTaskSettings(settings);
+                        fileSettings.Job = WorkflowType.FileUpload;
+                        _ = XerahS.Core.Helpers.TaskHelpers.TaskManagerService.StartFileTask(fileSettings, thumbnail.FilePath);
+                    }
+                }
             }
             else
             {

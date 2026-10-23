@@ -27,6 +27,8 @@ using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Controls.Primitives;
 using Avalonia.Media;
+using Avalonia.Threading;
+using XerahS.Core;
 using XerahS.Platform.Abstractions;
 
 namespace XerahS.UI.Services;
@@ -45,6 +47,14 @@ internal static class TrayMenuToolService
         TrayIconHelper.Instance.BuildTrayMenu();
         var cursor = PlatformServices.IsInitialized ? PlatformServices.Input.GetCursorPosition() : System.Drawing.Point.Empty;
         Open(TrayIconHelper.Instance.TrayMenu, new PixelPoint(cursor.X, cursor.Y));
+
+        // ShareX's "Automatically expand the capture menu". The tray icon's own menu is drawn by the desktop,
+        // which cannot be told to open a submenu, so this applies to the menu opened here.
+        if (SettingsManager.Settings.TrayAutoExpandCaptureMenu &&
+            _menu?.Items.OfType<MenuItem>().FirstOrDefault(item => Equals(item.Header, TrayIconHelper.CaptureMenuHeader)) is MenuItem captureItem)
+        {
+            Dispatcher.UIThread.Post(captureItem.Open, DispatcherPriority.Loaded);
+        }
     }
 
     internal static Window Open(NativeMenu source, PixelPoint position)
@@ -93,8 +103,9 @@ internal static class TrayMenuToolService
         {
             Header = item.Header, Command = item.Command, CommandParameter = item.CommandParameter,
             IsEnabled = item.IsEnabled, IsVisible = item.IsVisible,
-            IsChecked = item.IsChecked, ToggleType = (MenuItemToggleType)item.ToggleType
+            IsChecked = item.IsChecked, ToggleType = item.ToggleType
         };
+        if (item.Icon != null) result.Icon = new Image { Source = item.Icon, Width = 16, Height = 16 };
         if (item.Menu != null)
             foreach (var child in item.Menu.Items) result.Items.Add(CreateItem(child));
         return result;

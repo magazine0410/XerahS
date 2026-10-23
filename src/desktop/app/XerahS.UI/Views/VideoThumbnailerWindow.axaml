@@ -9,7 +9,7 @@
         x:Class="XerahS.UI.Views.VideoThumbnailerWindow"
         x:DataType="vm:VideoThumbnailerViewModel"
         Title="Video Thumbnailer"
-        Width="550" Height="470"
+        Width="560" Height="510"
         MinWidth="450" MinHeight="380"
         WindowStartupLocation="CenterOwner"
         CanResize="True">
@@ -63,7 +63,7 @@
     </StackPanel>
 
     <!-- Row 2: Options -->
-    <StackPanel Grid.Row="2" Orientation="Horizontal" Spacing="16" Margin="0,0,0,12">
+    <WrapPanel Grid.Row="2" Orientation="Horizontal" ItemSpacing="16" LineSpacing="8" Margin="0,0,0,12">
       <CheckBox Content="Combine into grid"
                 IsChecked="{Binding CombineScreenshots}"
                 AutomationProperties.Name="Combine screenshots" />
@@ -73,7 +73,13 @@
       <CheckBox Content="Timestamps"
                 IsChecked="{Binding AddTimestamp}"
                 AutomationProperties.Name="Add timestamps" />
-    </StackPanel>
+      <CheckBox Content="Upload created thumbnails"
+                IsChecked="{Binding UploadThumbnails}"
+                AutomationProperties.Name="Upload created thumbnails" />
+      <CheckBox Content="Open output folder when finished"
+                IsChecked="{Binding OpenDirectory}"
+                AutomationProperties.Name="Open output folder when finished" />
+    </WrapPanel>
 
     <!-- Row 3: Output folder -->
     <Grid Grid.Row="3" ColumnDefinitions="Auto,*,Auto" Margin="0,0,0,12">

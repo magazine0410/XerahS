@@ -47,6 +47,14 @@ public partial class LinuxWindowService
 
     private static KWinWindow? GetKWinWindow(IntPtr handle) => KWin?.GetWindow(handle);
 
+    /// <summary>On KDE Plasma Wayland the tools list KWin's windows; XerahS's own X11 window is found by its X11 id.</summary>
+    public IntPtr GetListedWindowHandle(IntPtr nativeHandle)
+    {
+        if (KWin is not { } kwin || nativeHandle == IntPtr.Zero || IsKWinHandle(nativeHandle)) return nativeHandle;
+        KWinWindow? window = kwin.GetSnapshot()?.Windows.FirstOrDefault(w => w.X11WindowId != 0 && w.X11WindowId == unchecked((uint)nativeHandle.ToInt64()));
+        return window != null ? KWinWindowManager.GetHandle(window.Id) : nativeHandle;
+    }
+
     private static WindowInfo ToWindowInfo(KWinWindow window, double scale) => new()
     {
         Handle = KWinWindowManager.GetHandle(window.Id),

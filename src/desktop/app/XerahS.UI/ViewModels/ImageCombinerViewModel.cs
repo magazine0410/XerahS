@@ -62,7 +62,66 @@ public partial class ImageCombinerViewModel : ViewModelBase
     private int _spacing;
 
     [ObservableProperty]
-    private bool _autoFillBackground;
+    private bool _autoFillBackground = true;
+
+    /// <summary>ShareX's "Wrap after": a new row (or column) after this many images; 0 never wraps.</summary>
+    [ObservableProperty]
+    private int _wrapAfter;
+
+    private readonly ImageCombinerOptions? _options;
+
+    public ImageCombinerViewModel(ImageCombinerOptions? options = null)
+    {
+        _options = options;
+        if (options == null) return;
+
+        _orientation = options.Orientation == Core.Orientation.Horizontal ? ImageCombinerOrientation.Horizontal : ImageCombinerOrientation.Vertical;
+        _alignment = options.Alignment switch
+        {
+            Core.ImageCombinerAlignment.Center => XerahS.Media.ImageCombinerAlignment.Center,
+            Core.ImageCombinerAlignment.RightOrBottom => XerahS.Media.ImageCombinerAlignment.Far,
+            _ => XerahS.Media.ImageCombinerAlignment.Near
+        };
+        _spacing = options.Space;
+        _wrapAfter = Math.Max(0, options.WrapAfter);
+        _autoFillBackground = options.AutoFillBackground;
+    }
+
+    partial void OnOrientationChanged(ImageCombinerOrientation value) => SaveOptions();
+    partial void OnAlignmentChanged(XerahS.Media.ImageCombinerAlignment value) => SaveOptions();
+    partial void OnSpacingChanged(int value) => SaveOptions();
+    partial void OnWrapAfterChanged(int value) => SaveOptions();
+    partial void OnAutoFillBackgroundChanged(bool value) => SaveOptions();
+
+    /// <summary>As ShareX's image combiner, the layout options are kept in the workflow's tool settings.</summary>
+    private void SaveOptions()
+    {
+        if (_options == null) return;
+
+        _options.Orientation = Orientation == ImageCombinerOrientation.Horizontal ? Core.Orientation.Horizontal : Core.Orientation.Vertical;
+        _options.Alignment = Alignment switch
+        {
+            XerahS.Media.ImageCombinerAlignment.Center => Core.ImageCombinerAlignment.Center,
+            XerahS.Media.ImageCombinerAlignment.Far => Core.ImageCombinerAlignment.RightOrBottom,
+            _ => Core.ImageCombinerAlignment.LeftOrTop
+        };
+        _options.Space = Spacing;
+        _options.WrapAfter = Math.Max(0, WrapAfter);
+        _options.AutoFillBackground = AutoFillBackground;
+        _ = SaveWorkflowsAsync();
+    }
+
+    private static async Task SaveWorkflowsAsync()
+    {
+        try
+        {
+            await SettingsManager.SaveWorkflowsConfigAsync(raiseSettingsChanged: false);
+        }
+        catch (Exception ex)
+        {
+            DebugHelper.WriteException(ex, "Failed to save the image combiner options");
+        }
+    }
 
     [ObservableProperty]
     private bool _isProcessing;
@@ -167,8 +226,7 @@ public partial class ImageCombinerViewModel : ViewModelBase
 
                     if (bitmaps.Count < 2) return null;
 
-                    SKColor? bgColor = AutoFillBackground ? SKColors.White : null;
-                    return combiner.Combine(bitmaps, Orientation, Spacing, Alignment, bgColor);
+                    return combiner.Combine(bitmaps, Orientation, Spacing, Alignment, wrapAfter: WrapAfter, autoFillBackground: AutoFillBackground);
                 }
                 finally
                 {

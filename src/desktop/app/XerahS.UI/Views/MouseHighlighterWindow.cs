@@ -57,6 +57,16 @@ public sealed class MouseHighlighterWindow : Window
         _toggle = new Button();
         _toggle.Click += (_, _) => Toggle();
         panel.Children.Add(_toggle);
+        if (MouseHighlighterManager.UsesCompositorHighlight)
+        {
+            // XerahS cannot see the mouse on Wayland, so KWin draws the highlight with its own settings.
+            panel.Children.Add(new TextBlock
+            {
+                Text = "On KDE Plasma Wayland, KWin's Mouse Click Animation effect highlights the clicks. It uses KDE's own settings " +
+                       "(System Settings > Window Management > Desktop Effects), so the options below do not apply.",
+                TextWrapping = Avalonia.Media.TextWrapping.Wrap
+            });
+        }
         panel.Children.Add(new MouseHighlighterSettingsControl(options, settingsChanged));
         Content = new ScrollViewer { Content = panel };
         MouseHighlighterManager.StateChanged += RefreshState;

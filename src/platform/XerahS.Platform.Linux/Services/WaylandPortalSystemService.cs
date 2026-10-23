@@ -80,6 +80,8 @@ public sealed class WaylandPortalSystemService : ISystemService, IDisposable
 
     public bool IsDesktopWallpaperSupported => _allowNativeFallback && _fallback.IsDesktopWallpaperSupported;
 
+    public void SetTaskbarProgress(int? progress) => _fallback.SetTaskbarProgress(progress);
+
     public bool ShowFileInExplorer(string filePath)
     {
         if (string.IsNullOrEmpty(filePath) || !File.Exists(filePath))

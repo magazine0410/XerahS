@@ -1,0 +1,110 @@
+<views:PageView xmlns="https://github.com/avaloniaui"
+                xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+                xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+                xmlns:views="using:XerahS.UI.Views"
+                xmlns:vm="using:XerahS.UI.ViewModels"
+                xmlns:theming="clr-namespace:ShareX.ImageEditor.Presentation.Theming;assembly=ShareX.ImageEditor"
+                mc:Ignorable="d" d:DesignWidth="800" d:DesignHeight="600"
+                x:Class="XerahS.UI.Views.TasksView"
+                x:DataType="views:TasksPageViewModel">
+
+    <!-- ShareX's main window task list: a thumbnail for each task. -->
+    <Grid>
+        <ScrollViewer HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto">
+            <ItemsControl x:Name="ThumbnailList" ItemsSource="{Binding Items}" Margin="6">
+                <ItemsControl.ItemsPanel>
+                    <ItemsPanelTemplate>
+                        <WrapPanel Orientation="Horizontal"/>
+                    </ItemsPanelTemplate>
+                </ItemsControl.ItemsPanel>
+                <ItemsControl.ItemTemplate>
+                    <DataTemplate DataType="vm:TaskThumbnailViewModel">
+                        <Border Classes="task-thumbnail"
+                                Classes.selected="{Binding IsSelected}"
+                                Margin="4" Padding="4" CornerRadius="6" BorderThickness="1"
+                                Background="Transparent"
+                                PointerPressed="OnThumbnailPointerPressed"
+                                PointerReleased="OnThumbnailPointerReleased"
+                                DoubleTapped="OnThumbnailDoubleTapped">
+                            <StackPanel Width="{Binding Width}" Spacing="3">
+                                <Border IsVisible="{Binding ShowTitleAbove}" Background="Transparent" Cursor="Hand"
+                                        PointerPressed="OnTitlePointerPressed" PointerReleased="OnTitlePointerReleased"
+                                        ToolTip.Tip="{Binding Details}">
+                                    <TextBlock Text="{Binding Title}" TextAlignment="Center" TextTrimming="CharacterEllipsis" MaxLines="1"/>
+                                </Border>
+                                <Border Width="{Binding Width}" Height="{Binding Height}" CornerRadius="4" ClipToBounds="True"
+                                        Classes.clickable="{Binding IsClickable}"
+                                        Background="{DynamicResource CardBackgroundFillColorDefaultBrush}">
+                                    <Grid>
+                                        <Image Source="{Binding Thumbnail}" IsVisible="{Binding HasThumbnail}" Stretch="Uniform"/>
+                                        <Border IsVisible="{Binding ShowPlayIcon}" Width="50" Height="50" CornerRadius="25"
+                                                Background="#B8181818" HorizontalAlignment="Center" VerticalAlignment="Center" IsHitTestVisible="False">
+                                            <TextBlock Classes="IconGlyph" Text="{x:Static theming:LucideIcons.play}" Foreground="#A9A9A9"
+                                                       FontSize="18" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                        </Border>
+                                        <TextBlock Classes="IconGlyph" Text="{Binding PlaceholderIcon}" IsVisible="{Binding HasNoThumbnail}"
+                                                   FontSize="42" Opacity="0.45" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                        <Border IsVisible="{Binding IsFailed}" Background="#C8B91C1C" CornerRadius="4" Padding="6,3"
+                                                HorizontalAlignment="Right" VerticalAlignment="Top" Margin="5">
+                                            <TextBlock Classes="IconGlyph" Text="{x:Static theming:LucideIcons.triangle_alert}" Foreground="White"/>
+                                        </Border>
+                                        <ProgressBar IsVisible="{Binding IsProgressVisible}" Value="{Binding Progress}"
+                                                     Minimum="0" Maximum="100" Height="5" MinHeight="5" VerticalAlignment="Bottom"/>
+                                    </Grid>
+                                </Border>
+                                <Border IsVisible="{Binding ShowTitleBelow}" Background="Transparent" Cursor="Hand"
+                                        PointerPressed="OnTitlePointerPressed" PointerReleased="OnTitlePointerReleased"
+                                        ToolTip.Tip="{Binding Details}">
+                                    <TextBlock Text="{Binding Title}" TextAlignment="Center" TextTrimming="CharacterEllipsis" MaxLines="1"/>
+                                </Border>
+                            </StackPanel>
+                        </Border>
+                    </DataTemplate>
+                </ItemsControl.ItemTemplate>
+            </ItemsControl>
+        </ScrollViewer>
+
+        <!-- ShareX's hotkey list, shown while there are no tasks. -->
+        <Border IsVisible="{Binding IsTipVisible}" Width="530" MaxHeight="430" Padding="16" CornerRadius="8"
+                HorizontalAlignment="Center" VerticalAlignment="Center" BorderThickness="1"
+                BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}"
+                Background="{DynamicResource CardBackgroundFillColorDefaultBrush}">
+            <Grid RowDefinitions="Auto,Auto,*" RowSpacing="8">
+                <TextBlock Text="{Binding TipTitle}" FontSize="19" FontWeight="SemiBold" HorizontalAlignment="Center"/>
+                <TextBlock Grid.Row="1" TextAlignment="Center" TextWrapping="Wrap" Margin="8,0,8,8"
+                           Text="Use a hotkey to capture or upload. Your results will appear here as thumbnails."/>
+                <ScrollViewer Grid.Row="2" VerticalScrollBarVisibility="Auto">
+                    <ItemsControl ItemsSource="{Binding HotkeyTips}">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate DataType="views:TaskListHotkeyTip">
+                                <Border BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}" BorderThickness="0,1,0,0" Padding="6,8">
+                                    <Grid ColumnDefinitions="180,*" ColumnSpacing="10">
+                                        <TextBlock Text="{Binding Hotkey}" FontFamily="monospace" VerticalAlignment="Center"/>
+                                        <TextBlock Grid.Column="1" Text="{Binding Description}" TextTrimming="CharacterEllipsis" VerticalAlignment="Center"/>
+                                    </Grid>
+                                </Border>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </ScrollViewer>
+            </Grid>
+        </Border>
+    </Grid>
+
+    <views:PageView.Styles>
+        <Style Selector="Border.task-thumbnail">
+            <Setter Property="BorderBrush" Value="Transparent"/>
+        </Style>
+        <Style Selector="Border.task-thumbnail:pointerover">
+            <Setter Property="Background" Value="{DynamicResource ControlFillColorSecondaryBrush}"/>
+        </Style>
+        <Style Selector="Border.task-thumbnail.selected">
+            <Setter Property="BorderBrush" Value="{DynamicResource AccentFillColorDefaultBrush}"/>
+            <Setter Property="Background" Value="{DynamicResource ControlFillColorSecondaryBrush}"/>
+        </Style>
+        <Style Selector="Border.clickable">
+            <Setter Property="Cursor" Value="Hand"/>
+        </Style>
+    </views:PageView.Styles>
+</views:PageView>

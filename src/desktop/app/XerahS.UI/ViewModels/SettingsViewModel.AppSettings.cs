@@ -23,6 +23,7 @@
 
 #endregion License Information (GPL v3)
 
+using CommunityToolkit.Mvvm.Input;
 using XerahS.Core;
 
 namespace XerahS.UI.ViewModels
@@ -180,6 +181,7 @@ namespace XerahS.UI.ViewModels
             set
             {
                 SettingsManager.Settings.RecentTasksMaxCount = value;
+                SettingsManager.RecentTaskManager.MaxCount = value;
                 OnPropertyChanged();
             }
         }
@@ -212,6 +214,74 @@ namespace XerahS.UI.ViewModels
                 SettingsManager.Settings.RecentTasksTrayMenuMostRecentFirst = value;
                 OnPropertyChanged();
             }
+        }
+
+        // Main window: ShareX's thumbnail view settings, which the Tasks page uses.
+        public ThumbnailTitleLocation[] ThumbnailTitleLocations => Enum.GetValues<ThumbnailTitleLocation>();
+        public ThumbnailViewClickAction[] ThumbnailClickActions => Enum.GetValues<ThumbnailViewClickAction>();
+
+        public bool ShowThumbnailTitle
+        {
+            get => SettingsManager.Settings.ShowThumbnailTitle;
+            set { SettingsManager.Settings.ShowThumbnailTitle = value; OnMainWindowSettingChanged(); }
+        }
+
+        public ThumbnailTitleLocation ThumbnailTitleLocation
+        {
+            get => SettingsManager.Settings.ThumbnailTitleLocation;
+            set { SettingsManager.Settings.ThumbnailTitleLocation = value; OnMainWindowSettingChanged(); }
+        }
+
+        public int ThumbnailWidth
+        {
+            get => SettingsManager.Settings.ThumbnailSize.Width;
+            set { SettingsManager.Settings.ThumbnailSize = new System.Drawing.Size(Math.Clamp(value, 50, 500), SettingsManager.Settings.ThumbnailSize.Height); OnMainWindowSettingChanged(); }
+        }
+
+        public int ThumbnailHeight
+        {
+            get => SettingsManager.Settings.ThumbnailSize.Height;
+            set { SettingsManager.Settings.ThumbnailSize = new System.Drawing.Size(SettingsManager.Settings.ThumbnailSize.Width, Math.Clamp(value, 50, 500)); OnMainWindowSettingChanged(); }
+        }
+
+        public ThumbnailViewClickAction ThumbnailClickAction
+        {
+            get => SettingsManager.Settings.ThumbnailClickAction;
+            set { SettingsManager.Settings.ThumbnailClickAction = value; OnMainWindowSettingChanged(); }
+        }
+
+        /// <summary>ShareX's Reset: the default thumbnail size, 200 x 150.</summary>
+        [RelayCommand]
+        private void ResetThumbnailSize()
+        {
+            SettingsManager.Settings.ThumbnailSize = new System.Drawing.Size(200, 150);
+            OnPropertyChanged(nameof(ThumbnailWidth));
+            OnPropertyChanged(nameof(ThumbnailHeight));
+            Services.TaskListService.Instance.RefreshSettings();
+        }
+
+        private void OnMainWindowSettingChanged([System.Runtime.CompilerServices.CallerMemberName] string? propertyName = null)
+        {
+            OnPropertyChanged(propertyName);
+            Services.TaskListService.Instance.RefreshSettings();
+        }
+
+        public bool ShowMostRecentTaskFirst
+        {
+            get => SettingsManager.Settings.ShowMostRecentTaskFirst;
+            set { SettingsManager.Settings.ShowMostRecentTaskFirst = value; OnPropertyChanged(); }
+        }
+
+        public bool WorkflowsOnlyShowEdited
+        {
+            get => SettingsManager.Settings.WorkflowsOnlyShowEdited;
+            set { SettingsManager.Settings.WorkflowsOnlyShowEdited = value; OnPropertyChanged(); TrayIconHelper.Instance.BuildTrayMenu(); }
+        }
+
+        public bool TrayAutoExpandCaptureMenu
+        {
+            get => SettingsManager.Settings.TrayAutoExpandCaptureMenu;
+            set { SettingsManager.Settings.TrayAutoExpandCaptureMenu = value; OnPropertyChanged(); }
         }
 
         public bool RememberMainWindowSize

@@ -77,11 +77,7 @@ namespace XerahS.Core.Managers
             XerahS.Common.TroubleshootingHelper.Log(task.Info?.TaskSettings?.Job.ToString() ?? "Unknown", "TASK_MANAGER", "Task created");
 
             task.StatusChanged += (s, e) => DebugHelper.WriteLine($"Task Status: {task.Status}");
-            task.TaskCompleted += (s, e) =>
-            {
-                // Fire event so listeners (like App.axaml.cs) can update UI
-                TaskCompleted?.Invoke(this, task);
-            };
+            task.TaskCompleted += (s, e) => OnTaskCompleted(task);
 
             TaskStarted?.Invoke(this, task);
 
@@ -118,10 +114,7 @@ namespace XerahS.Core.Managers
             AddTask(task);
 
             task.StatusChanged += (s, e) => DebugHelper.WriteLine($"Task Status: {task.Status}");
-            task.TaskCompleted += (s, e) =>
-            {
-                TaskCompleted?.Invoke(this, task);
-            };
+            task.TaskCompleted += (s, e) => OnTaskCompleted(task);
 
             TaskStarted?.Invoke(this, task);
 
@@ -157,10 +150,7 @@ namespace XerahS.Core.Managers
             AddTask(task);
 
             task.StatusChanged += (s, e) => DebugHelper.WriteLine($"Task Status: {task.Status}");
-            task.TaskCompleted += (s, e) =>
-            {
-                TaskCompleted?.Invoke(this, task);
-            };
+            task.TaskCompleted += (s, e) => OnTaskCompleted(task);
 
             TaskStarted?.Invoke(this, task);
 
@@ -207,15 +197,24 @@ namespace XerahS.Core.Managers
             AddTask(task);
 
             task.StatusChanged += (s, e) => DebugHelper.WriteLine($"Task Status: {task.Status}");
-            task.TaskCompleted += (s, e) =>
-            {
-                TaskCompleted?.Invoke(this, task);
-            };
+            task.TaskCompleted += (s, e) => OnTaskCompleted(task);
 
             TaskStarted?.Invoke(this, task);
 
             try { await task.StartAsync(); }
             finally { await SaveSettingsAfterTasksAsync(); }
+        }
+
+        private void OnTaskCompleted(WorkerTask task)
+        {
+            // As ShareX's TaskManager: a task with a result or a file becomes a recent item.
+            if (task.Info != null && !string.IsNullOrEmpty(task.Info.ToString()))
+            {
+                SettingsManager.RecentTaskManager.Add(task.Info);
+            }
+
+            // Fire event so listeners (like App.axaml.cs) can update UI
+            TaskCompleted?.Invoke(this, task);
         }
 
         private async Task SaveSettingsAfterTasksAsync()

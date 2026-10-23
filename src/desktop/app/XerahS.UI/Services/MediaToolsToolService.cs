@@ -44,6 +44,10 @@ public static class MediaToolsToolService
     private static readonly Dictionary<ImageBatchOperation, ImageBatchToolWindow> _imageBatchWindows = new();
     private static VideoThumbnailerWindow? _videoThumbnailerWindow;
 
+    /// <summary>The tool settings a tool keeps its options in: the workflow's, or the default task settings'.</summary>
+    private static TaskSettingsTools GetToolSettings(TaskSettings? taskSettings) =>
+        (taskSettings ?? TaskSettings.GetSafeTaskSettings(SettingsManager.DefaultTaskSettings)).ToolsSettingsReference;
+
     public static Task HandleWorkflowAsync(WorkflowType job, Window? owner, TaskSettings? taskSettings = null)
     {
         switch (job)
@@ -51,7 +55,7 @@ public static class MediaToolsToolService
             case WorkflowType.ImageCombiner:
                 ShowWindow(_combinerWindow, owner, () =>
                 {
-                    var vm = new ImageCombinerViewModel();
+                    var vm = new ImageCombinerViewModel(GetToolSettings(taskSettings).ImageCombinerOptions);
                     var w = new ImageCombinerWindow();
                     w.Initialize(vm);
                     return w;
@@ -117,7 +121,7 @@ public static class MediaToolsToolService
             case WorkflowType.VideoThumbnailer:
                 ShowWindow(_videoThumbnailerWindow, owner, () =>
                 {
-                    var vm = new VideoThumbnailerViewModel();
+                    var vm = new VideoThumbnailerViewModel(taskSettings ?? TaskSettings.GetSafeTaskSettings(SettingsManager.DefaultTaskSettings));
                     var w = new VideoThumbnailerWindow();
                     w.Initialize(vm);
                     return w;

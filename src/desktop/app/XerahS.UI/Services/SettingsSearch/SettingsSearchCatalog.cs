@@ -40,6 +40,7 @@ public static class SettingsSearchCatalog
         [
             App("app-root", "Application Settings", null, ["app", "application", "preferences", "options"]),
             App("app-general", "General", "General", ["theme", "dark", "light", "updates", "tray", "taskbar"]),
+            App("app-main-window", "Main window", "Main window", ["thumbnail", "task list", "tasks", "title", "click action"]),
             App("app-paths", "Paths", "Paths", ["screenshots", "folder", "subfolder", "save path"]),
             App("app-watch", "Watch Folders", "Watch Folders", ["watch", "daemon", "monitor folder", "mov", "mp4"]),
             App("app-integration", "Integration", "Integration", ["startup", "clipboard", "file association", "assistant", "mcp", "palette"]),

@@ -95,7 +95,7 @@ public sealed partial class InspectWindowViewModel : ViewModelBase, IDisposable
 
     public void SetIgnoredWindowHandle(IntPtr handle)
     {
-        _ignoredWindowHandle = handle;
+        _ignoredWindowHandle = _windows.GetListedWindowHandle(handle);
         ReloadWindowList();
     }
 

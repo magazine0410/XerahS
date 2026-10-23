@@ -33,6 +33,7 @@ namespace XerahS.UI.Theming
     /// </summary>
     public static class HostIcons
     {
+        public const string NavigationTasks = LucideIcons.layout_grid;
         public const string NavigationCapture = LucideIcons.camera;
         public const string NavigationRecording = LucideIcons.film;
         public const string NavigationEditor = LucideIcons.pencil;

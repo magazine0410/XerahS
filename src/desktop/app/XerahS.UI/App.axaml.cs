@@ -150,6 +150,7 @@ public partial class App : Application
             }
 
             var taskManager = ServiceProvider.GetRequiredService<IDesktopTaskManager>();
+            TaskListService.Instance.Initialize(taskManager);
             var screenRecordingCoordinator = ServiceProvider.GetRequiredService<IScreenRecordingCoordinator>();
             var uiViewModelFactory = ServiceProvider.GetRequiredService<IUiViewModelFactory>();
             Services.UiViewModelFactoryAccessor.Configure(uiViewModelFactory);
@@ -318,7 +319,7 @@ public partial class App : Application
             _workflowOrchestrator = new WorkflowOrchestrator(taskManager, screenRecordingCoordinator);
             _trayIconController = new TrayIconController();
             _workflowOrchestrator.Start(desktop, _baseTitle);
-            TrayIconHelper.Instance.Initialize(screenRecordingCoordinator);
+            TrayIconHelper.Instance.Initialize(screenRecordingCoordinator, _workflowOrchestrator);
             _trayIconController.Initialize();
             InitializeClipboardMonitor(desktop.MainWindow);
             IdleMemoryTrimmer.Initialize(desktop, taskManager);

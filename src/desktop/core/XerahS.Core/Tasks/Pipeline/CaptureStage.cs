@@ -365,7 +365,17 @@ namespace XerahS.Core.Tasks.Pipeline
                     if (PlatformServices.Window != null)
                     {
                         string targetWindow = captureSettings.CaptureCustomWindow;
-                        if (string.IsNullOrEmpty(targetWindow))
+                        if (taskSettings!.CaptureWindowHandle != IntPtr.Zero)
+                        {
+                            if (isScreenCaptureDelay && !await _workerTask.ApplyCaptureStartDelayAsync(taskSettings, workflowCategory, captureDelaySeconds, token))
+                            {
+                                return PipelineStageResult.Stop;
+                            }
+
+                            await PrepareWindowAsync(PlatformServices.Window, taskSettings.CaptureWindowHandle, token);
+                            image = await PlatformServices.ScreenCapture.CaptureWindowAsync(taskSettings.CaptureWindowHandle, PlatformServices.Window, captureOptions);
+                        }
+                        else if (string.IsNullOrEmpty(targetWindow))
                         {
                             if (WorkerTask.ShowWindowSelectorCallback != null)
                             {
@@ -623,7 +633,7 @@ namespace XerahS.Core.Tasks.Pipeline
             // The hosted window picker has no client-area or alpha options. Keep those requests
             // on the window-service path so the saved workflow settings actually take effect.
             if (taskSettings.Job == WorkflowType.CustomWindow &&
-                (captureOptions.CaptureTransparent || captureOptions.CaptureClientArea))
+                (captureOptions.CaptureTransparent || captureOptions.CaptureClientArea || taskSettings.CaptureWindowHandle != IntPtr.Zero))
                 return null;
 
             Rectangle? lastRegion = LastRegionStore.TryGet(out var last) ? last : null;

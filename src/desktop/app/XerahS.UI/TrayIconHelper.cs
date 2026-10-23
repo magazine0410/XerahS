@@ -33,6 +33,8 @@ using XerahS.Common;
 using XerahS.Core;
 using XerahS.Core.Hotkeys;
 using XerahS.Core.Managers;
+using XerahS.UI.Helpers;
+using XerahS.UI.Services;
 using XerahS.RegionCapture.ScreenRecording;
 using System.ComponentModel;
 using System.Runtime.CompilerServices;
@@ -47,7 +49,7 @@ namespace XerahS.UI;
 /// Provides a singleton instance accessible from XAML bindings.
 /// Supports recording state by switching icons and adding context-sensitive menu items.
 /// </summary>
-public class TrayIconHelper : INotifyPropertyChanged
+public partial class TrayIconHelper : INotifyPropertyChanged
 {
     private static TrayIconHelper? _instance;
     public static TrayIconHelper Instance => _instance ??= new TrayIconHelper();
@@ -95,6 +97,7 @@ public class TrayIconHelper : INotifyPropertyChanged
     private Views.RecordingBorderWindow? _borderWindow;
     private Views.RecordingControlWindow? _recordingControls;
     private int? _encodingProgress;
+    private int? _taskProgress;
 
     /// <summary>
     /// Current tray icon based on recording state.
@@ -111,6 +114,14 @@ public class TrayIconHelper : INotifyPropertyChanged
             {
                 try { return CreateProgressIcon(progress); }
                 catch (Exception ex) { DebugHelper.WriteException(ex, "Failed to draw the encoding progress icon"); }
+            }
+
+            // ShareX's TaskManager.UpdateTrayIcon: the average upload progress, in its blue.
+            if (_currentRecordingStatus is RecordingStatus.Idle or RecordingStatus.Error && _taskProgress is int taskProgress &&
+                SettingsManager.Settings.TrayIconProgressEnabled)
+            {
+                try { return CreateProgressIcon(taskProgress, new SkiaSharp.SKColor(16, 116, 193)); }
+                catch (Exception ex) { DebugHelper.WriteException(ex, "Failed to draw the upload progress icon"); }
             }
 
             string idleIconPath = GetIdleIconPath();
@@ -145,12 +156,20 @@ public class TrayIconHelper : INotifyPropertyChanged
         }
     }
 
-    /// <summary>ShareX's Helpers.GetProgressIcon, with the color of its recording progress.</summary>
-    internal static WindowIcon CreateProgressIcon(int percentage)
+    /// <summary>Shows the upload progress on the tray icon, or the usual icon when <paramref name="progress"/> is null.</summary>
+    public void SetTaskProgress(int? progress)
+    {
+        if (_taskProgress == progress) return;
+        _taskProgress = progress;
+        OnPropertyChanged(nameof(CurrentTrayIcon));
+    }
+
+    /// <summary>ShareX's Helpers.GetProgressIcon; by default with the color of its recording progress.</summary>
+    internal static WindowIcon CreateProgressIcon(int percentage, SkiaSharp.SKColor? progressColor = null)
     {
         const int size = 32;
         percentage = Math.Clamp(percentage, 0, 100);
-        var color = new SkiaSharp.SKColor(140, 0, 36);
+        var color = progressColor ?? new SkiaSharp.SKColor(140, 0, 36);
         using var bitmap = new SkiaSharp.SKBitmap(size, size);
         using (var canvas = new SkiaSharp.SKCanvas(bitmap))
         {
@@ -236,11 +255,15 @@ public class TrayIconHelper : INotifyPropertyChanged
 
         // Subscribe to settings changes
         SettingsManager.SettingsChanged += OnSettingsChanged;
-
+        SettingsManager.RecentTaskManager.TasksChanged += OnRecentTasksChanged;
+        ToolMenuCatalog.HiddenToolsChanged += (_, _) => BuildTrayMenu();
     }
 
-    public void Initialize(IScreenRecordingCoordinator screenRecordingCoordinator)
+    public void Initialize(IScreenRecordingCoordinator screenRecordingCoordinator, IWorkflowOrchestrator? workflowOrchestrator = null)
     {
+        _workflowOrchestrator = workflowOrchestrator ?? _workflowOrchestrator;
+        StartWindowListTimer();
+
         if (ReferenceEquals(_screenRecordingCoordinator, screenRecordingCoordinator))
         {
             return;
@@ -589,11 +612,16 @@ public class TrayIconHelper : INotifyPropertyChanged
             TrayMenu.Items.Add(new NativeMenuItemSeparator());
         }
 
-        TrayMenu.Items.Add(new NativeMenuItem { Header = "Actions toolbar", Command = new AsyncRelayCommand(() => Core.Helpers.TaskHelpers.ExecuteJob(WorkflowType.ToggleActionsToolbar)) });
-        TrayMenu.Items.Add(new NativeMenuItem { Header = "Open Main Window", Command = OpenMainWindowCommand });
-        TrayMenu.Items.Add(new NativeMenuItem { Header = "Settings", Command = OpenSettingsCommand });
-        TrayMenu.Items.Add(new NativeMenuItemSeparator());
-        TrayMenu.Items.Add(new NativeMenuItem { Header = "Exit", Command = ExitCommand });
+        try
+        {
+            AddShareXMenuItems(TrayMenu.Items);
+        }
+        catch (Exception ex)
+        {
+            DebugHelper.WriteException(ex, "TrayIconHelper: unable to build the tray menu");
+            TrayMenu.Items.Add(new NativeMenuItem { Header = $"Show {AppResources.AppName}", Command = OpenMainWindowCommand });
+            TrayMenu.Items.Add(new NativeMenuItem { Header = "Exit", Command = ExitCommand });
+        }
 
         OnPropertyChanged(nameof(TrayMenu));
     }

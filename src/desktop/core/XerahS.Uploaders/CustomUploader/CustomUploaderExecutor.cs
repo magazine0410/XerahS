@@ -75,21 +75,44 @@ public sealed class CustomUploaderExecutor : GenericUploader, IUploadHandler
         return Task.Run(() =>
         {
             cancellationToken.ThrowIfCancellationRequested();
-            UploadResult result;
-            if (request.Category is UploaderCategory.Text or UploaderCategory.UrlShortener)
+
+            // The request's progress is what the task, the tray icon, and the taskbar show; as for the other
+            // uploaders (UploaderUploadAdapter.UploadLegacyAsync), it gets the bytes sent since the last report.
+            ProgressEventHandler? progressHandler = null;
+            if (request.Progress != null)
             {
-                using var reader = new StreamReader(request.Content, System.Text.Encoding.UTF8, leaveOpen: true);
-                string text = reader.ReadToEnd();
-                result = request.Category == UploaderCategory.UrlShortener
-                    ? ShortenUrl(text)
-                    : UploadText(text, request.FileName);
+                long lastPosition = 0;
+                progressHandler = progress =>
+                {
+                    long delta = Math.Max(0, progress.Position - lastPosition);
+                    lastPosition = progress.Position;
+                    request.Progress.Report(new UploadProgressReport(delta, progress.Length));
+                };
+                ProgressChanged += progressHandler;
             }
-            else
+
+            try
             {
-                result = Upload(request.Content, request.FileName);
+                UploadResult result;
+                if (request.Category is UploaderCategory.Text or UploaderCategory.UrlShortener)
+                {
+                    using var reader = new StreamReader(request.Content, System.Text.Encoding.UTF8, leaveOpen: true);
+                    string text = reader.ReadToEnd();
+                    result = request.Category == UploaderCategory.UrlShortener
+                        ? ShortenUrl(text)
+                        : UploadText(text, request.FileName);
+                }
+                else
+                {
+                    result = Upload(request.Content, request.FileName);
+                }
+                cancellationToken.ThrowIfCancellationRequested();
+                return UploadOutcomeMapper.FromUploadResult(result);
             }
-            cancellationToken.ThrowIfCancellationRequested();
-            return UploadOutcomeMapper.FromUploadResult(result);
+            finally
+            {
+                if (progressHandler != null) ProgressChanged -= progressHandler;
+            }
         }, cancellationToken);
     }
 

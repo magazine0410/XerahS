@@ -419,12 +419,19 @@ public enum WorkflowType // Localized
 
 public enum ThumbnailViewClickAction // Localized
 {
+    [Description("Default")]
     Default,
+    [Description("Select")]
     Select,
+    [Description("Open image viewer")]
     OpenImageViewer,
+    [Description("Open file")]
     OpenFile,
+    [Description("Open folder")]
     OpenFolder,
+    [Description("Open URL")]
     OpenURL,
+    [Description("Edit image")]
     EditImage
 }
 

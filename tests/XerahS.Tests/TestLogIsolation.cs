@@ -33,8 +33,8 @@ namespace XerahS.Tests;
 /// that exercise failure paths never append entries to the user's real XerahS error log
 /// (XIP0088 Phase 0 item 2). A module initializer runs before any test or static constructor.
 /// The personal folder is also moved into a temporary folder, so tests that save settings never
-/// overwrite the user's real settings, and Wayland clients started by tests cannot reach the user's
-/// compositor, so tests never replace the user's clipboard.
+/// overwrite the user's real settings, secrets stay out of the user's keyring, and Wayland clients started by
+/// tests cannot reach the user's compositor, so tests never replace the user's clipboard.
 /// </summary>
 internal static class TestLogIsolation
 {
@@ -51,6 +51,9 @@ internal static class TestLogIsolation
         PersonalFolder = Path.Combine(Path.GetTempPath(), $"xerahs-test-personal-{Environment.ProcessId}");
         Directory.CreateDirectory(PersonalFolder);
         PathsManager.PersonalFolder = PersonalFolder;
+
+        // Secrets saved by tests stay in the temporary personal folder; the system keyring is the user's.
+        Environment.SetEnvironmentVariable(XerahS.Core.Security.SecretStore.FileStoreOverrideVariable, "1");
 
         // Clipboard writes also hand their content to wl-copy, or to xclip when wl-copy fails, which would own the
         // user's real clipboard. Display names without a socket keep the session detection unchanged; unsetting

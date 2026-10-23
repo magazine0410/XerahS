@@ -47,6 +47,12 @@ namespace XerahS.Platform.Abstractions
         bool IsTrayIconHostAvailable => true;
 
         /// <summary>
+        /// Shows a progress percentage on the application's taskbar button, as ShareX's TaskbarManager does;
+        /// null shows no progress. Does nothing where the platform has no such indicator.
+        /// </summary>
+        void SetTaskbarProgress(int? progress) { }
+
+        /// <summary>
         /// Enables or disables menu-bar-only presentation when supported.
         /// </summary>
         /// <param name="enabled">True to hide the application from the Dock/taskbar equivalent; false to restore the regular app presentation.</param>

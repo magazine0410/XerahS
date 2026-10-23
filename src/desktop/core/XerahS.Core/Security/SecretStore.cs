@@ -187,6 +187,12 @@ public sealed class SecretStore : ISecretStore, ISecretStoreInfo
         }
     }
 
+    /// <summary>
+    /// Set to 1 to keep secrets in the encrypted file next to the settings instead of the system keyring (macOS
+    /// Keychain, Linux Secret Service). The tests set it, so that they never write to the user's keyring.
+    /// </summary>
+    public const string FileStoreOverrideVariable = "XERAHS_SECRET_STORE_FILE";
+
     private static BackendSelection CreateBackend(string filePath)
     {
         const string serviceName = "XerahS";
@@ -210,6 +216,15 @@ public sealed class SecretStore : ISecretStore, ISecretStoreInfo
                 isFallback: true);
         }
 
+        if (Environment.GetEnvironmentVariable(FileStoreOverrideVariable) == "1")
+        {
+            return BackendSelection.Create(
+                new AesFileSecretStore(filePath, GetKeyPath(filePath)),
+                "AES file store",
+                $"AES-GCM SecretsStore.json + SecretsStore.key ({FileStoreOverrideVariable}=1)",
+                isFallback: true);
+        }
+
         if (OperatingSystem.IsMacOS())
         {
             if (MacOSKeychainSecretStore.IsAvailable())
@@ -230,13 +245,18 @@ public sealed class SecretStore : ISecretStore, ISecretStoreInfo
 
         if (OperatingSystem.IsLinux())
         {
-            if (LinuxLibsecretSecretStore.IsAvailable())
+            if (LinuxLibsecretSecretStore.IsAvailable(serviceName))
             {
-                return BackendSelection.Create(
-                    new LinuxLibsecretSecretStore(serviceName),
-                    "Linux libsecret",
-                    $"Stored via secret-tool service \"{serviceName}\"",
-                    isFallback: false);
+                var keyring = new LinuxLibsecretSecretStore(serviceName);
+                // Secrets saved while the keyring check failed are in the file store; they move to the keyring first.
+                if (MoveFileSecretsToKeyring(filePath, keyring))
+                {
+                    return BackendSelection.Create(
+                        keyring,
+                        "Linux libsecret",
+                        $"Stored via secret-tool service \"{serviceName}\"",
+                        isFallback: false);
+                }
             }
 
             return BackendSelection.Create(
@@ -251,6 +271,56 @@ public sealed class SecretStore : ISecretStore, ISecretStoreInfo
             "AES file store (fallback)",
             "AES-GCM SecretsStore.json + SecretsStore.key",
             isFallback: true);
+    }
+
+    /// <summary>
+    /// Copies the file store's secrets into the keyring, each checked by reading it back, then renames the file
+    /// (to <c>.migrated-to-keyring</c>) so that it is not used again. The file is left as it is when a secret could
+    /// not be copied, and false is returned so that the file store stays in use.
+    /// </summary>
+    private static bool MoveFileSecretsToKeyring(string filePath, LinuxLibsecretSecretStore keyring)
+    {
+        if (!File.Exists(filePath))
+        {
+            return true;
+        }
+
+        try
+        {
+            var fileStore = new AesFileSecretStore(filePath, GetKeyPath(filePath));
+            int moved = 0;
+            foreach ((string account, string? value) in fileStore.GetAllSecrets())
+            {
+                if (value == null)
+                {
+                    DebugHelper.WriteLine($"SecretStore: {account} could not be decrypted and is not moved to the keyring.");
+                    continue;
+                }
+
+                // secret-tool's lookup output is trimmed, as every keyring read is.
+                string expected = value.Trim();
+                if (keyring.GetSecret(account) != expected)
+                {
+                    keyring.SetSecret(account, value);
+                    if (keyring.GetSecret(account) != expected)
+                    {
+                        DebugHelper.WriteLine($"SecretStore: {account} could not be stored in the keyring; the file store stays in use.");
+                        return false;
+                    }
+                }
+
+                moved++;
+            }
+
+            File.Move(filePath, filePath + ".migrated-to-keyring", overwrite: true);
+            DebugHelper.WriteLine($"SecretStore: moved {moved} secret(s) from {Path.GetFileName(filePath)} to the keyring.");
+            return true;
+        }
+        catch (Exception ex)
+        {
+            DebugHelper.WriteException(ex, "SecretStore failed to move the file store's secrets to the keyring.");
+            return false;
+        }
     }
 
     private static string GetKeyPath(string filePath)
@@ -401,8 +471,24 @@ public sealed class SecretStore : ISecretStore, ISecretStoreInfo
 
         public string? GetSecret(string providerId, string secretKey, string name)
         {
-            var key = BuildKey(providerId, secretKey, name);
             lock (_lock)
+            {
+                return GetSecretCore(BuildKey(providerId, secretKey, name));
+            }
+        }
+
+        /// <summary>Every stored account ("providerId:secretKey:name") with its value; null when it cannot be decrypted.</summary>
+        public IReadOnlyList<(string Account, string? Value)> GetAllSecrets()
+        {
+            lock (_lock)
+            {
+                EnsureLoaded();
+                return _secrets.Keys.ToList().Select(key => (key, GetSecretCore(key))).ToList();
+            }
+        }
+
+        private string? GetSecretCore(string key)
+        {
             {
                 EnsureLoaded();
                 if (!_secrets.TryGetValue(key, out var encrypted))
@@ -653,21 +739,32 @@ public sealed class SecretStore : ISecretStore, ISecretStoreInfo
             _service = service;
         }
 
-        public static bool IsAvailable()
+        /// <summary>
+        /// Whether the Secret Service (GNOME Keyring, KWallet, KeePassXC) answers. secret-tool has no --version: a
+        /// lookup of an item that does not exist exits with 1 and no message when the service answers, and prints
+        /// why when it cannot be reached.
+        /// </summary>
+        public static bool IsAvailable(string service)
         {
-            return CommandExists("secret-tool", "--version");
+            (int exitCode, string error) = ProbeCommand("secret-tool", $"lookup service {service} key xerahs-availability-probe");
+            return IsAvailableProbeResult(exitCode, error);
         }
 
-        public string? GetSecret(string providerId, string secretKey, string name)
+        internal static bool IsAvailableProbeResult(int exitCode, string error) =>
+            exitCode == 0 || exitCode == 1 && string.IsNullOrWhiteSpace(error);
+
+        public string? GetSecret(string providerId, string secretKey, string name) => GetSecret(BuildKey(providerId, secretKey, name));
+
+        public string? GetSecret(string account)
         {
-            var account = BuildKey(providerId, secretKey, name);
             var result = RunCommand("secret-tool", $"lookup service {_service} key \"{account}\"");
             return string.IsNullOrWhiteSpace(result) ? null : result.Trim();
         }
 
-        public void SetSecret(string providerId, string secretKey, string name, string value)
+        public void SetSecret(string providerId, string secretKey, string name, string value) => SetSecret(BuildKey(providerId, secretKey, name), value);
+
+        public void SetSecret(string account, string value)
         {
-            var account = BuildKey(providerId, secretKey, name);
             RunCommandWithInput("secret-tool", $"store --label=\"XerahS Secret\" service {_service} key \"{account}\"", value);
         }
 
@@ -694,6 +791,43 @@ public sealed class SecretStore : ISecretStore, ISecretStoreInfo
     private static string BuildKey(string providerId, string secretKey, string name)
     {
         return $"{providerId}:{secretKey}:{name}";
+    }
+
+    /// <summary>Runs a command and returns its exit code and error output; -1 when it cannot run or takes too long.</summary>
+    private static (int ExitCode, string Error) ProbeCommand(string command, string args)
+    {
+        try
+        {
+            var psi = new ProcessStartInfo
+            {
+                FileName = command,
+                Arguments = args,
+                RedirectStandardOutput = true,
+                RedirectStandardError = true,
+                UseShellExecute = false,
+                CreateNoWindow = true
+            };
+            using var process = Process.Start(psi);
+            if (process == null)
+            {
+                return (-1, string.Empty);
+            }
+
+            Task<string> error = process.StandardError.ReadToEndAsync();
+            _ = process.StandardOutput.ReadToEndAsync();
+            // Starting the Secret Service on demand (KWallet, GNOME Keyring) can take a few seconds.
+            if (!process.WaitForExit(5000))
+            {
+                try { process.Kill(); } catch { }
+                return (-1, string.Empty);
+            }
+
+            return (process.ExitCode, error.Wait(1000) ? error.Result : string.Empty);
+        }
+        catch
+        {
+            return (-1, string.Empty);
+        }
     }
 
     private static bool CommandExists(string command, string args)

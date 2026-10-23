@@ -45,121 +45,119 @@ namespace XerahS.Media
 
     public class ImageCombiner
     {
-        public SKBitmap? Combine(IEnumerable<SKBitmap> images, ImageCombinerOrientation orientation, int spacing = 0, ImageCombinerAlignment alignment = ImageCombinerAlignment.Center, SKColor? backgroundColor = null)
+        /// <summary>
+        /// ShareX's ImageHelpers.CombineImages. Images go in a row (horizontal) or a column (vertical); with
+        /// <paramref name="wrapAfter"/> above 0, a new row or column starts after that many images. Each row is as
+        /// high as its highest image (each column as wide as its widest), and <paramref name="alignment"/> places an
+        /// image within it. <paramref name="spacing"/> separates both images and rows or columns.
+        /// <paramref name="autoFillBackground"/> fills the background with the first image's bottom-right pixel.
+        /// </summary>
+        public SKBitmap? Combine(IEnumerable<SKBitmap> images, ImageCombinerOrientation orientation, int spacing = 0,
+            ImageCombinerAlignment alignment = ImageCombinerAlignment.Center, SKColor? backgroundColor = null,
+            int wrapAfter = 0, bool autoFillBackground = false)
         {
-            if (images == null || !images.Any())
+            List<SKBitmap> imageList = images?.Where(i => i != null).ToList() ?? new List<SKBitmap>();
+            if (imageList.Count == 0)
             {
                 return null;
             }
 
-            var imageList = images.ToList();
-            if (imageList.Any(i => i == null))
+            var imageRects = new List<SKRectI>(imageList.Count);
+            int positionX = 0, positionY = 0, currentSize = 0;
+
+            for (int i = 0; i < imageList.Count; i++)
             {
-                // Filter out null images or throw? For now filter.
-                imageList = imageList.Where(i => i != null).ToList();
-                if (!imageList.Any()) return null;
-            }
+                SKBitmap image = imageList[i];
+                int offsetX = 0, offsetY = 0;
 
-            int maxWidth = 0;
-            int maxHeight = 0;
-            int totalWidth = 0;
-            int totalHeight = 0;
-
-            foreach (var img in imageList)
-            {
-                if (img.Width > maxWidth) maxWidth = img.Width;
-                if (img.Height > maxHeight) maxHeight = img.Height;
-
-                if (orientation == ImageCombinerOrientation.Vertical)
+                if (orientation == ImageCombinerOrientation.Horizontal)
                 {
-                    totalHeight += img.Height;
+                    if (wrapAfter > 0)
+                    {
+                        if (i % wrapAfter == 0)
+                        {
+                            if (i > 0)
+                            {
+                                positionX = 0;
+                                positionY += currentSize + spacing;
+                            }
+
+                            currentSize = imageList.Skip(i).Take(wrapAfter).Max(x => x.Height);
+                        }
+                    }
+                    else if (i == 0)
+                    {
+                        currentSize = imageList.Max(x => x.Height);
+                    }
+
+                    offsetY = alignment switch
+                    {
+                        ImageCombinerAlignment.Center => (currentSize / 2) - (image.Height / 2),
+                        ImageCombinerAlignment.Far => currentSize - image.Height,
+                        _ => 0
+                    };
+
+                    imageRects.Add(SKRectI.Create(positionX, positionY + offsetY, image.Width, image.Height));
+                    positionX += image.Width + spacing;
                 }
                 else
                 {
-                    totalWidth += img.Width;
+                    if (wrapAfter > 0)
+                    {
+                        if (i % wrapAfter == 0)
+                        {
+                            if (i > 0)
+                            {
+                                positionY = 0;
+                                positionX += currentSize + spacing;
+                            }
+
+                            currentSize = imageList.Skip(i).Take(wrapAfter).Max(x => x.Width);
+                        }
+                    }
+                    else if (i == 0)
+                    {
+                        currentSize = imageList.Max(x => x.Width);
+                    }
+
+                    offsetX = alignment switch
+                    {
+                        ImageCombinerAlignment.Center => (currentSize / 2) - (image.Width / 2),
+                        ImageCombinerAlignment.Far => currentSize - image.Width,
+                        _ => 0
+                    };
+
+                    imageRects.Add(SKRectI.Create(positionX + offsetX, positionY, image.Width, image.Height));
+                    positionY += image.Height + spacing;
                 }
             }
 
-            // Add spacing
-            if (imageList.Count > 1)
-            {
-                if (orientation == ImageCombinerOrientation.Vertical)
-                {
-                    totalHeight += spacing * (imageList.Count - 1);
-                }
-                else
-                {
-                    totalWidth += spacing * (imageList.Count - 1);
-                }
-            }
+            // As ShareX's Combine: the canvas is the union of the image rectangles.
+            int left = imageRects.Min(r => r.Left), top = imageRects.Min(r => r.Top);
+            int width = imageRects.Max(r => r.Right) - left, height = imageRects.Max(r => r.Bottom) - top;
 
-            if (orientation == ImageCombinerOrientation.Vertical)
-            {
-                totalWidth = maxWidth;
-            }
-            else
-            {
-                totalHeight = maxHeight;
-            }
-
-            var result = new SKBitmap(totalWidth, totalHeight);
+            var result = new SKBitmap(width, height);
             using (var canvas = new SKCanvas(result))
             {
-                canvas.Clear(backgroundColor ?? SKColors.Transparent);
-
-                int currentX = 0;
-                int currentY = 0;
-
-                foreach (var img in imageList)
+                SKColor background = backgroundColor ?? SKColors.Transparent;
+                if (autoFillBackground)
                 {
-                    int drawX = currentX;
-                    int drawY = currentY;
+                    SKBitmap first = imageList[0];
+                    background = first.GetPixel(first.Width - 1, first.Height - 1);
+                }
+                canvas.Clear(background);
 
-                    if (orientation == ImageCombinerOrientation.Vertical)
-                    {
-                        // Calculate X based on alignment
-                        switch (alignment)
-                        {
-                            case ImageCombinerAlignment.Near: // Left
-                                drawX = 0;
-                                break;
-                            case ImageCombinerAlignment.Center:
-                                drawX = (totalWidth - img.Width) / 2;
-                                break;
-                            case ImageCombinerAlignment.Far: // Right
-                                drawX = totalWidth - img.Width;
-                                break;
-                        }
-
-                        currentY += img.Height + spacing;
-                    }
-                    else // Horizontal
-                    {
-                        // Calculate Y based on alignment
-                        switch (alignment)
-                        {
-                            case ImageCombinerAlignment.Near: // Top
-                                drawY = 0;
-                                break;
-                            case ImageCombinerAlignment.Center:
-                                drawY = (totalHeight - img.Height) / 2;
-                                break;
-                            case ImageCombinerAlignment.Far: // Bottom
-                                drawY = totalHeight - img.Height;
-                                break;
-                        }
-
-                        currentX += img.Width + spacing;
-                    }
-
-                    canvas.DrawBitmap(img, drawX, drawY, SKSamplingOptions.Default);
+                for (int i = 0; i < imageList.Count; i++)
+                {
+                    canvas.DrawBitmap(imageList[i], imageRects[i].Left - left, imageRects[i].Top - top, SKSamplingOptions.Default);
                 }
             }
 
             return result;
         }
 
-        public SKBitmap? Combine(IEnumerable<string> filePaths, ImageCombinerOrientation orientation, int spacing = 0, ImageCombinerAlignment alignment = ImageCombinerAlignment.Center, SKColor? backgroundColor = null)
+        public SKBitmap? Combine(IEnumerable<string> filePaths, ImageCombinerOrientation orientation, int spacing = 0, ImageCombinerAlignment alignment = ImageCombinerAlignment.Center, SKColor? backgroundColor = null,
+            int wrapAfter = 0, bool autoFillBackground = false)
         {
             var bitmaps = new List<SKBitmap>();
             try
@@ -176,7 +174,7 @@ namespace XerahS.Media
                     }
                 }
 
-                return Combine(bitmaps, orientation, spacing, alignment, backgroundColor);
+                return Combine(bitmaps, orientation, spacing, alignment, backgroundColor, wrapAfter, autoFillBackground);
             }
             finally
             {

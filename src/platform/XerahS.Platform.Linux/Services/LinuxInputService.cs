@@ -39,6 +39,8 @@ public sealed class LinuxInputService : IInputService
         ? KdeRecordingHighlight.BeginAsync() : Task.FromResult<IAsyncDisposable?>(null);
 
     public bool SupportsGlobalMouseMonitoring => LinuxGlobalMouseMonitor.IsSupported;
+    public bool SupportsCompositorMouseHighlight => LinuxScreenCaptureService.IsWayland &&
+        KdeRecordingHighlight.IsKdeSession(Environment.GetEnvironmentVariable("XDG_CURRENT_DESKTOP"));
     public IGlobalMouseMonitor CreateGlobalMouseMonitor(MouseHighlighterInputBuffer input) => new LinuxGlobalMouseMonitor(input);
 
     public bool IsCursorPositionReliable => IsCursorPositionReliableFor(

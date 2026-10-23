@@ -40,6 +40,9 @@ public sealed class WaylandPortalInputService : IInputService
 {
     public Task<IAsyncDisposable?> BeginRecordingHighlightAsync() => KdeRecordingHighlight.BeginAsync();
 
+    public bool SupportsCompositorMouseHighlight =>
+        KdeRecordingHighlight.IsKdeSession(Environment.GetEnvironmentVariable("XDG_CURRENT_DESKTOP"));
+
     private const string PortalBusName = "org.freedesktop.portal.Desktop";
     private static readonly ObjectPath PortalObjectPath = new("/org/freedesktop/portal/desktop");
 

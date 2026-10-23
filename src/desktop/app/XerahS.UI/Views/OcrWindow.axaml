@@ -6,15 +6,15 @@
         x:Class="XerahS.UI.Views.OcrWindow"
         x:DataType="vm:OcrViewModel"
         Title="OCR - Text Recognition"
-        Width="600" Height="450"
+        Width="720" Height="540"
         MinWidth="400" MinHeight="300"
         WindowStartupLocation="CenterScreen"
         AutomationProperties.Name="OCR Text Recognition Window">
 
-  <Grid RowDefinitions="Auto,*,Auto" Margin="16">
+  <Grid RowDefinitions="Auto,Auto,Auto,*,Auto" Margin="16">
 
     <!-- Options Bar -->
-    <StackPanel Grid.Row="0" Orientation="Horizontal" Spacing="16" Margin="0,0,0,12">
+    <WrapPanel Grid.Row="0" Orientation="Horizontal" ItemSpacing="16" LineSpacing="8" Margin="0,0,0,12">
 
       <StackPanel Orientation="Horizontal" Spacing="8">
         <TextBlock Text="Language:" VerticalAlignment="Center" />
@@ -43,10 +43,61 @@
                 VerticalAlignment="Center"
                 AutomationProperties.Name="Single line output mode" />
 
-    </StackPanel>
+      <CheckBox Content="Copy recognized text automatically"
+                IsChecked="{Binding AutoCopy}"
+                VerticalAlignment="Center"
+                AutomationProperties.Name="Copy recognized text automatically" />
+
+    </WrapPanel>
+
+    <!-- Services (ShareX's OCR service links) -->
+    <WrapPanel Grid.Row="1" Orientation="Horizontal" ItemSpacing="8" LineSpacing="8" Margin="0,0,0,12">
+      <TextBlock Text="Service:" VerticalAlignment="Center" />
+      <ComboBox ItemsSource="{Binding ServiceLinks}"
+                SelectedItem="{Binding SelectedService}"
+                MinWidth="180"
+                PlaceholderText="Select a service"
+                AutomationProperties.Name="OCR Service">
+        <ComboBox.ItemTemplate>
+          <DataTemplate x:DataType="vm:OcrServiceLinkOption">
+            <TextBlock Text="{Binding Name}" />
+          </DataTemplate>
+        </ComboBox.ItemTemplate>
+      </ComboBox>
+      <Button Content="Edit services"
+              Command="{Binding ToggleEditServicesCommand}"
+              AutomationProperties.Name="Edit services" />
+      <Button Content="Open service..."
+              Command="{Binding OpenServiceCommand}"
+              AutomationProperties.Name="Open the recognized text in the service" />
+      <CheckBox Content="Close after opening"
+                IsChecked="{Binding CloseAfterOpeningService}"
+                VerticalAlignment="Center"
+                AutomationProperties.Name="Close the window after opening a service" />
+    </WrapPanel>
+
+    <Border Grid.Row="2" IsVisible="{Binding IsEditingServices}" Margin="0,0,0,12" Padding="12" CornerRadius="4" BorderThickness="1"
+            BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}"
+            Background="{DynamicResource CardBackgroundFillColorDefaultBrush}">
+      <Grid RowDefinitions="Auto,Auto,Auto" ColumnDefinitions="Auto,*" RowSpacing="8" ColumnSpacing="8">
+        <StackPanel Grid.ColumnSpan="2" Orientation="Horizontal" Spacing="8">
+          <Button Content="New" Command="{Binding NewServiceCommand}" AutomationProperties.Name="New service" />
+          <Button Content="Remove" Command="{Binding RemoveServiceCommand}" AutomationProperties.Name="Remove service" />
+          <Button Content="Reset" Command="{Binding ResetServicesCommand}" AutomationProperties.Name="Reset services" />
+          <Button Content="Close" Command="{Binding ToggleEditServicesCommand}" AutomationProperties.Name="Close service editing" />
+        </StackPanel>
+        <TextBlock Grid.Row="1" Text="Name:" VerticalAlignment="Center" />
+        <TextBox Grid.Row="1" Grid.Column="1" Text="{Binding SelectedService.Name, FallbackValue=''}" IsEnabled="{Binding HasSelectedService}"
+                 AutomationProperties.Name="Service name" />
+        <TextBlock Grid.Row="2" Text="URL:" VerticalAlignment="Center" />
+        <TextBox Grid.Row="2" Grid.Column="1" Text="{Binding SelectedService.Url, FallbackValue=''}" IsEnabled="{Binding HasSelectedService}"
+                 PlaceholderText="Use {0} where the recognized text belongs"
+                 AutomationProperties.Name="Service URL" />
+      </Grid>
+    </Border>
 
     <!-- Result Text Area -->
-    <Grid Grid.Row="1">
+    <Grid Grid.Row="3">
       <TextBox Text="{Binding ResultText, Mode=TwoWay}"
                AcceptsReturn="True"
                TextWrapping="Wrap"
@@ -74,7 +125,7 @@
     </Grid>
 
     <!-- Bottom Bar -->
-    <Grid Grid.Row="2" ColumnDefinitions="Auto,Auto,*,Auto" Margin="0,12,0,0">
+    <Grid Grid.Row="4" ColumnDefinitions="Auto,Auto,*,Auto" Margin="0,12,0,0">
 
       <Button Grid.Column="0"
               Content="Select Region"

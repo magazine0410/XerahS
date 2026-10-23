@@ -57,6 +57,11 @@ public class TaskSettings
     [JsonIgnore]
     public string? WorkflowId { get; set; }
 
+    /// <summary>The window a "Capture any window" task captures without asking, as ShareX's CaptureWindow
+    /// does for a window chosen in its tray menu. Not saved.</summary>
+    [JsonIgnore]
+    public IntPtr CaptureWindowHandle { get; set; }
+
     public string Description { get; set; } = string.Empty;
 
     public WorkflowType Job = WorkflowType.None;
@@ -204,6 +209,13 @@ public class TaskSettings
     public bool WatchFolderEnabled = false;
     public List<WatchFolderSettings> WatchFolderList = new List<WatchFolderSettings>();
 
+    /// <summary>ShareX's IsUsingDefaultSettings: the workflow overrides none of the default task settings.</summary>
+    [JsonIgnore]
+    public bool IsUsingDefaultSettings =>
+        UseDefaultAfterCaptureJob && UseDefaultAfterUploadJob && UseDefaultDestinations && !OverrideFTP && !OverrideCustomUploader &&
+        !OverrideScreenshotsFolder && UseDefaultGeneralSettings && UseDefaultImageSettings && UseDefaultCaptureSettings && UseDefaultUploadSettings &&
+        UseDefaultActions && UseDefaultToolsSettings && UseDefaultAdvancedSettings && !WatchFolderEnabled;
+
     public override string ToString()
     {
         return !string.IsNullOrEmpty(Description) ? Description : EnumExtensions.GetDescription(Job);
@@ -222,6 +234,7 @@ public class TaskSettings
 
         TaskSettings safeTaskSettings = WatchFolderManager.CloneTaskSettings(taskSettings);
         safeTaskSettings.WorkflowId = taskSettings.WorkflowId;
+        safeTaskSettings.CaptureWindowHandle = taskSettings.CaptureWindowHandle;
         // A running task's settings already have the defaults applied, and may have been changed since.
         if (!taskSettings.IsSafeTaskSettings && defaultTaskSettings != null && !ReferenceEquals(defaultTaskSettings, taskSettings))
         {

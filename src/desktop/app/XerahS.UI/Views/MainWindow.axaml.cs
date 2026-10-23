@@ -114,6 +114,8 @@ namespace XerahS.UI.Views
 #endif
 
             BuildNavigationNodes();
+            UpdateToolsMenuVisibility();
+            ToolMenuCatalog.HiddenToolsChanged += OnHiddenToolsChanged;
 
             var navigationTree = this.FindControl<TreeView>("NavigationTree");
             if (navigationTree != null)
@@ -125,13 +127,14 @@ namespace XerahS.UI.Views
             // Do not Show/Activate here. NavigateTo used to call Show() while the window
             // was still being constructed, which fired Opened before App could attach the
             // SilentRun hide-to-tray handler. Avalonia shows MainWindow after startup.
-            NavigateTo("Editor");
+            NavigateTo("Tasks");
             _suppressWindowActivation = false;
         }
 
         protected override void OnClosed(EventArgs e)
         {
             DataContextChanged -= OnMainWindowDataContextChanged;
+            ToolMenuCatalog.HiddenToolsChanged -= OnHiddenToolsChanged;
 
             if (this.FindControl<ContentControl>("ContentFrame") is ContentControl contentFrame)
             {

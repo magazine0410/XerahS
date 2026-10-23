@@ -108,8 +108,10 @@ public static class WorkflowCatalog
         if (job == WorkflowType.MouseHighlighter)
             return XerahS.Platform.Abstractions.PlatformServices.IsInputServiceInitialized &&
                 XerahS.Platform.Abstractions.PlatformServices.IsWindowServiceInitialized &&
-                XerahS.Platform.Abstractions.PlatformServices.Input.SupportsGlobalMouseMonitoring &&
-                XerahS.Platform.Abstractions.PlatformServices.Window.SupportsClickThrough;
+                (XerahS.Platform.Abstractions.PlatformServices.Input.SupportsGlobalMouseMonitoring &&
+                 XerahS.Platform.Abstractions.PlatformServices.Window.SupportsClickThrough ||
+                 // KDE Plasma Wayland: KWin's Mouse Click Animation instead of XerahS's overlay.
+                 XerahS.Platform.Abstractions.PlatformServices.Input.SupportsCompositorMouseHighlight);
         if (job is not (WorkflowType.ActiveWindowTopMost or WorkflowType.ActiveWindowBorderless or WorkflowType.BorderlessWindow or WorkflowType.InspectWindow)) return true;
         if (!XerahS.Platform.Abstractions.PlatformServices.IsWindowServiceInitialized) return false;
         var windows = XerahS.Platform.Abstractions.PlatformServices.Window;

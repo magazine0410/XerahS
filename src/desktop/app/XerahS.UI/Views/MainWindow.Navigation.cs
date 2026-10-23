@@ -46,6 +46,7 @@ namespace XerahS.UI.Views
     public partial class MainWindow
     {
         private NavigationNode? _captureNavigationNode;
+        private NavigationNode? _toolsNavigationNode;
         private string _navigationSearchText = string.Empty;
         private bool _navigationFilterUpdateQueued;
         private bool _navigationSearchIndexEnriched;
@@ -229,6 +230,9 @@ namespace XerahS.UI.Views
                     Services.MouseHighlighterManager.ShowWindow(SettingsManager.DefaultTaskSettings.ToolsSettingsReference.MouseHighlighterOptions);
                     openedExternalWindow = true;
                     return true;
+                case "Tasks":
+                    contentFrame.Content = new TasksView();
+                    return true;
                 case "Editor":
                     _editorView ??= CreateEditorView();
                     contentFrame.Content = _editorView;
@@ -317,6 +321,8 @@ namespace XerahS.UI.Views
         {
             NavigationNodes.Clear();
 
+            // ShareX's main window shows the task list; XerahS shows it on this page, which opens first.
+            NavigationNodes.Add(CreateNode("Tasks", "Tasks", HostIcons.NavigationTasks, NavigationNodeKind.Page));
             _captureNavigationNode = CreateNode("Capture", "Capture", HostIcons.NavigationCapture, NavigationNodeKind.Group, isExpanded: true);
             NavigationNodes.Add(_captureNavigationNode);
             NavigationNodes.Add(CreateNode("Recording", "Recording", HostIcons.NavigationRecording, NavigationNodeKind.Page));
@@ -324,7 +330,8 @@ namespace XerahS.UI.Views
             NavigationNodes.Add(CreateNode("History", "History", HostIcons.NavigationHistory, NavigationNodeKind.Page));
             NavigationNodes.Add(CreateNode("Workflows", "Workflows", HostIcons.NavigationWorkflows, NavigationNodeKind.Page));
             NavigationNodes.Add(CreateUploadNode());
-            NavigationNodes.Add(CreateToolsNode());
+            _toolsNavigationNode = CreateToolsNode();
+            NavigationNodes.Add(_toolsNavigationNode);
             NavigationNodes.Add(CreateSettingsNode());
             NavigationNodes.Add(CreateNode("Debug", "Debug", HostIcons.NavigationDebug, NavigationNodeKind.Page));
             NavigationNodes.Add(CreateNode("About", "About", HostIcons.NavigationAbout, NavigationNodeKind.Page));
@@ -595,8 +602,107 @@ namespace XerahS.UI.Views
             toolsNode.AddChild(CreateNode("Monitor Test", "Tools_MonitorTest", null, NavigationNodeKind.Action));
             toolsNode.AddChild(CreateNode("Network Monitor...", "Tools_NetworkMonitor", null, NavigationNodeKind.Action));
 
+            RemoveHiddenTools(toolsNode);
             return toolsNode;
         }
+
+        /// <summary>Leaves out the tools hidden on the Tools page, as ShareX's tool menus do.</summary>
+        private static void RemoveHiddenTools(NavigationNode toolsNode)
+        {
+            foreach (NavigationNode child in toolsNode.Children.ToList())
+            {
+                bool hidden = child.Tag != null
+                    ? ToolMenuCatalog.IsTagHidden(child.Tag)
+                    : child.Children.Count > 0 && child.Children.All(node => node.Tag != null && ToolMenuCatalog.IsTagHidden(node.Tag));
+                if (hidden)
+                {
+                    toolsNode.Children.Remove(child);
+                }
+            }
+        }
+
+        private void OnHiddenToolsChanged(object? sender, EventArgs e)
+        {
+            if (_toolsNavigationNode != null)
+            {
+                _toolsNavigationNode.ReplaceChildren(CreateToolsNode().Children.ToList());
+                QueueNavigationFilterUpdate();
+            }
+
+            UpdateToolsMenuVisibility();
+        }
+
+        /// <summary>Shows the menu bar's tools that are available and not hidden on the Tools page.</summary>
+        private void UpdateToolsMenuVisibility()
+        {
+            if (this.FindControl<MenuItem>("ToolsMenuItem") is not MenuItem toolsMenu)
+            {
+                return;
+            }
+
+            bool IsShown(MenuItem item)
+            {
+                if (item.CommandParameter is string tag)
+                {
+                    ToolMenuItem? tool = ToolMenuCatalog.Categories.SelectMany(category => category.Tools)
+                        .FirstOrDefault(t => t.Id == tag || t.Tags.Contains(tag));
+                    // Entries of no ShareX tool (the Video Editor) keep the visibility set at startup.
+                    return tool == null ? item.IsVisible : tool.IsAvailable && !ToolMenuCatalog.IsHidden(tool);
+                }
+
+                bool anyShown = false;
+                foreach (MenuItem child in item.Items.OfType<MenuItem>())
+                {
+                    anyShown |= IsShown(child);
+                }
+                return anyShown;
+            }
+
+            Control? lastShown = null;
+            foreach (Control item in toolsMenu.Items.OfType<Control>())
+            {
+                if (item is MenuItem menuItem)
+                {
+                    menuItem.IsVisible = IsShown(menuItem);
+                    if (menuItem.IsVisible) lastShown = menuItem;
+                }
+                else if (item is Separator separator)
+                {
+                    // No separator at the top or right after another one.
+                    separator.IsVisible = lastShown is MenuItem;
+                    if (separator.IsVisible) lastShown = separator;
+                }
+            }
+
+            if (lastShown is Separator trailing)
+            {
+                trailing.IsVisible = false;
+            }
+        }
+
+        /// <summary>Opens a tool by its navigation tag, as the Tools menu does, without changing the page.</summary>
+        internal void OpenTool(string navTag)
+        {
+            if (this.FindControl<ContentControl>("ContentFrame") is not ContentControl contentFrame)
+            {
+                return;
+            }
+
+            // A hidden main window (XerahS in the tray) cannot own the tool's window.
+            if (!ToolNavigationHelper.TryHandleToolsTag(
+                    navTag,
+                    IsVisible ? this : null,
+                    contentFrame,
+                    _taskManager ?? throw new InvalidOperationException("Task manager is required for tool navigation."),
+                    ExecuteWorkflowFromNavigationAsync,
+                    out _))
+            {
+                HandleNavigationTag(navTag, contentFrame, out _);
+            }
+        }
+
+        /// <summary>Shows a page of the main window, for the tray menu.</summary>
+        internal void NavigateFromTray(string navTag) => NavigateTo(navTag);
 
         private static NavigationNode CreateSettingsNode()
         {

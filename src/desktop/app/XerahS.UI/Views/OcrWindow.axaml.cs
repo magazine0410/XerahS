@@ -41,6 +41,7 @@ public partial class OcrWindow : SurfaceWindow
 
         if (DataContext is OcrViewModel viewModel)
         {
+            viewModel.CloseRequested = Close;
             await viewModel.RunOcrAsync();
         }
     }

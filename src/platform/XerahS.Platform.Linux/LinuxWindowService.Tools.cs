@@ -28,6 +28,7 @@ using System.Drawing;
 using System.Runtime.InteropServices;
 using SkiaSharp;
 using XerahS.Platform.Abstractions;
+using XerahS.Platform.Linux.Services.Kde;
 
 namespace XerahS.Platform.Linux;
 
@@ -52,13 +53,16 @@ public partial class LinuxWindowService
     // XerahS's windows are X11 windows, also on Wayland through XWayland, where KWin and other
     // compositors honour their positions. Only another application's native Wayland windows cannot be moved.
     public bool SupportsWindowPositioning => _display != IntPtr.Zero;
-    public bool SupportsWindowInspection => _display != IntPtr.Zero && !LinuxScreenCaptureService.IsWayland;
+    // Other applications' windows are inspected through X11, or through KWin on KDE Plasma Wayland.
+    private bool SupportsX11Inspection => _display != IntPtr.Zero && !LinuxScreenCaptureService.IsWayland;
+    public bool SupportsWindowInspection => KWin != null || SupportsX11Inspection;
     public bool SupportsWindowOpacity => SupportsWindowInspection;
-    public bool SupportsBorderless => KWin != null || SupportsWindowInspection && HasAnyPropertyAtom(_rootWindow, "_NET_SUPPORTED", ["_NET_MOVERESIZE_WINDOW"]);
+    public bool SupportsBorderless => KWin != null || SupportsX11Inspection && HasAnyPropertyAtom(_rootWindow, "_NET_SUPPORTED", ["_NET_MOVERESIZE_WINDOW"]);
 
     public WindowDetails? GetWindowDetails(IntPtr handle)
     {
-        if (!SupportsWindowInspection || !TryGetWindowAttributes(handle, out var attributes)) return null;
+        if (IsKWinHandle(handle)) return GetKWinWindowDetails(handle);
+        if (!SupportsX11Inspection || !TryGetWindowAttributes(handle, out var attributes)) return null;
         uint pid = GetWindowProcessId(handle);
         string processName = string.Empty, processPath = string.Empty;
         // A PID from a remote X client does not identify a local process.
@@ -66,13 +70,7 @@ public partial class LinuxWindowService
             machine.Split('.')[0].Equals(Environment.MachineName.Split('.')[0], StringComparison.OrdinalIgnoreCase);
         if (pid > 0 && local)
         {
-            try
-            {
-                using var process = Process.GetProcessById(checked((int)pid));
-                processName = process.ProcessName;
-                processPath = process.MainModule?.FileName ?? string.Empty;
-            }
-            catch (Exception ex) when (ex is ArgumentException or InvalidOperationException or System.ComponentModel.Win32Exception or OverflowException) { }
+            (processName, processPath) = GetProcessNameAndPath(pid);
         }
         byte opacity = 255;
         if (TryGetWindowHandleArrayProperty(handle, "_NET_WM_WINDOW_OPACITY", out var values) && values.Length > 0)
@@ -86,6 +84,37 @@ public partial class LinuxWindowService
         };
     }
 
+    private static (string Name, string Path) GetProcessNameAndPath(uint pid)
+    {
+        try
+        {
+            using var process = Process.GetProcessById(checked((int)pid));
+            return (process.ProcessName, process.MainModule?.FileName ?? string.Empty);
+        }
+        catch (Exception ex) when (ex is ArgumentException or InvalidOperationException or System.ComponentModel.Win32Exception or OverflowException)
+        {
+            return (string.Empty, string.Empty);
+        }
+    }
+
+    /// <summary>
+    /// A window's details from KWin, in the X11 coordinates XerahS's picker and screens use. KWin has no class
+    /// name beyond the resource class, and ShareX's style flags are Windows-only.
+    /// </summary>
+    private WindowDetails? GetKWinWindowDetails(IntPtr handle)
+    {
+        if (GetKWinWindow(handle) is not KWinWindow window) return null;
+        (string processName, string processPath) = window.ProcessId > 0 ? GetProcessNameAndPath(window.ProcessId) : (string.Empty, string.Empty);
+        double scale = KWinWindowManager.X11Scale;
+        return new WindowDetails
+        {
+            Handle = handle, Title = window.Caption, ClassName = window.ResourceClass,
+            ProcessId = window.ProcessId, ProcessName = processName, ProcessFileName = processPath,
+            Bounds = KWinWindowManager.ToX11(window.FrameGeometry, scale), ClientBounds = KWinWindowManager.ToX11(window.ClientGeometry, scale),
+            IsTopmost = window.KeepAbove, Opacity = (byte)Math.Round(window.Opacity * 255)
+        };
+    }
+
     // As in ShareX, show the client area at its position on screen rather than relative to the window.
     private Rectangle GetClientScreenBounds(IntPtr handle, XWindowAttributes attributes) =>
         NativeMethods.XTranslateCoordinates(_display, handle, _rootWindow, 0, 0, out int x, out int y, out _) != 0
@@ -94,7 +123,18 @@ public partial class LinuxWindowService
 
     public byte[]? GetWindowIcon(IntPtr handle)
     {
-        if (!SupportsWindowInspection || !TryGetProperty(handle, "_NET_WM_ICON", out var property, 1024 * 1024)) return null;
+        if (IsKWinHandle(handle))
+        {
+            // KWin gives scripts no icon pixels; an XWayland window still has its X11 icon.
+            if (GetKWinWindow(handle) is not { X11WindowId: > 0 } kwinWindow || _display == IntPtr.Zero) return null;
+            handle = new IntPtr(kwinWindow.X11WindowId);
+        }
+        else if (!SupportsX11Inspection)
+        {
+            return null;
+        }
+
+        if (!TryGetProperty(handle, "_NET_WM_ICON", out var property, 1024 * 1024)) return null;
         using (property)
         {
             if (property.Format != 32) return null;
@@ -137,7 +177,8 @@ public partial class LinuxWindowService
 
     public bool SetWindowOpacity(IntPtr handle, byte opacity)
     {
-        if (!SupportsWindowOpacity || !TryGetWindowAttributes(handle, out _)) return false;
+        if (IsKWinHandle(handle)) return KWin?.SetOpacity(handle, opacity / 255d) == true;
+        if (!SupportsX11Inspection || !TryGetWindowAttributes(handle, out _)) return false;
         SetCardinals(handle, "_NET_WM_WINDOW_OPACITY", "CARDINAL", [new IntPtr((long)Math.Round(opacity / 255d * uint.MaxValue))]);
         NativeMethods.XFlush(_display);
         return true;

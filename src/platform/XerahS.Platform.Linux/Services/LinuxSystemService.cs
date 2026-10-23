@@ -35,6 +35,13 @@ namespace XerahS.Platform.Linux.Services
 
         public bool IsTrayIconHostAvailable => PortalInterfaceChecker.HasStatusNotifierWatcher();
 
+        private LinuxTaskbarProgress? _taskbarProgress;
+
+        public void SetTaskbarProgress(int? progress)
+        {
+            (_taskbarProgress ??= new LinuxTaskbarProgress(LinuxTaskbarProgress.GetDesktopFileId())).SetProgress(progress);
+        }
+
         public bool ShowFileInExplorer(string filePath)
         {
             if (string.IsNullOrEmpty(filePath) || !File.Exists(filePath))

@@ -151,7 +151,7 @@
                                     Background="{DynamicResource CardBackgroundFillColorDefaultBrush}" 
                                     CornerRadius="4" Padding="16">
                                 <StackPanel Spacing="16">
-                                    <CheckBox IsChecked="{Binding TrayIconProgressEnabled}" Content="Show progress on tray icon" AutomationProperties.Name="Show Tray Progress"/>
+                                    <CheckBox IsChecked="{Binding TrayIconProgressEnabled}" Content="Show progress in tray icon" AutomationProperties.Name="Show Tray Progress"/>
                                     <CheckBox IsChecked="{Binding UseWhiteShareXIcon}"
                                               Content="Use single-color white tray icon"
                                               ToolTip.Tip="Use the simple monochrome outline tray icon instead of the full-color one. Recommended on macOS and Linux where system panels are dark; opt-in on Windows. On GNOME, requires the AppIndicator extension."
@@ -231,7 +231,51 @@
                                     BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}" 
                                     Background="{DynamicResource CardBackgroundFillColorDefaultBrush}" 
                                     CornerRadius="4" Padding="16">
-                                <CheckBox IsChecked="{Binding TaskbarProgressEnabled}" Content="Show progress on taskbar" AutomationProperties.Name="Show Taskbar Progress"/>
+                                <CheckBox IsChecked="{Binding TaskbarProgressEnabled}" Content="Show progress in taskbar button"
+                                          ToolTip.Tip="On Linux, taskbars and docks that support the Unity launcher API show it, such as KDE Plasma's task manager."
+                                          AutomationProperties.Name="Show Taskbar Progress"/>
+                            </Border>
+                        </StackPanel>
+                    </StackPanel>
+                </ScrollViewer>
+            </TabItem>
+
+            <!-- Main window Tab (ShareX's Main window page; the Tasks page uses these settings) -->
+            <TabItem Header="Main window">
+                <ScrollViewer controls:SettingsSearch.PageId="main-window">
+                    <StackPanel Spacing="24" Margin="24">
+                        <StackPanel Spacing="8" controls:SettingsSearch.IsPanel="True">
+                            <TextBlock Text="Thumbnail view" FontWeight="SemiBold"/>
+                            <Border BorderThickness="1"
+                                    BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}"
+                                    Background="{DynamicResource CardBackgroundFillColorDefaultBrush}"
+                                    CornerRadius="4" Padding="16">
+                                <StackPanel Spacing="12">
+                                    <CheckBox IsChecked="{Binding ShowThumbnailTitle}" Content="Show title" AutomationProperties.Name="Show Thumbnail Title"/>
+                                    <Grid ColumnDefinitions="180,*" ColumnSpacing="8">
+                                        <TextBlock Text="Title location:" VerticalAlignment="Center"/>
+                                        <ComboBox Grid.Column="1" MinWidth="160" ItemsSource="{Binding ThumbnailTitleLocations}" SelectedItem="{Binding ThumbnailTitleLocation}"
+                                                  IsEnabled="{Binding ShowThumbnailTitle}" AutomationProperties.Name="Thumbnail Title Location"/>
+                                    </Grid>
+                                    <Grid ColumnDefinitions="180,130,Auto,130,Auto" ColumnSpacing="8">
+                                        <TextBlock Text="Thumbnail size:" VerticalAlignment="Center"/>
+                                        <NumericUpDown Grid.Column="1" Minimum="50" Maximum="500" FormatString="0" Value="{Binding ThumbnailWidth}" AutomationProperties.Name="Thumbnail Width"/>
+                                        <TextBlock Grid.Column="2" Text="×" VerticalAlignment="Center"/>
+                                        <NumericUpDown Grid.Column="3" Minimum="50" Maximum="500" FormatString="0" Value="{Binding ThumbnailHeight}" AutomationProperties.Name="Thumbnail Height"/>
+                                        <Button Grid.Column="4" Content="Reset" Command="{Binding ResetThumbnailSizeCommand}" AutomationProperties.Name="Reset Thumbnail Size"/>
+                                    </Grid>
+                                    <Grid ColumnDefinitions="180,*" ColumnSpacing="8">
+                                        <TextBlock Text="Thumbnail click action:" VerticalAlignment="Center"/>
+                                        <ComboBox Grid.Column="1" MinWidth="200" ItemsSource="{Binding ThumbnailClickActions}" SelectedItem="{Binding ThumbnailClickAction}"
+                                                  AutomationProperties.Name="Thumbnail Click Action">
+                                            <ComboBox.ItemTemplate>
+                                                <DataTemplate x:DataType="x:Object">
+                                                    <TextBlock Text="{Binding ., Converter={StaticResource EnumToDescriptionConverter}}"/>
+                                                </DataTemplate>
+                                            </ComboBox.ItemTemplate>
+                                        </ComboBox>
+                                    </Grid>
+                                </StackPanel>
                             </Border>
                         </StackPanel>
                     </StackPanel>
@@ -891,7 +935,7 @@
                                     <CheckBox IsChecked="{Binding RecentTasksSave}" Content="Save recent tasks" AutomationProperties.Name="Save Recent Tasks"/>
                                     
                                     <Grid ColumnDefinitions="Auto, 16, Auto">
-                                        <TextBlock Grid.Column="0" Text="Maximum recent tasks:" VerticalAlignment="Center"/>
+                                        <TextBlock Grid.Column="0" Text="Maximum number of tasks to save:" VerticalAlignment="Center"/>
                                         <NumericUpDown Grid.Column="2" 
                                                        Value="{Binding RecentTasksMaxCount}" 
                                                        Minimum="1" Maximum="100" 
@@ -901,10 +945,10 @@
                                     
                                     <TextBlock Text="Display Options" FontWeight="SemiBold" FontSize="12" Margin="0,8,0,0"/>
                                     
-                                    <CheckBox IsChecked="{Binding RecentTasksShowInMainWindow}" Content="Show recent tasks in main window" AutomationProperties.Name="Show Recent Tasks in Main Window"/>
+                                    <CheckBox IsChecked="{Binding RecentTasksShowInMainWindow}" Content="Show recent tasks in main window on startup" AutomationProperties.Name="Show Recent Tasks in Main Window"/>
                                     <CheckBox IsChecked="{Binding RecentTasksShowInTrayMenu}" Content="Show recent tasks in tray menu" AutomationProperties.Name="Show Recent Tasks in Tray Menu"/>
                                     <CheckBox IsChecked="{Binding RecentTasksTrayMenuMostRecentFirst}" 
-                                              Content="Show most recent first in tray menu" 
+                                              Content="In tray menu show most recent tasks first" 
                                               IsEnabled="{Binding RecentTasksShowInTrayMenu}"
                                               AutomationProperties.Name="Show Recent Tasks First"/>
                                 </StackPanel>
@@ -1348,6 +1392,10 @@
                         
                         <StackPanel Spacing="8" controls:SettingsSearch.IsPanel="True">
                             <TextBlock Text="Application Configuration" FontWeight="SemiBold"/>
+                            <CheckBox IsChecked="{Binding ShowMostRecentTaskFirst}" Content="Show the most recent task first"/>
+                            <CheckBox IsChecked="{Binding WorkflowsOnlyShowEdited}" Content="Show only customized workflows"/>
+                            <CheckBox IsChecked="{Binding TrayAutoExpandCaptureMenu}" Content="Automatically expand the capture menu"
+                                      ToolTip.Tip="Applies to the menu that the &quot;Toggle tray menu&quot; hotkey opens. The tray icon's own menu is drawn by the desktop, which cannot open a submenu by itself."/>
                             <CheckBox IsChecked="{Binding SaveSettingsAfterTaskCompleted}" Content="Save settings after task completed"/>
                             <TextBlock Text="Browser path:"/>
                             <TextBox Text="{Binding BrowserPath}" IsEnabled="{Binding SupportsCustomBrowser}" PlaceholderText="Leave empty to use the default browser"/>

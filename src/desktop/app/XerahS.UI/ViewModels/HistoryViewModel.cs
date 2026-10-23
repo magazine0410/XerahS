@@ -1191,8 +1191,17 @@ namespace XerahS.UI.ViewModels
                     return null;
                 }
 
+                // As ShareX's TaskHelpers.CombineImages: the image combiner's saved layout options apply.
+                ImageCombinerOptions options = SettingsManager.DefaultTaskSettings.ToolsSettings.ImageCombinerOptions;
+                XerahS.Media.ImageCombinerAlignment alignment = options.Alignment switch
+                {
+                    Core.ImageCombinerAlignment.Center => XerahS.Media.ImageCombinerAlignment.Center,
+                    Core.ImageCombinerAlignment.RightOrBottom => XerahS.Media.ImageCombinerAlignment.Far,
+                    _ => XerahS.Media.ImageCombinerAlignment.Near
+                };
                 var combiner = new ImageCombiner();
-                using var combinedBitmap = combiner.Combine(bitmaps, orientation);
+                using var combinedBitmap = combiner.Combine(bitmaps, orientation, options.Space, alignment,
+                    wrapAfter: options.WrapAfter, autoFillBackground: options.AutoFillBackground);
                 if (combinedBitmap == null)
                 {
                     return null;

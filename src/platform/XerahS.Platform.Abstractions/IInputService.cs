@@ -50,6 +50,13 @@ namespace XerahS.Platform.Abstractions
         /// </summary>
         Task<IAsyncDisposable?> BeginRecordingHighlightAsync() => Task.FromResult<IAsyncDisposable?>(null);
         bool SupportsGlobalMouseMonitoring => false;
+
+        /// <summary>
+        /// Whether the compositor can highlight the mouse itself (KWin's Mouse Click Animation on KDE Plasma Wayland),
+        /// started with <see cref="BeginRecordingHighlightAsync"/>. The mouse highlighter uses it where XerahS
+        /// cannot monitor the mouse globally.
+        /// </summary>
+        bool SupportsCompositorMouseHighlight => false;
         IGlobalMouseMonitor CreateGlobalMouseMonitor(MouseHighlighterInputBuffer input) =>
             throw new PlatformNotSupportedException("Global mouse monitoring is not supported on this window system.");
     }

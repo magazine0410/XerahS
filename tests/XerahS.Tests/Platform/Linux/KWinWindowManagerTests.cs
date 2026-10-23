@@ -75,6 +75,24 @@ public class KWinWindowManagerTests
         });
     }
 
+    [Test]
+    public void ParseSnapshot_ReadsOpacityAndTheX11WindowId()
+    {
+        string json = SnapshotJson.Replace("\"pid\": 20,", "\"pid\": 20, \"opacity\": 0.5, \"windowId\": 4194311,");
+        using var document = JsonDocument.Parse(json);
+        KWinSnapshot snapshot = KWinWindowManager.ParseSnapshot(document.RootElement)!;
+        KWinWindow dolphin = snapshot.Windows.Single(w => w.Id == "{aaaa}");
+        KWinWindow brave = snapshot.Windows.Single(w => w.Id == "{bbbb}");
+        Assert.Multiple(() =>
+        {
+            Assert.That(dolphin.Opacity, Is.EqualTo(0.5));
+            Assert.That(dolphin.X11WindowId, Is.EqualTo(4194311u));
+            // Native Wayland windows have no X11 id, and full opacity unless KWin says otherwise.
+            Assert.That(brave.Opacity, Is.EqualTo(1));
+            Assert.That(brave.X11WindowId, Is.EqualTo(0u));
+        });
+    }
+
     private static KWinSnapshot Parse()
     {
         using var document = JsonDocument.Parse(SnapshotJson);
@@ -186,5 +204,29 @@ public class KWinWindowManagerTests
         foreach (WindowInfo window in new LinuxWindowService().GetAllWindows())
             TestContext.Out.WriteLine($"{window.Handle:X} {window.Bounds} min={window.IsMinimized} max={window.IsMaximized} {window.ClassName}: {window.Title}");
         Assert.That(snapshot.Windows.Any(w => w.Listed), Is.True);
+    }
+
+    [Test, Explicit("Needs a KDE Plasma Wayland session")]
+    public void LiveSession_InspectsWindowsThroughKWin()
+    {
+        if (KWinWindowManager.Shared == null)
+        {
+            Assert.Ignore("KWin scripting is not available.");
+            return;
+        }
+
+        var service = new LinuxWindowService();
+        Assert.That(service.SupportsWindowInspection, Is.True);
+        WindowInfo[] windows = service.GetAllWindows();
+        Assert.That(windows, Is.Not.Empty);
+        foreach (WindowInfo window in windows)
+        {
+            // Titles can be private; the class, process, and window properties are enough here.
+            WindowDetails? details = service.GetWindowDetails(window.Handle);
+            Assert.That(details, Is.Not.Null, window.ClassName);
+            TestContext.Out.WriteLine($"{details!.ClassName} pid={details.ProcessId} process={details.ProcessName} bounds={details.Bounds} " +
+                $"client={details.ClientBounds} topmost={details.IsTopmost} opacity={details.Opacity} icon={service.GetWindowIcon(window.Handle)?.Length ?? 0}B");
+        }
+        Assert.That(service.GetWindowAtPoint(new Point(windows[0].Bounds.X + 5, windows[0].Bounds.Y + 5)), Is.Not.EqualTo(IntPtr.Zero));
     }
 }

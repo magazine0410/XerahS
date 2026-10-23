@@ -70,6 +70,8 @@ internal static class ToolNavigationRegistry
         ["Tools_Ruler"] = new(WorkflowType.Ruler, ToolNavigationDispatchMode.DirectToolService),
         ["Tools_MonitorTest"] = new(WorkflowType.MonitorTest, ToolNavigationDispatchMode.DirectToolService),
         ["Tools_NetworkMonitor"] = new(WorkflowType.NetworkMonitor, ToolNavigationDispatchMode.DirectToolService),
+        ["Tools_PinToScreen"] = new(WorkflowType.PinToScreen, ToolNavigationDispatchMode.DirectToolService),
+        ["Tools_ImageEditor"] = new(WorkflowType.ImageEditor, ToolNavigationDispatchMode.DirectToolService),
         ["Tools_PinToScreenFromScreen"] = new(WorkflowType.PinToScreenFromScreen, ToolNavigationDispatchMode.ExecuteWorkflow),
         ["Tools_PinToScreenFromClipboard"] = new(WorkflowType.PinToScreenFromClipboard, ToolNavigationDispatchMode.ExecuteWorkflow),
         ["Tools_PinToScreenFromFile"] = new(WorkflowType.PinToScreenFromFile, ToolNavigationDispatchMode.ExecuteWorkflow),

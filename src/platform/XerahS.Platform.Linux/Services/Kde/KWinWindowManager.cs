@@ -47,7 +47,9 @@ internal sealed record KWinWindow(
     bool IsNotification = false,
     bool Dock = false,
     bool FullScreen = false,
-    bool Hidden = false);
+    bool Hidden = false,
+    double Opacity = 1,
+    uint X11WindowId = 0);
 
 /// <summary>The window stack (bottom to top), the active window, and the pointer position.</summary>
 internal sealed record KWinSnapshot(IReadOnlyList<KWinWindow> Windows, string? ActiveWindowId, Point CursorPosition);
@@ -142,6 +144,10 @@ internal sealed class KWinWindowManager
     public bool SetMinimized(nint handle, bool minimized) =>
         RunWindowAction(handle, minimized ? "w.minimized = true;" : "w.minimized = false;");
 
+    /// <summary>Sets the window's opacity (0.1 to 1), as Inspect window's opacity slider does on X11.</summary>
+    public bool SetOpacity(nint handle, double opacity) =>
+        RunWindowAction(handle, $"w.opacity = {Math.Clamp(opacity, 0.1, 1).ToString("R", System.Globalization.CultureInfo.InvariantCulture)};");
+
     public bool SetKeepAbove(nint handle, bool keepAbove) =>
         RunWindowAction(handle, keepAbove ? "w.keepAbove = true;" : "w.keepAbove = false;");
 
@@ -220,6 +226,8 @@ internal sealed class KWinWindowManager
                     fullScreen: w.fullScreen,
                     keepAbove: w.keepAbove,
                     noBorder: w.noBorder,
+                    opacity: w.opacity,
+                    windowId: w.windowId || 0,
                     managed: w.managed,
                     deleted: w.deleted,
                     hidden: w.hidden,
@@ -287,7 +295,9 @@ internal sealed class KWinWindowManager
                 GetBool(element, "notification"),
                 GetBool(element, "dock"),
                 GetBool(element, "fullScreen"),
-                GetBool(element, "hidden")));
+                GetBool(element, "hidden"),
+                element.TryGetProperty("opacity", out JsonElement opacity) && opacity.TryGetDouble(out double opacityValue) ? Math.Clamp(opacityValue, 0, 1) : 1,
+                element.TryGetProperty("windowId", out JsonElement windowId) && windowId.TryGetUInt32(out uint x11WindowId) ? x11WindowId : 0));
         }
 
         return new KWinSnapshot(windows, GetString(root, "active"), cursor);
