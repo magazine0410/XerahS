@@ -196,16 +196,26 @@ public static class ScrollingCaptureToolService
         }
     }
 
-    private static async Task UploadCapturedImageAsync(IDesktopTaskManager taskManager, SKBitmap image, TaskSettings taskSettings)
+    /// <summary>
+    /// ShareX's "Upload / Save" runs the image through the workflow's after capture tasks. As in ShareX, the task is
+    /// started and not waited for: it can open the editor and upload for a long time, and the window can capture
+    /// again meanwhile.
+    /// </summary>
+    internal static Task UploadCapturedImageAsync(IDesktopTaskManager taskManager, SKBitmap image, TaskSettings taskSettings)
     {
-        try
+        _ = RunAsync();
+        return Task.CompletedTask;
+
+        async Task RunAsync()
         {
-            // ShareX's "Upload / Save" runs the image through the workflow's after capture tasks.
-            await taskManager.StartTask(TaskSettings.GetSafeTaskSettings(taskSettings), image);
-        }
-        catch (Exception ex)
-        {
-            DebugHelper.WriteException(ex, "ScrollingCapture upload");
+            try
+            {
+                await taskManager.StartTask(TaskSettings.GetSafeTaskSettings(taskSettings), image);
+            }
+            catch (Exception ex)
+            {
+                DebugHelper.WriteException(ex, "ScrollingCapture upload");
+            }
         }
     }
 }

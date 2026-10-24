@@ -26,6 +26,40 @@ public class ScrollingCaptureToolServiceTests
     }
 
     [Test]
+    public void UploadSave_StartsTheTask_WithoutWaitingForItToEnd()
+    {
+        var manager = new HoldingTaskManager();
+        using var image = new SkiaSharp.SKBitmap(4, 4);
+
+        Task upload = ScrollingCaptureToolService.UploadCapturedImageAsync(manager, image, new XerahS.Core.TaskSettings());
+
+        Assert.That(manager.Started, Is.EqualTo(1));
+        Assert.That(upload.IsCompleted, Is.True, "the window can capture again while the task, and an editor it opens, runs");
+        manager.Finish.SetResult();
+    }
+
+    private sealed class HoldingTaskManager : XerahS.Bootstrap.IDesktopTaskManager
+    {
+        public int Started { get; private set; }
+        public TaskCompletionSource Finish { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        public event EventHandler<XerahS.Core.Tasks.WorkerTask>? TaskCompleted { add { } remove { } }
+        public event EventHandler<XerahS.Core.Tasks.WorkerTask>? TaskStarted { add { } remove { } }
+        public IEnumerable<XerahS.Core.Tasks.WorkerTask> Tasks => [];
+
+        public Task StartTask(XerahS.Core.TaskSettings? taskSettings, SkiaSharp.SKBitmap? inputImage = null)
+        {
+            Started++;
+            return Finish.Task;
+        }
+
+        public Task StartFileTask(XerahS.Core.TaskSettings? taskSettings, string filePath) => Task.CompletedTask;
+        public Task StartImageUploadTask(XerahS.Core.TaskSettings? taskSettings, SkiaSharp.SKBitmap image) => Task.CompletedTask;
+        public Task StartTextTask(XerahS.Core.TaskSettings? taskSettings, string text) => Task.CompletedTask;
+        public void StopAllTasks() { }
+    }
+
+    [Test]
     public void CurrentCapture_OnlyCleared_WhenMatchingOwningWindowCloses()
     {
         // Regression: before the fix, every window's Closed handler unconditionally
