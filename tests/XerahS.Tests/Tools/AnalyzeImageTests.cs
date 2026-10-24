@@ -197,6 +197,35 @@ public class AnalyzeImageTests
     }
 
     [AvaloniaTest]
+    public async Task ClosingTheWindow_CancelsTheAnalysis_AndCopiesNothing()
+    {
+        var handler = new WaitingHandler();
+        var options = new AIOptions { Provider = AIProvider.OpenRouter, AutoCopyResult = true, AutoStartAnalyze = false };
+        string? copied = null;
+        bool played = false;
+        using var image = new SKBitmap(8, 8);
+        var viewModel = new AnalyzeImageViewModel(options, new AnalyzeImageService(new HttpClient(handler)), _ => "key", image)
+        {
+            CopyTextRequested = text => { copied = text; return Task.CompletedTask; },
+            PlayNotificationSound = () => played = true
+        };
+        await viewModel.InitializeAsync();
+
+        Task analysis = viewModel.AnalyzeCommand.ExecuteAsync(null);
+        await handler.Received.WaitAsync(TimeSpan.FromSeconds(10));
+        viewModel.Dispose();
+        await analysis.WaitAsync(TimeSpan.FromSeconds(10));
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(handler.Cancelled, Is.True, "Closing the window cancels the request.");
+            Assert.That(copied, Is.Null);
+            Assert.That(played, Is.False);
+            Assert.That(viewModel.ErrorMessage, Is.Empty);
+        });
+    }
+
+    [AvaloniaTest]
     public async Task Window_WithoutAnApiKey_AsksForOne_AndDoesNotSend()
     {
         var handler = new RecordingHandler("{}");
@@ -266,6 +295,30 @@ public class AnalyzeImageTests
         finally
         {
             Directory.Delete(directory, recursive: true);
+        }
+    }
+
+    /// <summary>Answers nothing until the request is cancelled.</summary>
+    private sealed class WaitingHandler : HttpMessageHandler
+    {
+        private readonly TaskCompletionSource _received = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        public Task Received => _received.Task;
+        public bool Cancelled { get; private set; }
+
+        protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
+        {
+            _received.TrySetResult();
+            try
+            {
+                await Task.Delay(Timeout.Infinite, cancellationToken);
+            }
+            catch (OperationCanceledException)
+            {
+                Cancelled = true;
+                throw;
+            }
+
+            throw new InvalidOperationException("Unreachable.");
         }
     }
 

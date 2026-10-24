@@ -44,6 +44,10 @@ public sealed partial class AnalyzeImageViewModel : ViewModelBase, IDisposable
     private SKBitmap? _image;
     private string? _imagePath;
     private bool _hasApiKey;
+    private bool _disposed;
+    // The running analysis and the bitmap it reads on a background thread, which must not be disposed under it.
+    private CancellationTokenSource? _analysisCancellation;
+    private SKBitmap? _analyzedImage;
 
     public IReadOnlyList<string> PresetPrompts { get; } =
     [
@@ -140,25 +144,39 @@ public sealed partial class AnalyzeImageViewModel : ViewModelBase, IDisposable
         ElapsedText = string.Empty;
         ErrorMessage = string.Empty;
         var timer = Stopwatch.StartNew();
+        using var cancellation = new CancellationTokenSource();
+        _analysisCancellation = cancellation;
+        SKBitmap image = _image!;
+        _analyzedImage = image;
         try
         {
             AIOptions options = _options.Clone();
-            SKBitmap image = _image!;
-            string result = await Task.Run(async () => await _service.AnalyzeAsync(image, options, _getApiKey(options.Provider)));
+            CancellationToken token = cancellation.Token;
+            string result = await Task.Run(async () => await _service.AnalyzeAsync(image, options, _getApiKey(options.Provider), token), token);
+            // Closing the window cancels the request; nothing is shown, copied, or played afterwards.
+            if (_disposed) return;
             timer.Stop();
             ResultText = result.ReplaceLineEndings(Environment.NewLine);
             ElapsedText = $"Time: {timer.ElapsedMilliseconds:N0} ms";
             if (_options.AutoCopyResult && HasResult && CopyTextRequested != null) await CopyTextRequested(ResultText);
             if (HasResult) PlayNotificationSound?.Invoke();
         }
+        catch (OperationCanceledException) when (_disposed)
+        {
+        }
         catch (Exception ex)
         {
+            if (_disposed) return;
             ResultText = string.Empty;
             ErrorMessage = ex.Message;
             DebugHelper.WriteException(ex, "Image analysis failed");
         }
         finally
         {
+            _analysisCancellation = null;
+            _analyzedImage = null;
+            // The window closed, or another image replaced this one, while the analysis read it.
+            if (_disposed || !ReferenceEquals(_image, image)) image.Dispose();
             IsBusy = false;
         }
     }
@@ -226,7 +244,7 @@ public sealed partial class AnalyzeImageViewModel : ViewModelBase, IDisposable
     {
         Bitmap preview = BitmapConversionHelpers.ToAvaloniBitmap(image);
         PreviewImage?.Dispose();
-        _image?.Dispose();
+        if (!ReferenceEquals(_image, _analyzedImage)) _image?.Dispose();
         _image = image;
         _imagePath = filePath;
         PreviewImage = preview;
@@ -236,7 +254,11 @@ public sealed partial class AnalyzeImageViewModel : ViewModelBase, IDisposable
 
     public void Dispose()
     {
+        if (_disposed) return;
+        _disposed = true;
         PreviewImage?.Dispose();
-        _image?.Dispose();
+        _analysisCancellation?.Cancel();
+        // A running analysis disposes its image when it ends.
+        if (!ReferenceEquals(_image, _analyzedImage)) _image?.Dispose();
     }
 }
