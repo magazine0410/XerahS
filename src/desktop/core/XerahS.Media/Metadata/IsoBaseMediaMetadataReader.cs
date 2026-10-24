@@ -97,7 +97,7 @@ internal static class IsoBaseMediaMetadataReader
         AddQuickTimeDate(metadata, "Movie", "Creation Time", creation);
         AddQuickTimeDate(metadata, "Movie", "Modification Time", modification);
         metadata.Add("Movie", "Time Scale", timescale);
-        if (timescale > 0 && duration != ulong.MaxValue) metadata.Add("Movie", "Duration", FormatDuration((double)duration / timescale));
+        if (timescale > 0 && duration != ulong.MaxValue) metadata.Add("Movie", "Duration", MetadataDuration.Format((double)duration / timescale));
         int rateOffset = version1 ? 32 : 20;
         int volumeOffset = rateOffset + 4;
         if (data.Length >= volumeOffset + 2)
@@ -169,7 +169,7 @@ internal static class IsoBaseMediaMetadataReader
         uint timescale = BinaryPrimitives.ReadUInt32BigEndian(data[timescaleOffset..]);
         ulong duration = version1 ? BinaryPrimitives.ReadUInt64BigEndian(data[durationOffset..]) : BinaryPrimitives.ReadUInt32BigEndian(data[durationOffset..]);
         metadata.Add(group, "Media Time Scale", timescale);
-        if (timescale > 0 && duration != ulong.MaxValue) metadata.Add(group, "Media Duration", FormatDuration((double)duration / timescale));
+        if (timescale > 0 && duration != ulong.MaxValue) metadata.Add(group, "Media Duration", MetadataDuration.Format((double)duration / timescale));
         ushort language = BinaryPrimitives.ReadUInt16BigEndian(data[languageOffset..]);
         if (language != 0 && language != 0x7FFF)
         {
@@ -517,7 +517,6 @@ internal static class IsoBaseMediaMetadataReader
         catch (DecoderFallbackException) { return Encoding.Latin1.GetString(value); }
     }
     private static string FourCc(ReadOnlySpan<byte> value) => Encoding.Latin1.GetString(value[..4]).TrimEnd('\0', ' ');
-    private static string FormatDuration(double seconds) => TimeSpan.FromSeconds(seconds).ToString(seconds >= 3600 ? @"h\:mm\:ss\.fff" : @"m\:ss\.fff");
 
     private readonly record struct FileBox(string Type, long Offset, long Size, int HeaderSize)
     {

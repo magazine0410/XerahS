@@ -89,6 +89,23 @@ internal static class MetadataFormatDetector
     }
 }
 
+internal static class MetadataDuration
+{
+    /// <summary>
+    /// A duration as m:ss.fff, or h:mm:ss.fff from an hour, with the hours counted past 24. Null for a value no file
+    /// can have (negative, not a number, or beyond what TimeSpan holds), so a crafted duration does not end the read.
+    /// </summary>
+    public static string? Format(double seconds)
+    {
+        if (!double.IsFinite(seconds) || seconds < 0 || seconds >= TimeSpan.MaxValue.TotalSeconds - 1) return null;
+        TimeSpan duration = TimeSpan.FromSeconds(seconds);
+        return seconds < 3600
+            ? duration.ToString(@"m\:ss\.fff", CultureInfo.InvariantCulture)
+            : string.Concat(((long)duration.TotalHours).ToString(CultureInfo.InvariantCulture), ":",
+                duration.ToString(@"mm\:ss\.fff", CultureInfo.InvariantCulture));
+    }
+}
+
 internal sealed class MetadataCollector
 {
     private const int MaximumEntries = 2048;

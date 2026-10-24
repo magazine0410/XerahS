@@ -95,7 +95,7 @@ internal static class AsfMetadataReader
             catch (ArgumentOutOfRangeException) { }
         }
         double durationSeconds = playDuration / 10_000_000d - preroll / 1000d;
-        if (durationSeconds > 0) metadata.Add("ASF", "Duration", FormatDuration(durationSeconds));
+        if (durationSeconds > 0) metadata.Add("ASF", "Duration", MetadataDuration.Format(durationSeconds));
         metadata.Add("ASF", "Preroll", $"{preroll} ms");
         uint flags = BinaryPrimitives.ReadUInt32LittleEndian(data[64..]);
         metadata.Add("ASF", "Broadcast", (flags & 1) != 0 ? "Yes" : "No");
@@ -205,7 +205,6 @@ internal static class AsfMetadataReader
     }
 
     private static string ReadUnicode(ReadOnlySpan<byte> value) => Encoding.Unicode.GetString(value).TrimEnd('\0');
-    private static string FormatDuration(double seconds) => TimeSpan.FromSeconds(seconds).ToString(seconds >= 3600 ? @"h\:mm\:ss\.fff" : @"m\:ss\.fff");
     private static string GetAudioCodec(ushort value) => value switch
     {
         1 => "PCM",

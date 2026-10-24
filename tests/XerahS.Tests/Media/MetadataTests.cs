@@ -405,6 +405,32 @@ public class MetadataTests
         Assert.That(metadata.Single(value => value.Group == "AVI" && value.Tag == "Duration").Value, Is.EqualTo("1:20:00.000"));
     }
 
+    [TestCase(75.25, "1:15.250")]
+    [TestCase(3600, "1:00:00.000")]
+    [TestCase(100_000, "27:46:40.000")]
+    [TestCase(-1, null)]
+    [TestCase(double.NaN, null)]
+    [TestCase(double.PositiveInfinity, null)]
+    [TestCase(1e19, null)]
+    public void Durations_CountHoursPastADay_AndImpossibleOnesAreLeftOut(double seconds, string? expected) =>
+        Assert.That(MetadataDuration.Format(seconds), Is.EqualTo(expected));
+
+    [Test]
+    public async Task AnMp4WithAnImpossibleDuration_StillShowsItsOtherMetadata()
+    {
+        byte[] movieHeader = new byte[108];
+        movieHeader[0] = 1;
+        BinaryPrimitives.WriteUInt32BigEndian(movieHeader.AsSpan(20), 1);
+        BinaryPrimitives.WriteUInt64BigEndian(movieHeader.AsSpan(24), ulong.MaxValue - 1);
+        byte[] file = [.. Box("ftyp", "isom\0\0\0\0isom"u8.ToArray()), .. Box("moov", Box("mvhd", movieHeader)), .. Box("mdat", [1, 2])];
+        string path = Path.Combine(_directory, "impossible.mp4");
+        await File.WriteAllBytesAsync(path, file);
+
+        IReadOnlyList<MetadataValue> metadata = await MetadataService.ReadMetadataAsync(path);
+        Assert.That(metadata.Any(value => value.Group == "Movie" && value.Tag == "Time Scale"), Is.True);
+        Assert.That(metadata.Any(value => value.Tag == "Duration"), Is.False);
+    }
+
     [Test]
     public async Task StripAvi_ClearsTheXmpChunk()
     {

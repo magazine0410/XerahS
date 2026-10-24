@@ -342,7 +342,7 @@ internal static class ImageMetadataReader
         }
 
         metadata.Add("GIF", "Frame Count", frameCount);
-        if (durationSeconds > 0) metadata.Add("GIF", "Duration", FormatDuration(durationSeconds));
+        if (durationSeconds > 0) metadata.Add("GIF", "Duration", MetadataDuration.Format(durationSeconds));
     }
 
     private static void ReadBmp(string filePath, MetadataCollector metadata)
@@ -678,7 +678,6 @@ internal static class ImageMetadataReader
         }
     }
 
-    private static string FormatDuration(double seconds) => TimeSpan.FromSeconds(seconds).ToString(seconds >= 3600 ? @"h\:mm\:ss\.fff" : @"m\:ss\.fff");
 
     private static FileStream OpenRead(string filePath) =>
         new(filePath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete, 64 * 1024, FileOptions.SequentialScan);

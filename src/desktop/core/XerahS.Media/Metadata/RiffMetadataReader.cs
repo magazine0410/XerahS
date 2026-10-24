@@ -172,7 +172,7 @@ internal static class RiffMetadataReader
         metadata.Add("AVI", "Frame Rate", microsecondsPerFrame > 0 ? $"{1_000_000d / microsecondsPerFrame:0.###} fps" : null);
         metadata.Add("AVI", "Frame Count", totalFrames);
         // Multiplied as doubles: the product of two 32-bit values wraps past 2^32 microseconds, about 71.6 minutes.
-        metadata.Add("AVI", "Duration", microsecondsPerFrame > 0 ? FormatDuration((double)totalFrames * microsecondsPerFrame / 1_000_000d) : null);
+        metadata.Add("AVI", "Duration", microsecondsPerFrame > 0 ? MetadataDuration.Format((double)totalFrames * microsecondsPerFrame / 1_000_000d) : null);
         metadata.Add("AVI", "Maximum Data Rate", maxBytesPerSecond > 0 ? $"{maxBytesPerSecond * 8d / 1_000_000:0.###} Mbps" : null);
         metadata.Add("AVI", "Stream Count", BinaryPrimitives.ReadUInt32LittleEndian(data[24..]));
         metadata.AddSize("AVI", BinaryPrimitives.ReadInt32LittleEndian(data[32..]), BinaryPrimitives.ReadInt32LittleEndian(data[36..]));
@@ -197,7 +197,7 @@ internal static class RiffMetadataReader
         if (scale > 0 && rate > 0)
         {
             metadata.Add(context.Group, context.Type == "vids" ? "Frame Rate" : "Rate", $"{(double)rate / scale:0.###}");
-            metadata.Add(context.Group, "Duration", FormatDuration((double)length * scale / rate));
+            metadata.Add(context.Group, "Duration", MetadataDuration.Format((double)length * scale / rate));
         }
         metadata.Add(context.Group, "Length", length);
         uint sampleSize = BinaryPrimitives.ReadUInt32LittleEndian(data[44..]);
@@ -267,7 +267,6 @@ internal static class RiffMetadataReader
         try { return new UTF8Encoding(false, true).GetString(data); }
         catch (DecoderFallbackException) { return Encoding.Latin1.GetString(data); }
     }
-    private static string FormatDuration(double seconds) => TimeSpan.FromSeconds(seconds).ToString(seconds >= 3600 ? @"h\:mm\:ss\.fff" : @"m\:ss\.fff");
     private static string GetWaveFormat(ushort value) => value switch
     {
         1 => "PCM",

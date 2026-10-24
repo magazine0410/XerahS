@@ -126,7 +126,7 @@ internal static class MatroskaMetadataReader
                 case 0x73A4: metadata.Add("Matroska Info", "Segment UID", Convert.ToHexString(value)); break;
             }
         }
-        if (duration is > 0) metadata.Add("Matroska Info", "Duration", FormatDuration(duration.Value * timestampScale / 1_000_000_000d));
+        if (duration is > 0) metadata.Add("Matroska Info", "Duration", MetadataDuration.Format(duration.Value * timestampScale / 1_000_000_000d));
     }
 
     private static void ReadTracks(byte[] data, MetadataCollector metadata)
@@ -389,7 +389,6 @@ internal static class MatroskaMetadataReader
         0x21 => "Metadata",
         _ => value.ToString()
     };
-    private static string FormatDuration(double seconds) => TimeSpan.FromSeconds(seconds).ToString(seconds >= 3600 ? @"h\:mm\:ss\.fff" : @"m\:ss\.fff");
 
     internal readonly record struct StreamElement(ulong Id, long Offset, long PayloadOffset, long Size, int IdWidth, int SizeWidth, bool UnknownSize)
     {
