@@ -55,7 +55,7 @@ internal static class MouseHighlighterManager
         }
         if (_settingsWindow == null)
         {
-            _settingsWindow = new MouseHighlighterWindow(options, () => _ = ImageEditorOptionsStore.PersistAsync());
+            _settingsWindow = new MouseHighlighterWindow(options, ImageEditorOptionsStore.PersistSoon);
             _settingsWindow.Closed += (_, _) => _settingsWindow = null;
             _settingsWindow.Show();
         }

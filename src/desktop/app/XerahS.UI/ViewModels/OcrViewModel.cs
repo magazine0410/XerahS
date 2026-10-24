@@ -30,6 +30,7 @@ using SkiaSharp;
 using XerahS.Common;
 using XerahS.Core;
 using XerahS.Platform.Abstractions;
+using XerahS.UI.Services;
 
 namespace XerahS.UI.ViewModels;
 
@@ -141,8 +142,11 @@ public partial class OcrViewModel : ViewModelBase
         _options.CloseWindowAfterOpeningServiceLink = CloseAfterOpeningService;
         _options.ServiceLinks = ServiceLinks.Select(link => new ServiceLink(link.Name, link.Url)).ToList();
         _options.SelectedServiceLink = SelectedService != null ? ServiceLinks.IndexOf(SelectedService) : 0;
-        _ = SaveWorkflowsAsync();
+        // A service name or URL changes with every key typed, so the file is written once the typing stops.
+        DelayedWorkflowsSave.Request();
     }
+
+    private static readonly DelayedSave DelayedWorkflowsSave = new(SaveWorkflowsAsync, TimeSpan.FromMilliseconds(500));
 
     private static async Task SaveWorkflowsAsync()
     {

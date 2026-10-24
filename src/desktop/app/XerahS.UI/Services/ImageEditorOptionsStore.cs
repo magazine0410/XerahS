@@ -53,6 +53,11 @@ internal static class ImageEditorOptionsStore
         };
     }
 
+    private static readonly DelayedSave DelayedPersist = new(PersistAsync, TimeSpan.FromMilliseconds(500));
+
+    /// <summary>Saves once the options have stopped changing for half a second; the exit save writes a pending change.</summary>
+    public static void PersistSoon() => DelayedPersist.Request();
+
     public static async Task PersistAsync()
     {
         try
