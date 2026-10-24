@@ -41,7 +41,7 @@ internal partial class Program
 {
     private static readonly SemaphoreSlim IntegrationGate = new(1, 1);
 
-    private static async Task ProcessIntegrationRequestsAsync(IReadOnlyList<IntegrationRequest> requests)
+    internal static async Task ProcessIntegrationRequestsAsync(IReadOnlyList<IntegrationRequest> requests)
     {
         await IntegrationGate.WaitAsync();
         try
@@ -51,15 +51,16 @@ internal partial class Program
                 try
                 {
                     if (!File.Exists(request.Path)) throw new FileNotFoundException("The selected file does not exist.", request.Path);
-                    var factory = UiViewModelFactoryAccessor.GetRequired();
                     switch (request.Action)
                     {
                         case IntegrationAction.ImageEditor:
-                            using (var image = XerahS.Common.ImageHelpers.LoadBitmap(request.Path) ?? throw new InvalidDataException("The selected file is not a supported image."))
-                            using (await PlatformServices.UI.ShowEditorAsync(image, request.Path)) { }
+                            var image = XerahS.Common.ImageHelpers.LoadBitmap(request.Path) ?? throw new InvalidDataException("The selected file is not a supported image.");
+                            // The editor stays open while the user works in it, so later requests, such as uploads
+                            // from the browser, do not wait for it to close.
+                            _ = EditImageAsync(image, request.Path);
                             break;
                         case IntegrationAction.CustomUploader:
-                            await factory.CreateDestinationSettingsViewModel().ImportCustomUploaderFileAsync(request.Path);
+                            await UiViewModelFactoryAccessor.GetRequired().CreateDestinationSettingsViewModel().ImportCustomUploaderFileAsync(request.Path);
                             break;
                         case IntegrationAction.ImageEffect:
                             await ImageEffectsImportService.ImportAsync(request.Path);
@@ -86,6 +87,20 @@ internal partial class Program
             }
         }
         finally { IntegrationGate.Release(); }
+    }
+
+    private static async Task EditImageAsync(SKBitmap image, string path)
+    {
+        try
+        {
+            using (image)
+            using (await PlatformServices.UI.ShowEditorAsync(image, path)) { }
+        }
+        catch (Exception ex)
+        {
+            DebugHelper.WriteException(ex, "Desktop integration image editor");
+            await new AvaloniaDialogServiceAdapter().ShowErrorAsync("Desktop integration failed", ex.Message);
+        }
     }
 
     private static async Task UploadPathsFromIntegrationAsync(IReadOnlyList<string> files, IReadOnlyList<string> folders,

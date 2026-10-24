@@ -107,6 +107,56 @@ public class DesktopIntegrationTests
     }
 
     [Test]
+    [NonParallelizable]
+    public async Task AnImageEditorOpenedFromTheCommandLine_DoesNotHoldBackLaterRequests()
+    {
+        string path = Path.Combine(Path.GetTempPath(), $"xerahs-integration-{Guid.NewGuid():N}.png");
+        using (var bitmap = new SKBitmap(4, 4))
+        using (SKData png = bitmap.Encode(SKEncodedImageFormat.Png, 100))
+        {
+            File.WriteAllBytes(path, png.ToArray());
+        }
+
+        var editor = new OpenEditorUIService();
+        XerahS.Platform.Abstractions.PlatformServices.RegisterUIService(editor);
+        try
+        {
+            Task first = Program.ProcessIntegrationRequestsAsync([new IntegrationRequest(IntegrationAction.ImageEditor, path)]);
+            Assert.That(await Task.WhenAny(editor.Opened.Task, Task.Delay(5000)), Is.SameAs(editor.Opened.Task));
+            Task next = Program.ProcessIntegrationRequestsAsync([]);
+            await Task.WhenAny(Task.WhenAll(first, next), Task.Delay(5000));
+            Assert.That(first.IsCompleted && next.IsCompleted, Is.True, "the requests finish while the editor is still open");
+            Assert.That(editor.Image!.Handle, Is.Not.EqualTo(IntPtr.Zero), "the editor's image stays alive while it is open");
+
+            editor.Close.SetResult();
+            var waited = System.Diagnostics.Stopwatch.StartNew();
+            while (editor.Image.Handle != IntPtr.Zero && waited.Elapsed < TimeSpan.FromSeconds(5)) await Task.Delay(20);
+            Assert.That(editor.Image.Handle, Is.EqualTo(IntPtr.Zero), "the image is freed when the editor closes");
+        }
+        finally
+        {
+            editor.Close.TrySetResult();
+            XerahS.Platform.Abstractions.PlatformServices.Reset();
+            File.Delete(path);
+        }
+    }
+
+    private sealed class OpenEditorUIService : XerahS.CLI.Services.HeadlessUIService, XerahS.Platform.Abstractions.IUIService
+    {
+        public TaskCompletionSource Opened { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        public TaskCompletionSource Close { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        public SKBitmap? Image { get; private set; }
+
+        public new async Task<SKBitmap?> ShowEditorAsync(SKBitmap image, string? sourceFilePath = null, bool taskMode = false)
+        {
+            Image = image;
+            Opened.TrySetResult();
+            await Close.Task;
+            return null;
+        }
+    }
+
+    [Test]
     public void Arguments_LeaveUrlsToBeDownloadedWhateverTheirExtension()
     {
         string[] left = IntegrationArguments.Extract(new[] { "https://example.com/uploader.sxcu", "/tmp/a.sxcu", "http://example.org/effect.sxie" },
