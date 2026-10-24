@@ -82,6 +82,7 @@ internal static class MetadataStripper
         if (input.ReadByte() != 0xFF || input.ReadByte() != 0xD8) throw new InvalidDataException("Invalid JPEG header.");
         output.Write([0xFF, 0xD8]);
         bool changed = false;
+        bool orientationWritten = false;
         byte[] lengthBytes = new byte[2];
         while (TryReadJpegMarker(input, out byte marker))
         {
@@ -101,7 +102,27 @@ internal static class MetadataStripper
             int length = BinaryPrimitives.ReadUInt16BigEndian(lengthBytes) - 2;
             if (length < 0 || length > input.Length - input.Position) throw new InvalidDataException("Invalid JPEG segment length.");
             bool remove = marker is 0xE1 or 0xED or 0xFE;
-            if (remove)
+            if (remove && marker == 0xE1 && !orientationWritten)
+            {
+                // ShareX removes the EXIF Orientation tag with the rest, and nothing turns the pixels instead, so a
+                // portrait photo is shown on its side. The first EXIF segment is replaced by one holding only that tag.
+                byte[] segment = new byte[length];
+                input.ReadExactly(segment);
+                if (ReadExifOrientation(segment) is { } orientation)
+                {
+                    byte[] kept = CreateOrientationExif(orientation);
+                    output.Write([0xFF, 0xE1]);
+                    output.Write([(byte)((kept.Length + 2) >> 8), (byte)(kept.Length + 2)]);
+                    output.Write(kept);
+                    orientationWritten = true;
+                    if (!segment.AsSpan().SequenceEqual(kept)) changed = true;
+                }
+                else
+                {
+                    changed = true;
+                }
+            }
+            else if (remove)
             {
                 input.Position += length;
                 changed = true;
@@ -119,6 +140,46 @@ internal static class MetadataStripper
             }
         }
         throw new InvalidDataException("JPEG end marker was not found.");
+    }
+
+    /// <summary>The EXIF Orientation of an APP1 segment's payload when it turns or mirrors the image (2 to 8); else null.</summary>
+    internal static ushort? ReadExifOrientation(ReadOnlySpan<byte> segment)
+    {
+        if (segment.Length < 14 || !segment.StartsWith("Exif\0\0"u8)) return null;
+        ReadOnlySpan<byte> tiff = segment[6..];
+        bool little = tiff.StartsWith("II*\0"u8);
+        if (!little && !tiff.StartsWith("MM\0*"u8)) return null;
+        uint ifd = little ? BinaryPrimitives.ReadUInt32LittleEndian(tiff[4..]) : BinaryPrimitives.ReadUInt32BigEndian(tiff[4..]);
+        if (ifd > tiff.Length - 2) return null;
+        int count = little ? BinaryPrimitives.ReadUInt16LittleEndian(tiff[(int)ifd..]) : BinaryPrimitives.ReadUInt16BigEndian(tiff[(int)ifd..]);
+        for (int index = 0; index < count; index++)
+        {
+            long entry = ifd + 2 + 12L * index;
+            if (entry + 12 > tiff.Length) return null;
+            ReadOnlySpan<byte> field = tiff.Slice((int)entry, 12);
+            ushort tag = little ? BinaryPrimitives.ReadUInt16LittleEndian(field) : BinaryPrimitives.ReadUInt16BigEndian(field);
+            if (tag != 0x0112) continue;
+            ushort type = little ? BinaryPrimitives.ReadUInt16LittleEndian(field[2..]) : BinaryPrimitives.ReadUInt16BigEndian(field[2..]);
+            if (type != 3) return null;
+            ushort value = little ? BinaryPrimitives.ReadUInt16LittleEndian(field[8..]) : BinaryPrimitives.ReadUInt16BigEndian(field[8..]);
+            return value is >= 2 and <= 8 ? value : null;
+        }
+
+        return null;
+    }
+
+    /// <summary>An APP1 payload with an EXIF IFD0 that holds only the Orientation tag.</summary>
+    internal static byte[] CreateOrientationExif(ushort orientation)
+    {
+        byte[] payload = new byte[32];
+        "Exif\0\0MM\0*"u8.CopyTo(payload);
+        BinaryPrimitives.WriteUInt32BigEndian(payload.AsSpan(10), 8);
+        BinaryPrimitives.WriteUInt16BigEndian(payload.AsSpan(14), 1);
+        BinaryPrimitives.WriteUInt16BigEndian(payload.AsSpan(16), 0x0112);
+        BinaryPrimitives.WriteUInt16BigEndian(payload.AsSpan(18), 3);
+        BinaryPrimitives.WriteUInt32BigEndian(payload.AsSpan(20), 1);
+        BinaryPrimitives.WriteUInt16BigEndian(payload.AsSpan(24), orientation);
+        return payload;
     }
 
     private static bool RewritePng(Stream input, Stream output, CancellationToken cancellationToken)

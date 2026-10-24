@@ -56,6 +56,61 @@ public class MetadataTests
     }
 
     [Test]
+    public async Task StripJpeg_KeepsOnlyTheOrientation_AndIsIdempotent()
+    {
+        using var bitmap = new SKBitmap(16, 8);
+        bitmap.Erase(SKColors.Coral);
+        using var encoded = bitmap.Encode(SKEncodedImageFormat.Jpeg, 90);
+        byte[] original = encoded.ToArray();
+        byte[] exif = ExifWithMakeAndOrientation("PrivateCamera", 6);
+        byte[] app1 = [0xFF, 0xE1, (byte)((exif.Length + 2) >> 8), (byte)(exif.Length + 2), .. exif];
+        string path = Path.Combine(_directory, "portrait.jpg");
+        await File.WriteAllBytesAsync(path, [.. original[..2], .. app1, .. original[2..]]);
+
+        await MetadataService.StripMetadataAsync(path);
+        byte[] stripped = await File.ReadAllBytesAsync(path);
+        byte[] kept = MetadataStripper.CreateOrientationExif(6);
+        byte[] expectedApp1 = [0xFF, 0xE1, 0x00, (byte)(kept.Length + 2), .. kept];
+        Assert.Multiple(() =>
+        {
+            Assert.That(Encoding.ASCII.GetString(stripped), Does.Not.Contain("PrivateCamera"));
+            Assert.That(stripped.AsSpan(2, expectedApp1.Length).ToArray(), Is.EqualTo(expectedApp1),
+                "The photo's orientation is kept, so a portrait photo is not shown on its side.");
+            Assert.That(MetadataStripper.ReadExifOrientation(kept), Is.EqualTo((ushort)6));
+        });
+
+        await MetadataService.StripMetadataAsync(path);
+        Assert.That(await File.ReadAllBytesAsync(path), Is.EqualTo(stripped));
+
+        byte[] upright = ExifWithMakeAndOrientation("PrivateCamera", 1);
+        string uprightPath = Path.Combine(_directory, "upright.jpg");
+        await File.WriteAllBytesAsync(uprightPath,
+            [.. original[..2], 0xFF, 0xE1, (byte)((upright.Length + 2) >> 8), (byte)(upright.Length + 2), .. upright, .. original[2..]]);
+        await MetadataService.StripMetadataAsync(uprightPath);
+        Assert.That(await File.ReadAllBytesAsync(uprightPath), Is.EqualTo(original), "Orientation 1 needs no EXIF segment.");
+    }
+
+    /// <summary>An EXIF APP1 payload (little-endian) with IFD0's Make and Orientation tags.</summary>
+    private static byte[] ExifWithMakeAndOrientation(string make, ushort orientation)
+    {
+        byte[] makeBytes = [.. Encoding.ASCII.GetBytes(make), 0];
+        byte[] tiff = new byte[8 + 2 + 24 + 4 + makeBytes.Length];
+        "II*\0"u8.CopyTo(tiff);
+        BinaryPrimitives.WriteUInt32LittleEndian(tiff.AsSpan(4), 8);
+        BinaryPrimitives.WriteUInt16LittleEndian(tiff.AsSpan(8), 2);
+        BinaryPrimitives.WriteUInt16LittleEndian(tiff.AsSpan(10), 0x010F);
+        BinaryPrimitives.WriteUInt16LittleEndian(tiff.AsSpan(12), 2);
+        BinaryPrimitives.WriteUInt32LittleEndian(tiff.AsSpan(14), (uint)makeBytes.Length);
+        BinaryPrimitives.WriteUInt32LittleEndian(tiff.AsSpan(18), 38);
+        BinaryPrimitives.WriteUInt16LittleEndian(tiff.AsSpan(22), 0x0112);
+        BinaryPrimitives.WriteUInt16LittleEndian(tiff.AsSpan(24), 3);
+        BinaryPrimitives.WriteUInt32LittleEndian(tiff.AsSpan(26), 1);
+        BinaryPrimitives.WriteUInt16LittleEndian(tiff.AsSpan(30), orientation);
+        makeBytes.CopyTo(tiff, 38);
+        return [.. "Exif\0\0"u8.ToArray(), .. tiff];
+    }
+
+    [Test]
     public async Task StripMp4_PadsMetadataWithoutMovingMediaData()
     {
         byte[] header = Box("ftyp", "isom\0\0\0\0isom"u8.ToArray());
