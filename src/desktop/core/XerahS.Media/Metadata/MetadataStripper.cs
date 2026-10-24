@@ -85,12 +85,27 @@ internal static class MetadataStripper
         bool changed = false;
         bool orientationWritten = false;
         byte[] lengthBytes = new byte[2];
-        while (TryReadJpegMarker(input, out byte marker))
+        // The marker that ended a scan, which is read next.
+        byte? afterScan = null;
+        while (true)
         {
+            byte marker;
+            if (afterScan is { } scanEnd)
+            {
+                marker = scanEnd;
+                afterScan = null;
+            }
+            else if (!TryReadJpegMarker(input, out marker))
+            {
+                break;
+            }
+
             cancellationToken.ThrowIfCancellationRequested();
             if (marker == 0xD9)
             {
+                // Data after the end of the image, such as a Motion Photo's video, is kept as it is.
                 output.Write([0xFF, marker]);
+                input.CopyTo(output);
                 return changed;
             }
             if (marker is 0x01 or >= 0xD0 and <= 0xD7)
@@ -136,11 +151,50 @@ internal static class MetadataStripper
             }
             if (marker == 0xDA)
             {
-                input.CopyTo(output);
-                return changed;
+                // A progressive JPEG has several scans, and segments can come between them and after the last one,
+                // so the segments after a scan are stripped as well. A file that ends inside a scan is kept as it is.
+                afterScan = CopyScanData(input, output, cancellationToken);
+                if (afterScan == null) return changed;
             }
         }
         throw new InvalidDataException("JPEG end marker was not found.");
+    }
+
+    /// <summary>
+    /// Copies a scan's entropy-coded data, with its stuffed zero bytes and restart markers, up to the next marker,
+    /// which is returned without being written. Null at the end of the file.
+    /// </summary>
+    private static byte? CopyScanData(Stream input, Stream output, CancellationToken cancellationToken)
+    {
+        long copied = 0;
+        while (true)
+        {
+            if ((++copied & 0xFFFFF) == 0) cancellationToken.ThrowIfCancellationRequested();
+            int value = input.ReadByte();
+            if (value < 0) return null;
+            if (value != 0xFF)
+            {
+                output.WriteByte((byte)value);
+                continue;
+            }
+
+            int next;
+            do { next = input.ReadByte(); } while (next == 0xFF);
+            if (next < 0)
+            {
+                output.WriteByte(0xFF);
+                return null;
+            }
+
+            if (next == 0x00 || next is >= 0xD0 and <= 0xD7)
+            {
+                output.WriteByte(0xFF);
+                output.WriteByte((byte)next);
+                continue;
+            }
+
+            return (byte)next;
+        }
     }
 
     /// <summary>The EXIF Orientation of an APP1 segment's payload when it turns or mirrors the image (2 to 8); else null.</summary>
@@ -348,7 +402,12 @@ internal static class MetadataStripper
             long chunkEnd = position + 8 + size;
             long next = chunkEnd + (size & 1);
             if (chunkEnd > end) throw new InvalidDataException("Invalid AVI chunk length.");
-            if (type == "LIST" && size >= 4)
+            if (type == "_PMX")
+            {
+                // Adobe's XMP chunk.
+                ranges.Add(new OverwriteRange(position, 8 + size + (size & 1), true));
+            }
+            else if (type == "LIST" && size >= 4)
             {
                 stream.ReadExactly(listType);
                 if (listType.SequenceEqual("INFO"u8)) ranges.Add(new OverwriteRange(position, 8 + size + (size & 1), true));
@@ -368,6 +427,8 @@ internal static class MetadataStripper
         {
             if (!TryReadIsoBox(stream, position, stream.Length, out IsoRange box)) break;
             if (box.Type == "moov") CollectIsoMetadataRanges(stream, box.PayloadOffset, box.End, "moov", ranges, cancellationToken);
+            // A file-level "meta" box, and the "uuid" box Adobe writes XMP in, hold metadata too.
+            else if (box.Type == "meta" || IsXmpBox(stream, box)) ranges.Add(box);
             position = box.End;
         }
         foreach (IsoRange range in ranges)
@@ -396,7 +457,7 @@ internal static class MetadataStripper
         {
             cancellationToken.ThrowIfCancellationRequested();
             if (!TryReadIsoBox(stream, position, end, out IsoRange box)) break;
-            if (box.Type == "udta" || box.Type == "meta" && parentType is "moov" or "trak")
+            if (box.Type == "udta" || box.Type == "meta" && parentType is "moov" or "trak" || IsXmpBox(stream, box))
             {
                 ranges.Add(box);
             }
@@ -613,6 +674,17 @@ internal static class MetadataStripper
         stream.Position = element.Offset;
         stream.Write(header[..(sizeWidth + 1)]);
         WriteZeros(stream, payloadSize, cancellationToken);
+    }
+
+    // The "uuid" box user type of XMP in ISO base media files.
+    private static readonly byte[] XmpUuid = Convert.FromHexString("BE7ACFCB97A942E89C71999491E3AFAC");
+
+    private static bool IsXmpBox(FileStream stream, IsoRange box)
+    {
+        if (box.Type != "uuid" || box.Size < box.HeaderSize + XmpUuid.Length) return false;
+        Span<byte> userType = stackalloc byte[16];
+        stream.Position = box.PayloadOffset;
+        return stream.Read(userType) == userType.Length && userType.SequenceEqual(XmpUuid);
     }
 
     private static bool TryReadIsoBox(FileStream stream, long offset, long parentEnd, out IsoRange box)

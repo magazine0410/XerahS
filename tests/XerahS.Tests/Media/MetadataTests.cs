@@ -360,6 +360,76 @@ public class MetadataTests
         Assert.That(Directory.GetFiles(_directory), Has.Length.EqualTo(1));
     }
 
+    [Test]
+    public async Task StripMp4_AlsoClearsFileLevelMetaAndXmpBoxes()
+    {
+        byte[] xmpUuid = Convert.FromHexString("BE7ACFCB97A942E89C71999491E3AFAC");
+        byte[] media = Box("mdat", [1, 2, 3, 4, 5, 6]);
+        byte[] original =
+        [
+            .. Box("ftyp", "isom\0\0\0\0isom"u8.ToArray()),
+            .. Box("moov", Box("trak", Box("tkhd", new byte[8]))),
+            .. Box("meta", "\0\0\0\0Private meta"u8.ToArray()),
+            .. Box("uuid", [.. xmpUuid, .. "<x:xmpmeta>Private XMP</x:xmpmeta>"u8.ToArray()]),
+            .. media
+        ];
+        string path = Path.Combine(_directory, "xmp.mp4");
+        await File.WriteAllBytesAsync(path, original);
+
+        await MetadataService.StripMetadataAsync(path);
+        byte[] stripped = await File.ReadAllBytesAsync(path);
+        string text = Encoding.ASCII.GetString(stripped);
+        Assert.Multiple(() =>
+        {
+            Assert.That(stripped, Has.Length.EqualTo(original.Length));
+            Assert.That(stripped[^media.Length..], Is.EqualTo(media));
+            Assert.That(text, Does.Not.Contain("Private meta").And.Not.Contain("Private XMP"));
+            Assert.That(text, Does.Contain("tkhd"), "the track is kept");
+        });
+    }
+
+    [Test]
+    public async Task StripAvi_ClearsTheXmpChunk()
+    {
+        byte[] body = [.. "AVI "u8.ToArray(), .. RiffChunk("LIST", [.. "hdrl"u8.ToArray(), .. RiffChunk("avih", new byte[56])]),
+            .. RiffChunk("_PMX", "<x:xmpmeta>Private XMP</x:xmpmeta>"u8.ToArray()), .. RiffChunk("LIST", [.. "movi"u8.ToArray(), 1, 2, 3, 4])];
+        byte[] original = [.. "RIFF"u8.ToArray(), 0, 0, 0, 0, .. body];
+        BinaryPrimitives.WriteInt32LittleEndian(original.AsSpan(4), body.Length);
+        string path = Path.Combine(_directory, "xmp.avi");
+        await File.WriteAllBytesAsync(path, original);
+
+        await MetadataService.StripMetadataAsync(path);
+        byte[] stripped = await File.ReadAllBytesAsync(path);
+        string text = Encoding.ASCII.GetString(stripped);
+        Assert.That(stripped, Has.Length.EqualTo(original.Length));
+        Assert.That(text, Does.Not.Contain("Private XMP").And.Contain("JUNK").And.Contain("movi"));
+    }
+
+    [Test]
+    public async Task StripJpeg_RemovesSegmentsAfterTheScan_AndKeepsDataAfterTheImage()
+    {
+        using var bitmap = new SKBitmap(16, 8);
+        bitmap.Erase(SKColors.Coral);
+        using var encoded = bitmap.Encode(SKEncodedImageFormat.Jpeg, 90);
+        byte[] jpeg = encoded.ToArray();
+        byte[] comment = [0xFF, 0xFE, 0x00, 0x12, .. "Private comment"u8.ToArray(), 0];
+        byte[] trailer = "TRAILER-VIDEO"u8.ToArray();
+        // The comment comes after the scan, just before the end of the image.
+        byte[] original = [.. jpeg[..^2], .. comment, 0xFF, 0xD9, .. trailer];
+        string path = Path.Combine(_directory, "after-scan.jpg");
+        await File.WriteAllBytesAsync(path, original);
+
+        await MetadataService.StripMetadataAsync(path);
+        byte[] stripped = await File.ReadAllBytesAsync(path);
+        Assert.Multiple(() =>
+        {
+            Assert.That(Encoding.ASCII.GetString(stripped), Does.Not.Contain("Private comment"));
+            Assert.That(stripped, Is.EqualTo((byte[])[.. jpeg, .. trailer]), "only the comment is removed");
+        });
+        using SKBitmap? decoded = SKBitmap.Decode(stripped);
+        Assert.That(decoded?.Width, Is.EqualTo(16));
+    }
+
     private static byte[] Mp4WithTitle(int mediaLength = 6)
     {
         byte[] media = new byte[mediaLength];
