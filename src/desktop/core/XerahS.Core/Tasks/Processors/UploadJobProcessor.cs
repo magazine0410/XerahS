@@ -230,14 +230,28 @@ namespace XerahS.Core.Tasks.Processors
         /// </summary>
         internal static async Task<bool> ConfirmLargeFileUploadAsync(TaskInfo info, CancellationToken token)
         {
-            var settings = SettingsManager.Settings;
-            long limit = GetLargeFileSizeLimit(settings.ShowLargeFileSizeWarning, settings.BinaryUnits);
-            if (limit <= 0 || ShowLargeFileUploadWarningCallback is not { } showWarning) return true;
+            if (info.LargeFileConfirmed || GetLargeFileWarningLimit() is not { } limit) return true;
 
             long? size = await GetUploadSizeAsync(info, limit).ConfigureAwait(false);
             if (size is not { } length || length <= limit) return true;
 
             DebugHelper.WriteLine($"Large file upload: {length} bytes is over the {limit} byte warning size.");
+            return await AskLargeFileWarningAsync(token).ConfigureAwait(false);
+        }
+
+        /// <summary>The large file warning size in bytes, or null when the warning is off or cannot be shown.</summary>
+        internal static long? GetLargeFileWarningLimit()
+        {
+            var settings = SettingsManager.Settings;
+            long limit = GetLargeFileSizeLimit(settings.ShowLargeFileSizeWarning, settings.BinaryUnits);
+            return limit > 0 && ShowLargeFileUploadWarningCallback != null ? limit : null;
+        }
+
+        /// <summary>Shows the large file warning. Returns false when it was cancelled.</summary>
+        internal static async Task<bool> AskLargeFileWarningAsync(CancellationToken token)
+        {
+            var settings = SettingsManager.Settings;
+            if (ShowLargeFileUploadWarningCallback is not { } showWarning) return true;
             var answer = await showWarning(token).ConfigureAwait(false);
             if (answer.DontShowAgain)
             {

@@ -110,6 +110,65 @@ public class DownloadJobTests
     }
 
     [Test]
+    public void ADownloadLargerThanTheWarningSize_AsksFirst_AndCancelStopsIt()
+    {
+        int asked = 0;
+        using var warning = new LargeFileWarning(() => { asked++; return false; });
+        using var response = new HttpResponseMessage(HttpStatusCode.OK) { Content = new ByteArrayContent(new byte[1_000_001]) };
+        response.Content.Headers.ContentDisposition = new ContentDispositionHeaderValue("attachment") { FileName = "large.bin" };
+        using var client = new HttpClient(new Handler(response));
+
+        Assert.ThrowsAsync<OperationCanceledException>(() => new DownloadJobProcessor(client).ProcessAsync(CreateInfo(), CancellationToken.None));
+        Assert.That(asked, Is.EqualTo(1));
+        Assert.That(Directory.GetFiles(_directory), Is.Empty);
+    }
+
+    [Test]
+    public async Task ADownloadWithoutASize_AsksOnceWhenItPassesTheWarningSize_AndTheUploadDoesNotAskAgain()
+    {
+        int asked = 0;
+        using var warning = new LargeFileWarning(() => { asked++; return true; });
+        using var response = new HttpResponseMessage(HttpStatusCode.OK) { Content = new StreamContent(new UnseekableStream(new byte[2_500_000])) };
+        response.Content.Headers.ContentDisposition = new ContentDispositionHeaderValue("attachment") { FileName = "stream.bin" };
+        using var client = new HttpClient(new Handler(response));
+        var info = CreateInfo();
+
+        Assert.That(response.Content.Headers.ContentLength, Is.Null);
+        Assert.That(await new DownloadJobProcessor(client).ProcessAsync(info, CancellationToken.None), Is.True);
+        Assert.That(asked, Is.EqualTo(1));
+        Assert.That(new FileInfo(info.FilePath).Length, Is.EqualTo(2_500_000));
+        Assert.That(await UploadJobProcessor.ConfirmLargeFileUploadAsync(info, CancellationToken.None), Is.True);
+        Assert.That(asked, Is.EqualTo(1), "the upload of the downloaded file does not ask again");
+    }
+
+    /// <summary>A 1 MB warning size whose window answers with <c>answer</c>.</summary>
+    private sealed class LargeFileWarning : IDisposable
+    {
+        private readonly int _size = SettingsManager.Settings.ShowLargeFileSizeWarning;
+        private readonly bool _binaryUnits = SettingsManager.Settings.BinaryUnits;
+        private readonly Func<CancellationToken, Task<LargeFileUploadWarningResult>>? _callback = UploadJobProcessor.ShowLargeFileUploadWarningCallback;
+
+        public LargeFileWarning(Func<bool> answer)
+        {
+            SettingsManager.Settings.ShowLargeFileSizeWarning = 1;
+            SettingsManager.Settings.BinaryUnits = false;
+            UploadJobProcessor.ShowLargeFileUploadWarningCallback = _ => Task.FromResult(new LargeFileUploadWarningResult(answer(), false));
+        }
+
+        public void Dispose()
+        {
+            SettingsManager.Settings.ShowLargeFileSizeWarning = _size;
+            SettingsManager.Settings.BinaryUnits = _binaryUnits;
+            UploadJobProcessor.ShowLargeFileUploadWarningCallback = _callback;
+        }
+    }
+
+    private sealed class UnseekableStream(byte[] data) : MemoryStream(data)
+    {
+        public override bool CanSeek => false;
+    }
+
+    [Test]
     public void FailedOrTruncatedResponse_PreservesExistingFileAndRemovesPartial()
     {
         string existing = Path.Combine(_directory, "existing.txt");

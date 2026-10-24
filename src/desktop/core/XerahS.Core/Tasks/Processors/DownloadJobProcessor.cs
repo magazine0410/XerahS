@@ -77,6 +77,11 @@ internal sealed class DownloadJobProcessor(HttpClient? client = null)
             long? expected = response.Content.Headers.ContentLength;
             long received = 0;
             var progress = new ProgressManager(expected is > 0 ? expected.Value : 1);
+            // ShareX downloads without a limit. The file is downloaded to be uploaded, so the large file warning,
+            // which ShareX shows before the upload, is shown before downloading more than its size: at once when the
+            // server gives the size, otherwise when the download reaches it. The upload then does not ask again.
+            long? warningLimit = UploadJobProcessor.GetLargeFileWarningLimit();
+            if (warningLimit is { } limit && expected > limit) await ConfirmLargeDownloadAsync(info, token).ConfigureAwait(false);
             await using (var input = await response.Content.ReadAsStreamAsync(token).ConfigureAwait(false))
             await using (var output = new FileStream(partial, FileMode.CreateNew, FileAccess.Write, FileShare.None,
                 81920, FileOptions.Asynchronous | FileOptions.SequentialScan))
@@ -85,6 +90,10 @@ internal sealed class DownloadJobProcessor(HttpClient? client = null)
                 int read;
                 while ((read = await input.ReadAsync(buffer, token).ConfigureAwait(false)) > 0)
                 {
+                    if (expected.HasValue && received + read > expected.Value)
+                        throw new IOException("The server sent more data than the file size it gave.");
+                    if (!info.LargeFileConfirmed && warningLimit is { } readLimit && received + read > readLimit)
+                        await ConfirmLargeDownloadAsync(info, token).ConfigureAwait(false);
                     await output.WriteAsync(buffer.AsMemory(0, read), token).ConfigureAwait(false);
                     received += read;
                     if (progress.UpdateProgress(read)) info.ReportUploadProgress(progress);
@@ -104,6 +113,18 @@ internal sealed class DownloadJobProcessor(HttpClient? client = null)
         {
             if (File.Exists(partial)) File.Delete(partial);
         }
+    }
+
+    private static async Task ConfirmLargeDownloadAsync(TaskInfo info, CancellationToken token)
+    {
+        DebugHelper.WriteLine("Download: the file is larger than the large file warning size.");
+        if (!await UploadJobProcessor.AskLargeFileWarningAsync(token).ConfigureAwait(false))
+        {
+            // As the upload's warning does, Cancel stops the task.
+            throw new OperationCanceledException("The large file download was cancelled.");
+        }
+
+        info.LargeFileConfirmed = true;
     }
 
     internal static string GetFileName(Uri uri, HttpResponseMessage response, TaskSettings settings)
