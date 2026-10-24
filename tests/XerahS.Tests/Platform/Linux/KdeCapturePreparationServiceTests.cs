@@ -134,8 +134,9 @@ public sealed class KdeCapturePreparationServiceTests
         int polls = 0;
         KWinSnapshot Snapshot() => new(
         [
-            new KWinWindow("{panel}", "Panel", "plasmashell", 10, polls++ < 2 ? new Rectangle(0, 2072, 3840, 88) : new Rectangle(0, 2160, 3840, 88),
-                new Rectangle(0, 2072, 3840, 88), false, false, false, false, false, Dock: true)
+            // KWin's logical coordinates: the panel at y 1036, then slid below the screen at y 1080.
+            new KWinWindow("{panel}", "Panel", "plasmashell", 10, polls++ < 2 ? new Rectangle(0, 1036, 1920, 44) : new Rectangle(0, 1080, 1920, 44),
+                new Rectangle(0, 1036, 1920, 44), false, false, false, false, false, Dock: true)
         ], null, Point.Empty);
         var service = Service(Snapshot, scale: 2);
         // In doubled X11 coordinates the left screen's panel is at y 2072; a window ending at y 2100 intersects it.

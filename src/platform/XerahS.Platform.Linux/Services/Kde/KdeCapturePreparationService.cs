@@ -167,11 +167,14 @@ public sealed class KdeCapturePreparationService : ICapturePreparationService
             return;
         }
 
+        // KWin reports logical coordinates; the capture bounds are X11's, which XWayland scales.
+        double scale = _x11Scale();
         DateTime deadline = DateTime.UtcNow + PanelHideTimeout;
         while (DateTime.UtcNow < deadline)
         {
             KWinSnapshot? snapshot = _windows();
-            if (snapshot == null || !snapshot.Windows.Any(w => w.Dock && !w.Hidden && !w.Minimized && w.FrameGeometry.IntersectsWith(bounds)))
+            if (snapshot == null || !snapshot.Windows.Any(w => w.Dock && !w.Hidden && !w.Minimized &&
+                KWinWindowManager.ToX11(w.FrameGeometry, scale).IntersectsWith(bounds)))
             {
                 return;
             }
