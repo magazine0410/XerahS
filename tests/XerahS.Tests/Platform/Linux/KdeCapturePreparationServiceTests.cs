@@ -63,7 +63,8 @@ public sealed class KdeCapturePreparationServiceTests
     private KdeCapturePreparationService Service(Func<KWinSnapshot?>? windows = null, double scale = 1) =>
         new(_shell, _marker, windows ?? (() => null), () => scale)
         {
-            PanelSettleDelay = TimeSpan.Zero, IconSettleDelay = TimeSpan.Zero, PanelHideTimeout = TimeSpan.FromMilliseconds(200), PanelPollInterval = TimeSpan.FromMilliseconds(10)
+            PanelSettleDelay = TimeSpan.Zero, IconSettleDelay = TimeSpan.Zero, PanelHideTimeout = TimeSpan.FromMilliseconds(200), PanelPollInterval = TimeSpan.FromMilliseconds(10),
+            RecoveryRetryDelay = TimeSpan.Zero
         };
 
     [Test]
@@ -207,6 +208,79 @@ public sealed class KdeCapturePreparationServiceTests
     }
 
     [Test]
+    public async Task PanelRestore_ThatTheShellDoesNotConfirm_KeepsTheModeAndIsRetriedAfterTheNextCapture()
+    {
+        _shell.Answers[KdeCapturePreparationService.BuildPanelQueryScript()] = PanelsJson;
+        var service = Service();
+        IAsyncDisposable? first = await service.HidePanelsIntersectingAsync(new Rectangle(100, 500, 800, 600), CancellationToken.None);
+        _shell.Unanswered = true;
+        await first!.DisposeAsync();
+        Assert.That(File.Exists(_marker), Is.True, "The panel's mode stays in the recovery file.");
+        Assert.That(ReadMarker().Panels.Select(p => (p.Id, p.Hiding)), Is.EqualTo(new[] { (167, "none") }));
+
+        _shell.Unanswered = false;
+        IAsyncDisposable? second = await service.HidePanelsIntersectingAsync(new Rectangle(2000, 500, 800, 600), CancellationToken.None);
+        await second!.DisposeAsync();
+        Assert.Multiple(() =>
+        {
+            Assert.That(_shell.Scripts[^1], Does.Contain("panelById(167)").And.Contain("panelById(4)").And.Contain("hiding = \"none\""));
+            Assert.That(File.Exists(_marker), Is.False);
+        });
+    }
+
+    [Test]
+    public async Task DesktopRestore_ThatTheShellDoesNotConfirm_KeepsTheOriginalFilters()
+    {
+        _shell.Answers[KdeCapturePreparationService.BuildDesktopQueryScript()] = DesktopsJson;
+        var service = Service();
+        IAsyncDisposable? first = await service.HideDesktopIconsAsync(CancellationToken.None);
+        _shell.Unanswered = true;
+        await first!.DisposeAsync();
+        Assert.That(ReadMarker().Desktops.Select(d => (d.Id, d.FilterPattern)), Is.EqualTo(new[] { (1, ""), (2, "*.tmp") }));
+
+        // The filters still hide the icons, so reading them again would take XerahS's filter for the user's.
+        _shell.Unanswered = false;
+        _shell.Answers[KdeCapturePreparationService.BuildDesktopQueryScript()] =
+            $$"""[{"id":1,"filterMode":"1","filterPattern":"{{KdeCapturePreparationService.HiddenIconsPattern}}"},{"id":2,"filterMode":"1","filterPattern":"{{KdeCapturePreparationService.HiddenIconsPattern}}"}]""";
+        IAsyncDisposable? second = await service.HideDesktopIconsAsync(CancellationToken.None);
+        await second!.DisposeAsync();
+        Assert.Multiple(() =>
+        {
+            Assert.That(_shell.Scripts[^1], Does.Contain("writeConfig(\"filterMode\", 2); d2.writeConfig(\"filterPattern\", \"*.tmp\")"));
+            Assert.That(File.Exists(_marker), Is.False);
+        });
+    }
+
+    [Test]
+    public async Task HideDesktopIcons_DoesNotKeepXerahSsOwnFilterAsTheOriginal()
+    {
+        _shell.Answers[KdeCapturePreparationService.BuildDesktopQueryScript()] =
+            $$"""[{"id":1,"filterMode":"1","filterPattern":"{{KdeCapturePreparationService.HiddenIconsPattern}}"}]""";
+        var service = Service();
+        IAsyncDisposable? scope = await service.HideDesktopIconsAsync(CancellationToken.None);
+        await scope!.DisposeAsync();
+        Assert.That(_shell.Scripts[^1], Does.Contain("writeConfig(\"filterMode\", 0); d1.writeConfig(\"filterPattern\", \"\")"));
+    }
+
+    [Test]
+    public async Task Recover_KeepsTheRecoveryFile_UntilTheShellConfirms_AndTriesAgain()
+    {
+        File.WriteAllText(_marker, """{"panels":[{"id":4,"hiding":"dodgewindows"}],"desktops":[{"id":1,"filterMode":"2","filterPattern":"*.tmp"}]}""");
+        _shell.Unanswered = true;
+        var service = Service();
+        service.RecoveryAttempts = 2;
+        await service.RecoverAsync();
+        Assert.That(File.Exists(_marker), Is.True, "Nothing the shell did not confirm is forgotten.");
+        Assert.That(ReadMarker().Panels.Select(p => (p.Id, p.Hiding)), Is.EqualTo(new[] { (4, "dodgewindows") }));
+        Assert.That(ReadMarker().Desktops.Select(d => d.FilterPattern), Is.EqualTo(new[] { "*.tmp" }));
+        Assert.That(_shell.Scripts, Has.Count.EqualTo(4), "Two attempts, each for the panels and the desktops.");
+
+        _shell.Unanswered = false;
+        await Service().RecoverAsync();
+        Assert.That(File.Exists(_marker), Is.False);
+    }
+
+    [Test]
     public async Task Unavailable_ShellDoesNothing()
     {
         _shell.Available = false;
@@ -220,9 +294,14 @@ public sealed class KdeCapturePreparationServiceTests
         Assert.That(_shell.Scripts, Is.Empty);
     }
 
+    private KdeCapturePreparationService.PreparationState ReadMarker() =>
+        JsonSerializer.Deserialize<KdeCapturePreparationService.PreparationState>(File.ReadAllText(_marker))!;
+
     private sealed class FakeShell : IPlasmaShellScripting
     {
         public bool Available = true;
+        /// <summary>Stands for a shell that does not answer: only the queries in <see cref="Answers"/> get a reply.</summary>
+        public bool Unanswered;
         public Dictionary<string, string> Answers { get; } = new();
         public List<string> Scripts { get; } = new();
 
@@ -231,7 +310,7 @@ public sealed class KdeCapturePreparationServiceTests
         public Task<string?> EvaluateAsync(string script, CancellationToken token)
         {
             Scripts.Add(script);
-            return Task.FromResult<string?>(Answers.TryGetValue(script, out string? answer) ? answer : "ok");
+            return Task.FromResult<string?>(Answers.TryGetValue(script, out string? answer) ? answer : Unanswered ? null : "ok");
         }
     }
 }

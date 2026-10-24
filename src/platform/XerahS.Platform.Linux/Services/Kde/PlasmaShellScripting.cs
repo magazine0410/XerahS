@@ -48,7 +48,12 @@ internal sealed class PlasmaShellScripting : IPlasmaShellScripting
     private static readonly ObjectPath ShellPath = new("/PlasmaShell");
     private static readonly TimeSpan Timeout = TimeSpan.FromSeconds(5);
 
-    private readonly Lazy<Task<IPlasmaShell?>> _shell = new(CreateAsync);
+    /// <summary>How long a failed connection is kept before the next call tries again (Plasma's shell may start later).</summary>
+    private static readonly TimeSpan RetryInterval = TimeSpan.FromSeconds(5);
+
+    private readonly object _shellLock = new();
+    private Task<IPlasmaShell?>? _shell;
+    private DateTime _retryAfter;
 
     public bool IsAvailable =>
         OperatingSystem.IsLinux() && KdeTemporaryShortcut.IsKdeSession() && !LinuxRuntimeEnvironment.Detect().IsSandboxed;
@@ -56,7 +61,7 @@ internal sealed class PlasmaShellScripting : IPlasmaShellScripting
     public async Task<string?> EvaluateAsync(string script, CancellationToken token)
     {
         if (!IsAvailable) return null;
-        IPlasmaShell? shell = await _shell.Value.ConfigureAwait(false);
+        IPlasmaShell? shell = await GetShellAsync().ConfigureAwait(false);
         if (shell == null) return null;
         try
         {
@@ -66,6 +71,22 @@ internal sealed class PlasmaShellScripting : IPlasmaShellScripting
         {
             DebugHelper.WriteLine($"PlasmaShellScripting: the script failed: {ex.Message}");
             return null;
+        }
+    }
+
+    /// <summary>The shell's proxy, connected once; a failed connection is tried again after <see cref="RetryInterval"/>.</summary>
+    private Task<IPlasmaShell?> GetShellAsync()
+    {
+        lock (_shellLock)
+        {
+            bool failed = _shell is { IsCompletedSuccessfully: true, Result: null };
+            if (_shell == null || (failed && DateTime.UtcNow >= _retryAfter))
+            {
+                _shell = CreateAsync();
+                _retryAfter = DateTime.UtcNow + RetryInterval;
+            }
+
+            return _shell;
         }
     }
 

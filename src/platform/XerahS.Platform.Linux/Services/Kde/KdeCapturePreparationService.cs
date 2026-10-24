@@ -60,6 +60,10 @@ public sealed class KdeCapturePreparationService : ICapturePreparationService
     private readonly SemaphoreSlim _gate = new(1, 1);
     private readonly Dictionary<int, string> _hiddenPanels = new();
     private readonly Dictionary<int, PlasmaDesktop> _filteredDesktops = new();
+    // Hidden panels whose capture has ended but that could not be shown again; retried after the next capture.
+    private readonly HashSet<int> _unrestoredPanels = new();
+    // The desktop icons' capture has ended but their filters could not be restored; retried after the next capture.
+    private bool _desktopRestorePending;
     private int _iconScopes;
 
     public KdeCapturePreparationService()
@@ -86,6 +90,14 @@ public sealed class KdeCapturePreparationService : ICapturePreparationService
 
     /// <summary>The wait for Folder View to remove its icons, as ShareX's 250 ms after hiding the desktop's list view.</summary>
     internal TimeSpan IconSettleDelay { get; set; } = TimeSpan.FromMilliseconds(300);
+
+    /// <summary>
+    /// How often, and how far apart, the start tries to undo an earlier run's changes: at login XerahS can start before
+    /// Plasma's shell answers.
+    /// </summary>
+    internal int RecoveryAttempts { get; set; } = 3;
+
+    internal TimeSpan RecoveryRetryDelay { get; set; } = TimeSpan.FromSeconds(10);
 
     public bool CanHidePanels => _shell.IsAvailable;
 
@@ -155,15 +167,8 @@ public sealed class KdeCapturePreparationService : ICapturePreparationService
         await _gate.WaitAsync().ConfigureAwait(false);
         try
         {
-            var modes = new List<(int Id, string Mode)>();
-            foreach (int id in ids)
-            {
-                if (_hiddenPanels.Remove(id, out string? mode)) modes.Add((id, mode));
-            }
-
-            if (modes.Count == 0) return;
-            await _shell.EvaluateAsync(BuildPanelHidingScript(modes), CancellationToken.None).ConfigureAwait(false);
-            SaveMarker();
+            _unrestoredPanels.UnionWith(ids.Where(_hiddenPanels.ContainsKey));
+            await TryRestorePanelsAsync().ConfigureAwait(false);
         }
         catch (Exception ex)
         {
@@ -173,6 +178,43 @@ public sealed class KdeCapturePreparationService : ICapturePreparationService
         {
             _gate.Release();
         }
+    }
+
+    /// <summary>
+    /// Gives the panels whose capture has ended their modes back. A panel stays in the recovery file until the shell
+    /// confirms the change, so a shell that does not answer cannot lose the panel's mode. Called inside the gate.
+    /// </summary>
+    private async Task<bool> TryRestorePanelsAsync()
+    {
+        var modes = _unrestoredPanels.Where(_hiddenPanels.ContainsKey).Select(id => (Id: id, Mode: _hiddenPanels[id])).ToList();
+        if (modes.Count == 0)
+        {
+            _unrestoredPanels.Clear();
+            return true;
+        }
+
+        if (!await RunScriptAsync(BuildPanelHidingScript(modes)).ConfigureAwait(false))
+        {
+            DebugHelper.WriteLine($"KDE capture preparation: panel(s) {string.Join(", ", modes.Select(m => m.Id))} could not be shown again; " +
+                "they stay in the recovery file and are retried after the next capture and at the next start.");
+            return false;
+        }
+
+        foreach ((int id, _) in modes)
+        {
+            _hiddenPanels.Remove(id);
+            _unrestoredPanels.Remove(id);
+        }
+
+        SaveMarker();
+        return true;
+    }
+
+    /// <summary>Runs a script that prints "ok" when it is done; false when the shell did not answer that.</summary>
+    private async Task<bool> RunScriptAsync(string script)
+    {
+        string? output = await _shell.EvaluateAsync(script, CancellationToken.None).ConfigureAwait(false);
+        return string.Equals(output?.Trim(), "ok", StringComparison.Ordinal);
     }
 
     public async Task<IAsyncDisposable?> HideDesktopIconsAsync(CancellationToken token)
@@ -191,13 +233,26 @@ public sealed class KdeCapturePreparationService : ICapturePreparationService
                 return new Scope(RestoreDesktopIconsAsync);
             }
 
-            string? json = await _shell.EvaluateAsync(BuildDesktopQueryScript(), token).ConfigureAwait(false);
-            IReadOnlyList<PlasmaDesktop>? desktops = ParseDesktops(json);
-            if (desktops == null || desktops.Count == 0) return null;
-            foreach (PlasmaDesktop desktop in desktops) _filteredDesktops[desktop.Id] = desktop;
-            SaveMarker();
-            DebugHelper.WriteLine($"KDE capture preparation: hiding the desktop icons of {desktops.Count} Folder View desktop(s) for the capture.");
-            await _shell.EvaluateAsync(BuildDesktopFilterScript(desktops.Select(d => (d.Id, FilterShowMatches, HiddenIconsPattern))), token).ConfigureAwait(false);
+            if (_filteredDesktops.Count == 0)
+            {
+                string? json = await _shell.EvaluateAsync(BuildDesktopQueryScript(), token).ConfigureAwait(false);
+                IReadOnlyList<PlasmaDesktop>? desktops = ParseDesktops(json);
+                if (desktops == null || desktops.Count == 0) return null;
+                foreach (PlasmaDesktop desktop in desktops)
+                {
+                    // A filter that is still XerahS's own (an earlier run could not restore it) is not the user's;
+                    // Folder View's default, which shows every icon, is kept instead.
+                    _filteredDesktops[desktop.Id] = desktop.FilterPattern == HiddenIconsPattern ? desktop with { FilterMode = "0", FilterPattern = string.Empty } : desktop;
+                }
+
+                SaveMarker();
+            }
+
+            // Otherwise an earlier restore failed and the originals kept then are used: the filters read now may be
+            // XerahS's own.
+            _desktopRestorePending = false;
+            DebugHelper.WriteLine($"KDE capture preparation: hiding the desktop icons of {_filteredDesktops.Count} Folder View desktop(s) for the capture.");
+            await _shell.EvaluateAsync(BuildDesktopFilterScript(_filteredDesktops.Keys.Select(id => (id, FilterShowMatches, HiddenIconsPattern))), token).ConfigureAwait(false);
             _iconScopes = 1;
         }
         finally
@@ -216,10 +271,8 @@ public sealed class KdeCapturePreparationService : ICapturePreparationService
         {
             if (_iconScopes == 0) return;
             if (--_iconScopes > 0) return;
-            var originals = _filteredDesktops.Values.Select(d => (d.Id, d.FilterMode, d.FilterPattern)).ToList();
-            _filteredDesktops.Clear();
-            if (originals.Count > 0) await _shell.EvaluateAsync(BuildDesktopFilterScript(originals), CancellationToken.None).ConfigureAwait(false);
-            SaveMarker();
+            _desktopRestorePending = true;
+            await TryRestoreDesktopsAsync().ConfigureAwait(false);
         }
         catch (Exception ex)
         {
@@ -231,6 +284,35 @@ public sealed class KdeCapturePreparationService : ICapturePreparationService
         }
     }
 
+    /// <summary>
+    /// Gives the desktops their filters back once their capture has ended. They stay in the recovery file until the
+    /// shell confirms the change. Called inside the gate.
+    /// </summary>
+    private async Task<bool> TryRestoreDesktopsAsync()
+    {
+        if (!_desktopRestorePending) return true;
+        if (_filteredDesktops.Count > 0)
+        {
+            var originals = _filteredDesktops.Values.Select(d => (d.Id, d.FilterMode, d.FilterPattern)).ToList();
+            if (!await RunScriptAsync(BuildDesktopFilterScript(originals)).ConfigureAwait(false))
+            {
+                DebugHelper.WriteLine("KDE capture preparation: the desktop icons could not be shown again; their filters stay in the recovery file " +
+                    "and are restored after the next capture and at the next start.");
+                return false;
+            }
+
+            _filteredDesktops.Clear();
+        }
+
+        _desktopRestorePending = false;
+        SaveMarker();
+        return true;
+    }
+
+    /// <summary>
+    /// Undoes what an earlier run left behind (it ended during a capture). The changes stay in the recovery file until
+    /// the shell confirms them; at login the shell may not answer yet, so this tries again a few times.
+    /// </summary>
     public async Task RecoverAsync()
     {
         PreparationState? state;
@@ -245,27 +327,59 @@ public sealed class KdeCapturePreparationService : ICapturePreparationService
             return;
         }
 
-        if (!_shell.IsAvailable) return;
+        if (!_shell.IsAvailable || state == null) return;
         await _gate.WaitAsync().ConfigureAwait(false);
         try
         {
-            if (state?.Panels is { Count: > 0 } panels)
+            foreach (PanelState panel in state.Panels)
             {
-                DebugHelper.WriteLine($"KDE capture preparation: showing panel(s) {string.Join(", ", panels.Select(p => p.Id))} left hidden by an earlier run.");
-                await _shell.EvaluateAsync(BuildPanelHidingScript(panels.Select(p => (p.Id, p.Hiding))), CancellationToken.None).ConfigureAwait(false);
+                if (_hiddenPanels.TryAdd(panel.Id, panel.Hiding)) _unrestoredPanels.Add(panel.Id);
             }
 
-            if (state?.Desktops is { Count: > 0 } desktops)
+            foreach (DesktopState desktop in state.Desktops)
             {
-                DebugHelper.WriteLine($"KDE capture preparation: showing the desktop icons of {desktops.Count} desktop(s) left hidden by an earlier run.");
-                await _shell.EvaluateAsync(BuildDesktopFilterScript(desktops.Select(d => (d.Id, d.FilterMode, d.FilterPattern))), CancellationToken.None).ConfigureAwait(false);
+                _filteredDesktops.TryAdd(desktop.Id, new PlasmaDesktop(desktop.Id, desktop.FilterMode, desktop.FilterPattern));
             }
 
-            if (_hiddenPanels.Count == 0 && _filteredDesktops.Count == 0) DeleteMarker();
+            if (state.Desktops.Count > 0 && _iconScopes == 0) _desktopRestorePending = true;
+            if (state.Panels.Count > 0)
+            {
+                DebugHelper.WriteLine($"KDE capture preparation: showing panel(s) {string.Join(", ", state.Panels.Select(p => p.Id))} left hidden by an earlier run.");
+            }
+
+            if (state.Desktops.Count > 0)
+            {
+                DebugHelper.WriteLine($"KDE capture preparation: showing the desktop icons of {state.Desktops.Count} desktop(s) left hidden by an earlier run.");
+            }
         }
         finally
         {
             _gate.Release();
+        }
+
+        for (int attempt = 1; attempt <= RecoveryAttempts; attempt++)
+        {
+            await _gate.WaitAsync().ConfigureAwait(false);
+            try
+            {
+                bool panelsRestored = await TryRestorePanelsAsync().ConfigureAwait(false);
+                bool desktopsRestored = await TryRestoreDesktopsAsync().ConfigureAwait(false);
+                if (panelsRestored && desktopsRestored)
+                {
+                    SaveMarker();
+                    return;
+                }
+            }
+            catch (Exception ex)
+            {
+                DebugHelper.WriteException(ex, "KDE capture preparation: an earlier run's changes could not be undone");
+            }
+            finally
+            {
+                _gate.Release();
+            }
+
+            if (attempt < RecoveryAttempts) await Task.Delay(RecoveryRetryDelay).ConfigureAwait(false);
         }
     }
 
