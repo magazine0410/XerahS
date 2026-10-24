@@ -151,6 +151,25 @@ public class MissingHotkeyWindowTests
     }
 
     [AvaloniaTest]
+    [Platform(Include = "Linux")]
+    public async Task FileConflict_EnterWithTheNameInOtherCase_SavesUnderThatName_OnLinux()
+    {
+        string existing = CreateImage("shot.png", SKColors.Coral);
+        var window = new FileConflictWindow(existing);
+        var result = window.ShowAsync(CancellationToken.None);
+        try
+        {
+            window.FindControl<TextBox>("NewName")!.Text = "Shot";
+            Dispatcher.UIThread.RunJobs();
+            Assert.That(window.FindControl<Button>("NewNameButton")!.IsEnabled, Is.True);
+            window.KeyPressQwerty(PhysicalKey.Enter, RawInputModifiers.None);
+            Assert.That(await result, Is.EqualTo(new XerahS.Platform.Abstractions.FileConflictResolution(Path.Combine(_directory, "Shot.png"), false)),
+                "shot.png is not overwritten");
+        }
+        finally { window.Close(); }
+    }
+
+    [AvaloniaTest]
     public async Task FileConflict_CancellationClosesThePrompt()
     {
         using var cts = new CancellationTokenSource();
