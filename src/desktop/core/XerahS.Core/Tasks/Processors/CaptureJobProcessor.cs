@@ -545,13 +545,7 @@ namespace XerahS.Core.Tasks.Processors
                 info.UploadAttemptedDuringCapture = true;
                 var pluginResult = await new UploadJobProcessor().UploadAsync(info, token);
                 if (info.UploadCancelled) return;
-                if (pluginResult == null)
-                {
-                    DebugHelper.WriteLine("Plugin upload did not return a result.");
-                    return;
-                }
-
-                HandleUploadResult(info, pluginResult);
+                HandleUploadResult(info, pluginResult ?? CreateUploadError("The upload did not return a result."));
             }
             catch (OperationCanceledException)
             {
@@ -559,8 +553,18 @@ namespace XerahS.Core.Tasks.Processors
             }
             catch (Exception ex)
             {
+                // The upload job does not upload again after a capture's upload, so the failure is recorded here
+                // for the task's completion notification, as a failed upload's own result is.
                 DebugHelper.WriteException(ex, "Upload error");
+                HandleUploadResult(info, CreateUploadError("Upload failed: " + ex.Message));
             }
+        }
+
+        private static UploadResult CreateUploadError(string message)
+        {
+            var result = new UploadResult { IsSuccess = false };
+            result.Errors.Add(message);
+            return result;
         }
 
         private async Task PerformOCRAsync(TaskInfo info)

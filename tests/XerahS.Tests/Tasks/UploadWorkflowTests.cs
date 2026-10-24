@@ -244,6 +244,43 @@ public class UploadWorkflowTests
     }
 
     [Test]
+    public async Task CaptureUploadThatThrows_ReportsTheErrorInsteadOfSucceeding()
+    {
+        var instance = AddInstance(UploaderCategory.Image, "own-error-image");
+        _imageUploads = 0;
+        string path = Path.Combine(_directory, "throws.png");
+        using var image = new SkiaSharp.SKBitmap(10, 10);
+        using (var data = image.Encode(SkiaSharp.SKEncodedImageFormat.Png, 100))
+        using (var file = File.Create(path)) data.SaveTo(file);
+        var info = new TaskInfo(new TaskSettings
+        {
+            Job = WorkflowType.PrintScreen,
+            AfterCaptureJob = AfterCaptureTasks.UploadImageToHost | AfterCaptureTasks.ShowBeforeUploadWindow,
+            AfterUploadJob = AfterUploadTasks.None,
+            DestinationInstanceId = instance.InstanceId,
+            AllowCrossCategoryFallback = false
+        }) { FilePath = path, Metadata = new TaskMetadata(image) };
+
+        var previousPrompt = XerahS.Core.Tasks.Processors.UploadJobProcessor.ShowBeforeUploadCallback;
+        XerahS.Core.Tasks.Processors.UploadJobProcessor.ShowBeforeUploadCallback = (_, _) => throw new IOException("The window could not open.");
+        try
+        {
+            await new XerahS.Core.Tasks.Processors.CaptureJobProcessor().ProcessAsync(info, CancellationToken.None);
+            await new XerahS.Core.Tasks.Processors.UploadJobProcessor().ProcessAsync(info, CancellationToken.None);
+        }
+        finally { XerahS.Core.Tasks.Processors.UploadJobProcessor.ShowBeforeUploadCallback = previousPrompt; }
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(_imageUploads, Is.Zero);
+            Assert.That(info.Result?.IsError, Is.True);
+            Assert.That(XerahS.UI.Services.WorkflowOrchestrator.GetUploadFailureNotification(info.Result!)?.Text,
+                Is.EqualTo("Upload failed: The window could not open."));
+            Assert.That(XerahS.Core.Tasks.WorkerTask.GetCompletionSound(TaskStatus.Completed, info), Is.EqualTo(NotificationSound.Error));
+        });
+    }
+
+    [Test]
     public void FailureWithoutErrorTextShowsNoNotification() =>
         Assert.That(XerahS.UI.Services.WorkflowOrchestrator.GetUploadFailureNotification(new UploadResult()), Is.Null);
 
