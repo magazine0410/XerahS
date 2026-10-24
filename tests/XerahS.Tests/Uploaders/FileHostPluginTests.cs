@@ -199,6 +199,22 @@ public class FileHostPluginTests
         Assert.That(shortResult.URL, Is.EqualTo("https://youtu.be/abc"));
     }
 
+    [TestCase("""{"kind":"youtube#video"}""")]
+    [TestCase("not json")]
+    [TestCase("[]")]
+    public void YouTube_AResponseWithoutAVideoId_IsAnError(string response)
+    {
+        var result = new UploadResult { Response = response, IsSuccess = true };
+        var errors = new UploaderErrorManager();
+        YouTubeUploader.ApplyResponse(result, false, errors);
+        Assert.Multiple(() =>
+        {
+            Assert.That(result.IsSuccess, Is.False);
+            Assert.That(result.URL, Is.Null);
+            Assert.That(errors.ToString(), Is.EqualTo("YouTube did not return a video ID."));
+        });
+    }
+
     // ── OneDrive and Box ────────────────────────────────────────────────────
 
     [Test]

@@ -70,16 +70,25 @@ public sealed class YouTubeUploader : FileUploader
         ["status"] = new JObject { ["privacyStatus"] = privacy.ToString().ToLowerInvariant() }
     }.ToString(Formatting.None);
 
+    /// <summary>
+    /// Sets the video link from the response. ShareX reported a response without a video ID as a successful upload
+    /// with no link; here it is an error.
+    /// </summary>
     internal static void ApplyResponse(UploadResult result, bool useShortenedLink, UploaderErrorManager errors)
     {
         if (string.IsNullOrEmpty(result.Response)) return;
 
-        JObject video;
-        try { video = JObject.Parse(result.Response); }
-        catch (JsonException) { return; }
+        JObject? video;
+        try { video = JToken.Parse(result.Response) as JObject; }
+        catch (JsonException) { video = null; }
 
-        string? id = video.Value<string>("id");
-        if (string.IsNullOrEmpty(id)) return;
+        string? id = video?.Value<string>("id");
+        if (video == null || string.IsNullOrEmpty(id))
+        {
+            result.IsSuccess = false;
+            errors.Add("YouTube did not return a video ID.");
+            return;
+        }
 
         result.URL = useShortenedLink ? $"https://youtu.be/{id}" : $"https://www.youtube.com/watch?v={id}";
         JToken? status = video["status"];
