@@ -77,6 +77,8 @@ namespace XerahS.Uploaders
             return null;
         }
 
+        internal const string StateMismatchError = "state_mismatch";
+
         public void Start() => _listener.Start();
 
         public async Task<OAuthCallbackResult> WaitForCallbackAsync(string expectedState, CancellationToken cancellation)
@@ -107,6 +109,13 @@ namespace XerahS.Uploaders
 
                 OAuthCallbackResult result = ReadCallback(context.Request.QueryString["code"], context.Request.QueryString["state"],
                     context.Request.QueryString["error"], context.Request.QueryString["error_description"], expectedState);
+                if (result.Error == StateMismatchError)
+                {
+                    // Any web page can request this address. Only the callback with this login's state may end it.
+                    await WriteResponseAsync(context.Response, true, $"{_serviceName} authorization failed: {result.ErrorDescription}", cancellation).ConfigureAwait(false);
+                    continue;
+                }
+
                 string message = result.IsSuccess
                     ? $"{_serviceName} login completed. You can close this tab and return to XerahS."
                     : $"{_serviceName} authorization failed: {result.ErrorDescription ?? result.Error}";
@@ -121,7 +130,7 @@ namespace XerahS.Uploaders
         {
             if (!string.Equals(state, expectedState, StringComparison.Ordinal))
             {
-                return new OAuthCallbackResult { Error = "state_mismatch", ErrorDescription = "The login state did not match. Try again." };
+                return new OAuthCallbackResult { Error = StateMismatchError, ErrorDescription = "The login state did not match. Try again." };
             }
 
             if (!string.IsNullOrWhiteSpace(error))

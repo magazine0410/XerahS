@@ -115,6 +115,30 @@ public class FileHostPluginTests
         });
     }
 
+    [Test]
+    public async Task OAuth_Listener_IgnoresACallbackWithAnotherState_AndWaitsForTheRealOne()
+    {
+        var probe = new TcpListener(IPAddress.Loopback, 0);
+        probe.Start();
+        int port = ((IPEndPoint)probe.LocalEndpoint).Port;
+        probe.Stop();
+
+        using var listener = new OAuthLoopbackListener(new Uri($"http://127.0.0.1:{port}/oauth2/callback"), "Test");
+        listener.Start();
+        using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+        Task<OAuthCallbackResult> waiting = listener.WaitForCallbackAsync("expected", timeout.Token);
+
+        using var client = new HttpClient();
+        using HttpResponseMessage forged = await client.GetAsync($"http://127.0.0.1:{port}/oauth2/callback?code=attacker&state=other");
+        Assert.That(await forged.Content.ReadAsStringAsync(), Does.Contain("The login state did not match."));
+        Assert.That(waiting.IsCompleted, Is.False);
+
+        using HttpResponseMessage real = await client.GetAsync($"http://127.0.0.1:{port}/oauth2/callback?code=real&state=expected");
+        OAuthCallbackResult result = await waiting;
+        Assert.That(result.IsSuccess, Is.True);
+        Assert.That(result.Code, Is.EqualTo("real"));
+    }
+
     [TestCase("http://127.0.0.1:52476/oauth2/callback", true)]
     [TestCase("http://localhost:52476/oauth2/callback", true)]
     [TestCase("https://127.0.0.1:52476/oauth2/callback", false)]
