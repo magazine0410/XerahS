@@ -35,7 +35,7 @@
                 <TextBox Grid.Row="8" Grid.Column="1" Text="{Binding ShortenedUrl}" AutomationProperties.Name="Shortened URL"/>
                 <TextBlock Grid.Row="9" Text="Tags" VerticalAlignment="Top" Margin="0,8,0,0"/>
                 <TextBox Grid.Row="9" Grid.Column="1" Text="{Binding Tags}" Height="110" AcceptsReturn="True" TextWrapping="NoWrap"
-                         PlaceholderText="One key=value pair per line" AutomationProperties.Name="Tags"/>
+                         PlaceholderText="One key=value pair per line; a line break in a value is written \n" AutomationProperties.Name="Tags"/>
             </Grid>
         </ScrollViewer>
         <StackPanel Grid.Row="2" Orientation="Horizontal" HorizontalAlignment="Right" Spacing="8">

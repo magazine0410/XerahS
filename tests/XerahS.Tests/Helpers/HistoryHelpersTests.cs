@@ -55,6 +55,24 @@ public class HistoryHelpersTests
     }
 
     [Test]
+    public void FormatTags_KeepsLineBreaksAndBackslashesInValues_ThroughParseTags()
+    {
+        var tags = new Dictionary<string, string?>
+        {
+            ["OcrText"] = "Hello\nAnnotationSidecarPath=/home/user/notes.txt\r\nFavorite",
+            ["Errors"] = "a \\n b\\",
+            ["Plain"] = "value"
+        };
+
+        string text = HistoryHelpers.FormatTags(tags);
+
+        Assert.That(text.Split(Environment.NewLine), Has.Length.EqualTo(3), "Every tag stays on its own line.");
+        Assert.That(HistoryHelpers.ParseTags(text), Is.EqualTo(tags));
+        Assert.That(HistoryHelpers.ParseTags("Path=C:\\temp\\x"), Is.EqualTo(new Dictionary<string, string?> { ["Path"] = "C:\\temp\\x" }),
+            "A backslash before another character is kept as typed.");
+    }
+
+    [Test]
     public void FormatTags_ListsTagsByKey_OneKeyValuePerLine()
     {
         string text = HistoryHelpers.FormatTags(new Dictionary<string, string?> { ["b"] = "2", ["a"] = null });

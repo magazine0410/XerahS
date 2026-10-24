@@ -214,6 +214,53 @@ public sealed class HistoryManagementTests
     }
 
     [Test]
+    public async Task EditItem_SavedUnchanged_KeepsTagsWithLineBreaks()
+    {
+        using var manager = new HistoryManagerSQLite(SettingsManager.GetHistoryFilePath());
+        var entry = Item("ocr.png", 0);
+        string other = Path.Combine(_directory, "notes.txt");
+        entry.Tags["OcrText"] = "First line\nAnnotationSidecarPath=" + other + "\nFavorite";
+        Dictionary<string, string?> expected = new(entry.Tags);
+        Assert.That(manager.AppendHistoryItem(entry), Is.True);
+        using var vm = ViewModel();
+        await vm.LoadHistoryCommand.ExecuteAsync(null);
+
+        vm.ShowEditItemDialogAsync = _ => Task.FromResult(true);
+        await vm.EditItemCommand.ExecuteAsync(vm.HistoryItems[0]);
+
+        HistoryItem saved = manager.GetHistoryItem(entry.Id)!;
+        Assert.Multiple(() =>
+        {
+            Assert.That(saved.Tags, Is.EqualTo(expected));
+            Assert.That(saved.AnnotationSidecarPath, Is.Null, "A line of the OCR text must not become a tag.");
+            Assert.That(saved.Favorite, Is.False);
+        });
+    }
+
+    [Test]
+    public async Task DeleteFile_DeletesOnlyAnAnnotationFileAsTheSidecar()
+    {
+        using var manager = new HistoryManagerSQLite(SettingsManager.GetHistoryFilePath());
+        var entry = Item("image.png", 0);
+        File.WriteAllBytes(entry.FilePath, [1]);
+        string other = Path.Combine(_directory, "notes.txt");
+        File.WriteAllText(other, "keep");
+        entry.AnnotationSidecarPath = other;
+        Assert.That(manager.AppendHistoryItem(entry), Is.True);
+        using var vm = ViewModel();
+        await vm.LoadHistoryCommand.ExecuteAsync(null);
+
+        await vm.DeleteFileCommand.ExecuteAsync(vm.HistoryItems[0]);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(File.Exists(entry.FilePath), Is.False);
+            Assert.That(File.Exists(other), Is.True, "A sidecar path that is not a .xann file is not deleted.");
+            Assert.That(manager.GetTotalCount(), Is.EqualTo(0));
+        });
+    }
+
+    [Test]
     public async Task Delete_RemovesEverySelectedEntryAfterOneConfirmation_AndDeleteFileRemovesTheirFiles()
     {
         using var manager = new HistoryManagerSQLite(SettingsManager.GetHistoryFilePath());

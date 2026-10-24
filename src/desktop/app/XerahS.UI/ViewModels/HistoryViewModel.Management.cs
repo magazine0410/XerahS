@@ -23,6 +23,7 @@
 
 #endregion License Information (GPL v3)
 
+using System.Diagnostics.CodeAnalysis;
 using CommunityToolkit.Mvvm.Input;
 using ShareX.ImageEditor.Core.Persistence;
 using XerahS.Common;
@@ -151,6 +152,9 @@ public partial class HistoryViewModel
         return newPath;
     }
 
+    internal static bool IsAnnotationSidecarPath([NotNullWhen(true)] string? path) =>
+        !string.IsNullOrWhiteSpace(path) && string.Equals(Path.GetExtension(path), ".xann", StringComparison.OrdinalIgnoreCase);
+
     /// <summary>
     /// Deletes the entry, or every selected entry when it is selected, after one confirmation worded as ShareX's.
     /// With <paramref name="deleteFiles"/>, the files (and their annotation sidecars) are deleted first; an entry whose
@@ -184,7 +188,8 @@ public partial class HistoryViewModel
                         {
                             File.Delete(entry.FilePath);
                             XannProjectFileService.TryDeleteSidecar(entry.FilePath);
-                            if (!string.IsNullOrWhiteSpace(entry.AnnotationSidecarPath)) FileHelpers.DeleteFile(entry.AnnotationSidecarPath);
+                            // The sidecar path is a tag, which Edit item can change, so only an annotation file is deleted with it.
+                            if (IsAnnotationSidecarPath(entry.AnnotationSidecarPath)) FileHelpers.DeleteFile(entry.AnnotationSidecarPath);
                         }
 
                         kept.Add(entry);
