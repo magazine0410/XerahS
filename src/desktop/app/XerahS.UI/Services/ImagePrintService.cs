@@ -55,9 +55,10 @@ internal static class ImagePrintService
         PrintSettings settings = SettingsManager.Settings.PrintSettings;
         var window = new PrintWindow(new PrintOptionsViewModel(settings, previewOnly))
         {
-            PreviewRequested = () => ShowPreviewAsync(image, settings, owner),
             PrintRequested = () => PrintAsync(image, settings)
         };
+        // The preview belongs to the print options window, so that it opens above it.
+        window.PreviewRequested = () => ShowPreviewAsync(image, settings, window);
         var closed = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         window.Closed += (_, _) => closed.TrySetResult();
 

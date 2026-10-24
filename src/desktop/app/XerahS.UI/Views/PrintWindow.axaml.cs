@@ -51,20 +51,21 @@ public partial class PrintWindow : SurfaceWindow
 
     private async void OnPreviewClick(object? sender, RoutedEventArgs e)
     {
-        if (PreviewRequested != null) await RunAsync(PreviewRequested);
+        // The preview closes when it loses the focus, so this window does not take the focus back after it.
+        if (PreviewRequested != null) await RunAsync(PreviewRequested, activateAfter: false);
     }
 
     private async void OnPrintClick(object? sender, RoutedEventArgs e)
     {
         if (PrintRequested == null) return;
         bool close = false;
-        await RunAsync(async () => close = await PrintRequested());
+        await RunAsync(async () => close = await PrintRequested(), activateAfter: true);
         if (close) Close();
     }
 
     private void OnCancelClick(object? sender, RoutedEventArgs e) => Close();
 
-    private async Task RunAsync(Func<Task> action)
+    private async Task RunAsync(Func<Task> action, bool activateAfter)
     {
         if (_viewModel != null) _viewModel.IsBusy = true;
         try
@@ -74,7 +75,7 @@ public partial class PrintWindow : SurfaceWindow
         finally
         {
             if (_viewModel != null) _viewModel.IsBusy = false;
-            Activate();
+            if (activateAfter) Activate();
         }
     }
 }
