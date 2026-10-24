@@ -113,6 +113,22 @@ public class HotkeyPrerequisiteTests
         finally { editor.Close(); toolbar.Close(); SettingsManager.Settings.ActionsToolbarList = saved; }
     }
 
+    [Test]
+    public void ActionsToolbar_WithItsCornerOnNoScreen_StaysOnTheScreenItOverlaps()
+    {
+        // A primary screen, and a second one to its right that starts lower, leaving a gap above it.
+        global::Avalonia.PixelRect[] screens = [new(0, 0, 1920, 1080), new(1920, 400, 1920, 1080)];
+        Assert.Multiple(() =>
+        {
+            Assert.That(ActionsToolbarWindow.FindScreenIndex(screens, new global::Avalonia.PixelRect(3000, 350, 300, 60)), Is.EqualTo(1),
+                "the corner is in the gap above the second screen, most of the window on it");
+            Assert.That(ActionsToolbarWindow.FindScreenIndex(screens, new global::Avalonia.PixelRect(3000, 100, 300, 60)), Is.EqualTo(1),
+                "on no screen at all, the nearest one");
+            Assert.That(ActionsToolbarWindow.FindScreenIndex(screens, new global::Avalonia.PixelRect(-200, 500, 300, 60)), Is.EqualTo(0));
+            Assert.That(ActionsToolbarWindow.FindScreenIndex([], new global::Avalonia.PixelRect(0, 0, 10, 10)), Is.EqualTo(-1));
+        });
+    }
+
     [AvaloniaTest]
     public async Task MetadataWindow_LoadsFiltersCopiesAndConfirmsStrip()
     {

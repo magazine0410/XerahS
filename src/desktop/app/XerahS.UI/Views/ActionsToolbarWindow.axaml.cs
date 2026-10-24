@@ -299,6 +299,40 @@ public partial class ActionsToolbarWindow : Window
         }
     }
 
+    /// <summary>The screen the window overlaps most, or else the one nearest to it; -1 without screens.</summary>
+    internal static int FindScreenIndex(IReadOnlyList<PixelRect> screens, PixelRect window)
+    {
+        int best = -1;
+        long bestOverlap = 0;
+        for (int index = 0; index < screens.Count; index++)
+        {
+            PixelRect overlap = screens[index].Intersect(window);
+            long area = (long)overlap.Width * overlap.Height;
+            if (area > bestOverlap)
+            {
+                best = index;
+                bestOverlap = area;
+            }
+        }
+        if (best >= 0) return best;
+
+        double bestDistance = double.MaxValue;
+        PixelPoint center = window.Center;
+        for (int index = 0; index < screens.Count; index++)
+        {
+            PixelRect bounds = screens[index];
+            double dx = Math.Max(Math.Max(bounds.X - center.X, center.X - bounds.Right), 0);
+            double dy = Math.Max(Math.Max(bounds.Y - center.Y, center.Y - bounds.Bottom), 0);
+            double distance = dx * dx + dy * dy;
+            if (distance < bestDistance)
+            {
+                best = index;
+                bestDistance = distance;
+            }
+        }
+        return best;
+    }
+
     private void ClampAndSavePosition()
     {
         if (!_positionReady || _adjustingPosition || (PlatformServices.IsWindowServiceInitialized && !PlatformServices.Window.SupportsWindowPositioning))
@@ -306,7 +340,15 @@ public partial class ActionsToolbarWindow : Window
             return;
         }
 
-        Screen? screen = Screens.ScreenFromPoint(Position) ?? Screens.Primary;
+        // A window dragged partly past a screen edge, or into a gap between screens, has its top-left corner on no
+        // screen. It is kept on the screen it overlaps most, or else the nearest one, not moved to the primary one.
+        IReadOnlyList<Screen> screens = Screens.All;
+        Screen? screen = Screens.ScreenFromPoint(Position);
+        if (screen == null)
+        {
+            int index = FindScreenIndex(screens.Select(s => s.Bounds).ToArray(), new PixelRect(Position, PixelSize.FromSize(ClientSize, DesktopScaling)));
+            screen = index >= 0 ? screens[index] : Screens.Primary;
+        }
         if (screen == null)
         {
             return;
