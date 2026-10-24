@@ -45,6 +45,12 @@ public class LinuxOcrService : IOcrService
     private const int PageSegModeSingleLine = 7;
     private const int MaxImageDimension = 32767;
 
+    /// <summary>
+    /// Leptonica refuses an image of 2 GiB or more (an RGBA image over about 537 million pixels) and Tesseract does not
+    /// check for that, so it crashes the process. Upscaling past 100 million pixels gains nothing for OCR.
+    /// </summary>
+    internal const long MaxImagePixels = 100_000_000;
+
     private static readonly string[] LibraryNames = ["libtesseract.so.5", "libtesseract.so.5.5", "libtesseract.so"];
     private static readonly HashSet<string> NonLanguageData = new(StringComparer.Ordinal) { "osd", "equ" };
     private static readonly Lazy<TesseractLibrary?> Library = new(TesseractLibrary.TryLoad);
@@ -103,10 +109,7 @@ public class LinuxOcrService : IOcrService
     /// <summary>Scales the image like the Windows OCR service and flattens it on white as opaque RGBA.</summary>
     internal static SKBitmap PrepareImage(SKBitmap source, float requestedScaleFactor)
     {
-        float scale = float.IsFinite(requestedScaleFactor) ? Math.Max(requestedScaleFactor, 1f) : 1f;
-        int largest = Math.Max(source.Width, source.Height);
-        if (largest > 0) scale = Math.Min(scale, (float)MaxImageDimension / largest);
-
+        float scale = GetScale(source.Width, source.Height, requestedScaleFactor);
         int width = Math.Max(1, (int)Math.Round(source.Width * scale));
         int height = Math.Max(1, (int)Math.Round(source.Height * scale));
         var target = new SKBitmap(new SKImageInfo(width, height, SKColorType.Rgba8888, SKAlphaType.Opaque));
@@ -116,6 +119,17 @@ public class LinuxOcrService : IOcrService
         canvas.DrawImage(sourceImage, new SKRect(0, 0, width, height), new SKSamplingOptions(SKCubicResampler.Mitchell));
         canvas.Flush();
         return target;
+    }
+
+    /// <summary>The requested scale (at least 1), reduced so that the image fits Tesseract's side and size limits.</summary>
+    internal static float GetScale(int width, int height, float requestedScaleFactor)
+    {
+        float scale = float.IsFinite(requestedScaleFactor) ? Math.Max(requestedScaleFactor, 1f) : 1f;
+        int largest = Math.Max(width, height);
+        if (largest > 0) scale = Math.Min(scale, (float)MaxImageDimension / largest);
+        double pixels = (double)width * height;
+        if (pixels > 0) scale = Math.Min(scale, (float)Math.Sqrt(MaxImagePixels / pixels));
+        return scale;
     }
 
     private static string NormalizeText(string text, bool singleLine)

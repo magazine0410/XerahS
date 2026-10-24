@@ -91,6 +91,21 @@ public class LinuxOcrServiceTests
     }
 
     [Test]
+    public void GetScale_KeepsTheImageWithinTesseractsSizeLimit()
+    {
+        Assert.That(LinuxOcrService.GetScale(800, 600, 2f), Is.EqualTo(2f), "A small image is scaled as asked.");
+        Assert.That(LinuxOcrService.GetScale(800, 600, 0.5f), Is.EqualTo(1f), "Never below 1, as before.");
+
+        // An 8000x6000 photo at scale 4 would be 768 million pixels, which Leptonica refuses and Tesseract then crashes on.
+        float scale = LinuxOcrService.GetScale(8000, 6000, 4f);
+        long pixels = (long)Math.Round(8000 * scale) * (long)Math.Round(6000 * scale);
+        Assert.That(pixels, Is.LessThanOrEqualTo(LinuxOcrService.MaxImagePixels + 20_000));
+        Assert.That(scale, Is.GreaterThan(1f));
+
+        Assert.That(LinuxOcrService.GetScale(40000, 100, 1f) * 40000, Is.LessThanOrEqualTo(32767f), "The side limit still applies.");
+    }
+
+    [Test]
     public void PrepareImage_FlattensTransparencyOnWhite_AndScales()
     {
         using var image = new SKBitmap(new SKImageInfo(4, 3, SKColorType.Bgra8888, SKAlphaType.Premul));
