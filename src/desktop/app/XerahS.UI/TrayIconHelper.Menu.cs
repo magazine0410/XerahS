@@ -25,6 +25,7 @@
 
 using Avalonia.Controls;
 using Avalonia.Controls.ApplicationLifetimes;
+using Avalonia.Media.Imaging;
 using CommunityToolkit.Mvvm.Input;
 using XerahS.Common;
 using XerahS.Core;
@@ -78,6 +79,12 @@ public partial class TrayIconHelper
     private NativeMenu? _monitorMenu;
     private string _windowMenuSignature = string.Empty;
     private Avalonia.Threading.DispatcherTimer? _windowListTimer;
+    // The last window and monitor list, read off the UI thread, and the window icons decoded so far.
+    private TrayWindowList? _windowList;
+    private bool _windowListRefreshing;
+    private readonly Dictionary<IntPtr, Bitmap?> _windowIcons = new();
+
+    internal sealed record TrayWindowList(WindowInfo[] Windows, ScreenInfo[] Screens, string Signature, Dictionary<IntPtr, Bitmap?> NewIcons);
 
     /// <summary>Adds ShareX's tray menu, from its Capture submenu to Exit.</summary>
     private void AddShareXMenuItems(IList<NativeMenuItemBase> items)
@@ -124,7 +131,8 @@ public partial class TrayIconHelper
     {
         _windowMenu = new NativeMenu();
         _monitorMenu = new NativeMenu();
-        UpdateWindowAndMonitorMenus(force: true);
+        FillWindowAndMonitorMenus();
+        _ = RefreshWindowListAsync();
 
         var menu = new NativeMenu();
         menu.Items.Add(Item("Fullscreen", () => RunJob(WorkflowType.PrintScreen)));
@@ -153,42 +161,84 @@ public partial class TrayIconHelper
     }
 
     /// <summary>
-    /// Fills the Window and Monitor submenus. The desktop shows the tray menu itself and does not tell XerahS
-    /// when it opens, so a timer keeps the lists current; they are rebuilt only when something changed.
+    /// Reads the windows, monitors, and new windows' icons off the UI thread, then fills the Window and Monitor
+    /// submenus when something changed. The desktop shows the tray menu itself and does not tell XerahS when it
+    /// opens, so a timer keeps the lists current. Listing windows can take long (on KDE Plasma Wayland it runs a KWin
+    /// script and waits for its answer), and the UI thread also draws the region capture, the editor, and the
+    /// recording controls.
     /// </summary>
-    private void UpdateWindowAndMonitorMenus(bool force = false)
+    private async Task RefreshWindowListAsync()
     {
-        if (_windowMenu == null || _monitorMenu == null || !PlatformServices.IsInitialized)
+        if (_windowListRefreshing || !PlatformServices.IsInitialized) return;
+        _windowListRefreshing = true;
+        try
         {
-            return;
+            var knownIcons = new HashSet<IntPtr>(_windowIcons.Keys);
+            TrayWindowList list = await Task.Run(() => ReadWindowList(knownIcons));
+            foreach ((IntPtr handle, Bitmap? icon) in list.NewIcons) _windowIcons[handle] = icon;
+            foreach (IntPtr gone in _windowIcons.Keys.Except(list.Windows.Select(w => w.Handle)).ToList()) _windowIcons.Remove(gone);
+            _windowList = list;
+            if (list.Signature != _windowMenuSignature) FillWindowAndMonitorMenus();
         }
+        catch (Exception ex)
+        {
+            DebugHelper.WriteException(ex, "Tray: unable to list the windows and monitors");
+        }
+        finally
+        {
+            _windowListRefreshing = false;
+        }
+    }
 
+    private static TrayWindowList ReadWindowList(HashSet<IntPtr> knownIcons) =>
+        ReadWindowList(() => PlatformServices.Window.GetAllWindows(), () => PlatformServices.Screen.GetAllScreens(),
+            handle => InspectWindowService.GetWindowIcon(handle), knownIcons);
+
+    /// <summary>The capturable windows and the monitors; only windows without a decoded icon have theirs read.</summary>
+    internal static TrayWindowList ReadWindowList(Func<WindowInfo[]> listWindows, Func<ScreenInfo[]> listScreens,
+        Func<IntPtr, Bitmap?> getIcon, HashSet<IntPtr> knownIcons)
+    {
         WindowInfo[] windows = [];
         ScreenInfo[] screens = [];
         try
         {
-            windows = GetCapturableWindows();
-            screens = PlatformServices.Screen.GetAllScreens();
+            windows = GetCapturableWindows(listWindows());
+            screens = listScreens();
         }
         catch (Exception ex)
         {
             DebugHelper.WriteException(ex, "Tray: unable to list the windows and monitors");
         }
 
+        var newIcons = new Dictionary<IntPtr, Bitmap?>();
+        foreach (WindowInfo window in windows)
+        {
+            if (!knownIcons.Contains(window.Handle) && !newIcons.ContainsKey(window.Handle))
+            {
+                newIcons[window.Handle] = getIcon(window.Handle);
+            }
+        }
+
         string signature = string.Join('\n', windows.Select(w => $"{w.Handle}:{w.Title}")) + "\n|" +
                            string.Join('\n', screens.Select(s => s.Bounds.ToString()));
-        if (!force && signature == _windowMenuSignature)
+        return new TrayWindowList(windows, screens, signature, newIcons);
+    }
+
+    /// <summary>Fills the Window and Monitor submenus from the last list, on the UI thread.</summary>
+    private void FillWindowAndMonitorMenus()
+    {
+        if (_windowMenu == null || _monitorMenu == null || _windowList is not { } list)
         {
             return;
         }
-        _windowMenuSignature = signature;
 
+        _windowMenuSignature = list.Signature;
         _windowMenu.Items.Clear();
-        foreach (WindowInfo window in windows)
+        foreach (WindowInfo window in list.Windows)
         {
             IntPtr handle = window.Handle;
             var item = Item(window.Title.Truncate(50, "..."), () => RunJob(WorkflowType.CustomWindow, settings => settings.CaptureWindowHandle = handle));
-            item.Icon = InspectWindowService.GetWindowIcon(handle);
+            item.Icon = _windowIcons.GetValueOrDefault(handle);
             _windowMenu.Items.Add(item);
         }
         if (_windowMenu.Items.Count == 0)
@@ -197,17 +247,17 @@ public partial class TrayIconHelper
         }
 
         _monitorMenu.Items.Clear();
-        for (int i = 0; i < screens.Length; i++)
+        for (int i = 0; i < list.Screens.Length; i++)
         {
-            System.Drawing.Rectangle bounds = screens[i].Bounds;
+            System.Drawing.Rectangle bounds = list.Screens[i].Bounds;
             _monitorMenu.Items.Add(Item($"{i + 1}. {bounds.Width}x{bounds.Height}",
                 () => RunJob(WorkflowType.CustomRegion, settings => settings.CaptureSettings.CaptureCustomRegion = bounds)));
         }
     }
 
     /// <summary>ShareX's visible window list (WindowsList.GetVisibleWindowsList): shown windows with a title.</summary>
-    private static WindowInfo[] GetCapturableWindows() =>
-        PlatformServices.Window.GetAllWindows()
+    private static WindowInfo[] GetCapturableWindows(WindowInfo[] windows) =>
+        windows
             .Where(w => w.IsVisible && !w.IsMinimized && !string.IsNullOrWhiteSpace(w.Title) && w.Bounds.Width > 0 && w.Bounds.Height > 0)
             .ToArray();
 
@@ -221,7 +271,7 @@ public partial class TrayIconHelper
         _windowListTimer = new Avalonia.Threading.DispatcherTimer { Interval = TimeSpan.FromSeconds(3) };
         _windowListTimer.Tick += (_, _) =>
         {
-            if (ShowTray) UpdateWindowAndMonitorMenus();
+            if (ShowTray) _ = RefreshWindowListAsync();
         };
         _windowListTimer.Start();
     }
