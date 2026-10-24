@@ -389,6 +389,23 @@ public class MetadataTests
     }
 
     [Test]
+    public async Task AviDuration_IsRightForVideosLongerThan72Minutes()
+    {
+        // 25 fps for 80 minutes: 120,000 frames of 40,000 microseconds, 4.8 billion microseconds in all.
+        byte[] header = new byte[56];
+        BinaryPrimitives.WriteUInt32LittleEndian(header, 40_000);
+        BinaryPrimitives.WriteUInt32LittleEndian(header.AsSpan(16), 120_000);
+        byte[] body = [.. "AVI "u8.ToArray(), .. RiffChunk("LIST", [.. "hdrl"u8.ToArray(), .. RiffChunk("avih", header)])];
+        byte[] file = [.. "RIFF"u8.ToArray(), 0, 0, 0, 0, .. body];
+        BinaryPrimitives.WriteInt32LittleEndian(file.AsSpan(4), body.Length);
+        string path = Path.Combine(_directory, "long.avi");
+        await File.WriteAllBytesAsync(path, file);
+
+        IReadOnlyList<MetadataValue> metadata = await MetadataService.ReadMetadataAsync(path);
+        Assert.That(metadata.Single(value => value.Group == "AVI" && value.Tag == "Duration").Value, Is.EqualTo("1:20:00.000"));
+    }
+
+    [Test]
     public async Task StripAvi_ClearsTheXmpChunk()
     {
         byte[] body = [.. "AVI "u8.ToArray(), .. RiffChunk("LIST", [.. "hdrl"u8.ToArray(), .. RiffChunk("avih", new byte[56])]),

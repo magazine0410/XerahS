@@ -171,7 +171,8 @@ internal static class RiffMetadataReader
         uint totalFrames = BinaryPrimitives.ReadUInt32LittleEndian(data[16..]);
         metadata.Add("AVI", "Frame Rate", microsecondsPerFrame > 0 ? $"{1_000_000d / microsecondsPerFrame:0.###} fps" : null);
         metadata.Add("AVI", "Frame Count", totalFrames);
-        metadata.Add("AVI", "Duration", microsecondsPerFrame > 0 ? FormatDuration(totalFrames * microsecondsPerFrame / 1_000_000d) : null);
+        // Multiplied as doubles: the product of two 32-bit values wraps past 2^32 microseconds, about 71.6 minutes.
+        metadata.Add("AVI", "Duration", microsecondsPerFrame > 0 ? FormatDuration((double)totalFrames * microsecondsPerFrame / 1_000_000d) : null);
         metadata.Add("AVI", "Maximum Data Rate", maxBytesPerSecond > 0 ? $"{maxBytesPerSecond * 8d / 1_000_000:0.###} Mbps" : null);
         metadata.Add("AVI", "Stream Count", BinaryPrimitives.ReadUInt32LittleEndian(data[24..]));
         metadata.AddSize("AVI", BinaryPrimitives.ReadInt32LittleEndian(data[32..]), BinaryPrimitives.ReadInt32LittleEndian(data[36..]));
