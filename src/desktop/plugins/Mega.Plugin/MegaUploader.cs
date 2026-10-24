@@ -353,7 +353,7 @@ public sealed partial class MegaUploader : FileUploader
                     throw new MegaRequestException("MEGA proof-of-work verification failed.");
                 }
 
-                hashcash = GenerateHashcashToken(challenge);
+                hashcash = GenerateHashcashToken(challenge, RequestCancellationToken);
                 continue;
             }
 

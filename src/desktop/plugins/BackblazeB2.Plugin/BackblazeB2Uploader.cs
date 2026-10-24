@@ -118,7 +118,7 @@ public sealed class BackblazeB2Uploader : FileUploader
         {
             if (attempt > 1)
             {
-                Thread.Sleep((int)Math.Pow(2, attempt - 1) * 1000);
+                WaitBeforeRetry(attempt, RequestCancellationToken);
             }
 
             // Step 2: get an upload URL.
@@ -169,6 +169,13 @@ public sealed class BackblazeB2Uploader : FileUploader
     internal enum Retry { None, NewUrl, SameUrl, Fail }
 
     /// <summary>ShareX's retry rules: a failed connection, an expired token, and 503 get a new URL; 408 and 429 retry the same URL.</summary>
+    /// <summary>ShareX's wait before retry number <paramref name="attempt"/>: 2^(attempt - 1) seconds. Stopping the upload ends the wait.</summary>
+    internal static void WaitBeforeRetry(int attempt, CancellationToken cancellationToken)
+    {
+        cancellationToken.WaitHandle.WaitOne(TimeSpan.FromSeconds(Math.Pow(2, attempt - 1)));
+        cancellationToken.ThrowIfCancellationRequested();
+    }
+
     internal static Retry GetRetry(B2Response response)
     {
         if (response.Status == 0) return Retry.NewUrl;

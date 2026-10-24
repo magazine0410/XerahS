@@ -249,6 +249,15 @@ public class FileHostPluginTests
     }
 
     [Test]
+    public void Mega_ProofOfWork_StopsWhenTheUploadIsStopped()
+    {
+        // Easiness 0 needs a hash with its first 32 bits at most 8, about one nonce in 500 million.
+        string challenge = "1:0:0:" + MegaUploader.ToBase64URL(new byte[48]);
+        using var cancellation = new CancellationTokenSource(TimeSpan.FromMilliseconds(100));
+        Assert.That(() => MegaUploader.GenerateHashcashToken(challenge, cancellation.Token), Throws.InstanceOf<OperationCanceledException>());
+    }
+
+    [Test]
     public void Mega_ChunkResponse_FailsOnAnHttpError_AndReturnsTheCompletionHandle()
     {
         byte[] handle = Enumerable.Range(1, 36).Select(i => (byte)i).ToArray();
@@ -323,6 +332,15 @@ public class FileHostPluginTests
     {
         string text = code == null ? "{}" : $$"""{"status":{{status}},"code":"{{code}}","message":""}""";
         Assert.That(BackblazeB2Uploader.GetRetry(new BackblazeB2Uploader.B2Response((HttpStatusCode)status, text)).ToString(), Is.EqualTo(expected));
+    }
+
+    [Test]
+    public void BackblazeB2_StoppingTheUpload_EndsTheWaitBeforeARetry()
+    {
+        using var cancellation = new CancellationTokenSource(TimeSpan.FromMilliseconds(100));
+        var watch = System.Diagnostics.Stopwatch.StartNew();
+        Assert.Throws<OperationCanceledException>(() => BackblazeB2Uploader.WaitBeforeRetry(5, cancellation.Token));
+        Assert.That(watch.Elapsed, Is.LessThan(TimeSpan.FromSeconds(5)), "the wait before the fifth try is 16 seconds");
     }
 
     [Test]

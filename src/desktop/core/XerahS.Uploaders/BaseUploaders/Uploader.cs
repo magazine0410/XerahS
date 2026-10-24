@@ -45,7 +45,7 @@ namespace XerahS.Uploaders
         protected bool StopUploadRequested { get; set; }
         protected bool AllowReportProgress { get; set; } = true;
         protected bool ReturnResponseOnError { get; set; }
-        internal CancellationToken RequestCancellationToken { get; set; }
+        protected internal CancellationToken RequestCancellationToken { get; internal set; }
 
         protected ResponseInfo? LastResponseInfo { get; set; }
 
