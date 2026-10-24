@@ -24,6 +24,8 @@
 #endregion License Information (GPL v3)
 
 using System.Net;
+using System.Net.Sockets;
+using System.Text;
 using Avalonia.Controls;
 using Avalonia.Headless.NUnit;
 using Newtonsoft.Json.Linq;
@@ -310,6 +312,83 @@ public class FileHostPluginTests
         provider.SetContext(new TestProviderContext(secrets));
         Assert.That(provider.ValidateSettings("""{"SecretKey":"k"}"""), Is.False);
         Assert.That(provider.ValidateSettings("""{"SecretKey":"k","DeviceList":[{"Key":"1","Name":"Phone"}],"SelectedDeviceKey":"1"}"""), Is.True);
+    }
+
+    [Test]
+    public async Task Pushbullet_PushesTheFile_WhenTheUploadUrlAnswersNoContent()
+    {
+        using var listener = new TcpListener(IPAddress.Loopback, 0);
+        listener.Start();
+        string baseUrl = $"http://127.0.0.1:{((IPEndPoint)listener.LocalEndpoint).Port}";
+        var uploader = new PushbulletUploader("token", "dev1", baseUrl);
+        using var content = new MemoryStream(Encoding.UTF8.GetBytes("file"));
+        Task<UploadResult> upload = Task.Run(() => uploader.Upload(content, "a.png"));
+
+        string uploadRequest = await ReplyAsync(listener, "200 OK",
+            $$"""{"file_name":"a.png","file_type":"image/png","file_url":"https://dl.test/a.png","upload_url":"{{baseUrl}}/upload"}""");
+        string fileUpload = await ReplyAsync(listener, "204 No Content", null);
+        string pushRequest = await ReplyAsync(listener, "200 OK", """{"iden":"push1"}""");
+        UploadResult result = await upload.WaitAsync(TimeSpan.FromSeconds(10));
+
+        Assert.That(uploadRequest, Does.StartWith("POST /upload-request "));
+        Assert.That(fileUpload, Does.StartWith("POST /upload "));
+        Assert.That(pushRequest, Does.StartWith("POST /pushes "));
+        Assert.That(uploader.Errors.Count, Is.Zero);
+        Assert.That(result.IsSuccess, Is.True);
+        Assert.That(result.URL, Is.EqualTo(PushbulletUploader.PushesPageUrl + "?push_iden=push1"));
+    }
+
+    [Test]
+    public async Task Pushbullet_DoesNotPush_WhenTheFileUploadFails()
+    {
+        using var listener = new TcpListener(IPAddress.Loopback, 0);
+        listener.Start();
+        string baseUrl = $"http://127.0.0.1:{((IPEndPoint)listener.LocalEndpoint).Port}";
+        var uploader = new PushbulletUploader("token", "dev1", baseUrl);
+        using var content = new MemoryStream(Encoding.UTF8.GetBytes("file"));
+        Task<UploadResult> upload = Task.Run(() => uploader.Upload(content, "a.png"));
+
+        await ReplyAsync(listener, "200 OK", $$"""{"file_name":"a.png","upload_url":"{{baseUrl}}/upload"}""");
+        await ReplyAsync(listener, "403 Forbidden", "denied");
+        UploadResult result = await upload.WaitAsync(TimeSpan.FromSeconds(10));
+
+        Assert.That(result.IsSuccess, Is.False);
+        Assert.That(result.URL, Is.Null);
+        Assert.That(uploader.Errors.Count, Is.GreaterThan(0));
+        Assert.That(listener.Pending(), Is.False, "No push may be sent after a failed file upload.");
+    }
+
+    /// <summary>Accepts one HTTP request, answers it with <paramref name="status"/>, and returns the request line.</summary>
+    private static async Task<string> ReplyAsync(TcpListener listener, string status, string? body)
+    {
+        using TcpClient client = await listener.AcceptTcpClientAsync().WaitAsync(TimeSpan.FromSeconds(10));
+        NetworkStream stream = client.GetStream();
+        using var reader = new StreamReader(stream, Encoding.ASCII, leaveOpen: true);
+        string requestLine = await reader.ReadLineAsync().WaitAsync(TimeSpan.FromSeconds(10)) ?? string.Empty;
+        int length = 0;
+        bool expectContinue = false;
+        while (await reader.ReadLineAsync().WaitAsync(TimeSpan.FromSeconds(10)) is { Length: > 0 } line)
+        {
+            if (line.StartsWith("Content-Length:", StringComparison.OrdinalIgnoreCase)) length = int.Parse(line["Content-Length:".Length..].Trim());
+            if (line.StartsWith("Expect:", StringComparison.OrdinalIgnoreCase)) expectContinue = true;
+        }
+        if (expectContinue) await stream.WriteAsync(Encoding.ASCII.GetBytes("HTTP/1.1 100 Continue\r\n\r\n"));
+        var request = new char[length];
+        int read = 0;
+        while (read < length)
+        {
+            int count = await reader.ReadAsync(request.AsMemory(read)).AsTask().WaitAsync(TimeSpan.FromSeconds(10));
+            if (count == 0) break;
+            read += count;
+        }
+
+        byte[] bytes = Encoding.UTF8.GetBytes(body ?? string.Empty);
+        string headers = body == null
+            ? $"HTTP/1.1 {status}\r\nConnection: close\r\n\r\n"
+            : $"HTTP/1.1 {status}\r\nContent-Type: application/json\r\nContent-Length: {bytes.Length}\r\nConnection: close\r\n\r\n";
+        await stream.WriteAsync(Encoding.ASCII.GetBytes(headers));
+        await stream.WriteAsync(bytes);
+        return requestLine;
     }
 
     // ── img.fish and s-ul ───────────────────────────────────────────────────

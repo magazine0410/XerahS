@@ -40,11 +40,17 @@ public sealed class PushbulletUploader : FileUploader
 
     private readonly string _accessToken;
     private readonly string _deviceKey;
+    private readonly string _apiUrl;
 
-    public PushbulletUploader(string? accessToken, string? deviceKey)
+    public PushbulletUploader(string? accessToken, string? deviceKey) : this(accessToken, deviceKey, ApiUrl)
+    {
+    }
+
+    internal PushbulletUploader(string? accessToken, string? deviceKey, string apiUrl)
     {
         _accessToken = accessToken ?? string.Empty;
         _deviceKey = deviceKey ?? string.Empty;
+        _apiUrl = apiUrl;
         ReturnResponseOnError = true;
     }
 
@@ -63,7 +69,7 @@ public sealed class PushbulletUploader : FileUploader
         }
 
         var requestArgs = new Dictionary<string, string> { ["file_name"] = fileName };
-        JObject? fileInfo = ParseObject(SendRequestMultiPart(ApiUrl + "/upload-request", requestArgs, CreateHeaders(_accessToken)));
+        JObject? fileInfo = ParseObject(SendRequestMultiPart(_apiUrl + "/upload-request", requestArgs, CreateHeaders(_accessToken)));
         string? uploadUrl = fileInfo?.Value<string>("upload_url");
         if (fileInfo == null || string.IsNullOrEmpty(uploadUrl))
         {
@@ -72,9 +78,11 @@ public sealed class PushbulletUploader : FileUploader
         }
 
         UploadResult result = SendRequestFile(uploadUrl, stream, fileName, "file", CreateUploadArguments(fileInfo));
-        if (!result.IsSuccess) return result;
+        // The upload URL answers 204 No Content. UploadResult.IsSuccess is false without a response body or a URL,
+        // so the HTTP status is checked instead (ShareX stops only when there is no result).
+        if (Errors.Count > 0 || !result.ResponseInfo.IsSuccess) return result;
 
-        JObject? push = ParseObject(SendRequestMultiPart(ApiUrl + "/pushes", CreatePushArguments(fileInfo, fileName, _deviceKey), CreateHeaders(_accessToken)));
+        JObject? push = ParseObject(SendRequestMultiPart(_apiUrl + "/pushes", CreatePushArguments(fileInfo, fileName, _deviceKey), CreateHeaders(_accessToken)));
         string? pushIden = push?.Value<string>("iden");
         if (string.IsNullOrEmpty(pushIden))
         {
@@ -89,7 +97,7 @@ public sealed class PushbulletUploader : FileUploader
 
     public List<PushbulletDevice> GetDeviceList()
     {
-        JObject? response = ParseObject(SendRequest(XerahS.Uploaders.HttpMethod.GET, ApiUrl + "/devices", headers: CreateHeaders(_accessToken)));
+        JObject? response = ParseObject(SendRequest(XerahS.Uploaders.HttpMethod.GET, _apiUrl + "/devices", headers: CreateHeaders(_accessToken)));
         return ParseDevices(response);
     }
 
