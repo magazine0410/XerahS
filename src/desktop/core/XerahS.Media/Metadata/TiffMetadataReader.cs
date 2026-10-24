@@ -42,10 +42,18 @@ internal static class TiffMetadataReader
         }
 
         cancellationToken.ThrowIfCancellationRequested();
-        Read(File.ReadAllBytes(filePath), metadata, "TIFF");
+        Read(File.ReadAllBytes(filePath), metadata, "TIFF", cancellationToken);
     }
 
-    public static void Read(byte[] data, MetadataCollector metadata, string rootGroup)
+    /// <summary>
+    /// How many bytes of entries and tag values one TIFF may make the reader go through. Every entry can point at the
+    /// same large value, so without a limit a small crafted file costs minutes of work.
+    /// </summary>
+    internal const long MaximumValueBytes = 64L * 1024 * 1024;
+
+    internal const string TooMuchMetadataNotice = "The TIFF has more metadata than the built-in reader reads; the rest is not shown.";
+
+    public static void Read(byte[] data, MetadataCollector metadata, string rootGroup, CancellationToken cancellationToken = default)
     {
         if (data.Length < 8) return;
         bool littleEndian;
@@ -53,14 +61,15 @@ internal static class TiffMetadataReader
         else if (data.AsSpan(0, 2).SequenceEqual("MM"u8)) littleEndian = false;
         else return;
 
-        TiffParser parser = new(data, littleEndian, metadata, rootGroup);
+        TiffParser parser = new(data, littleEndian, metadata, rootGroup, cancellationToken);
         parser.Read();
     }
 
-    private sealed class TiffParser(byte[] data, bool littleEndian, MetadataCollector metadata, string rootGroup)
+    private sealed class TiffParser(byte[] data, bool littleEndian, MetadataCollector metadata, string rootGroup, CancellationToken cancellationToken)
     {
         private readonly HashSet<uint> _visitedOffsets = [];
         private readonly Dictionary<ushort, object> _gps = [];
+        private long _valueBytesLeft = MaximumValueBytes;
 
         public void Read()
         {
@@ -70,19 +79,23 @@ internal static class TiffMetadataReader
             uint next = ReadIfd(firstIfd, rootGroup, 0);
             if (next > 0) ReadIfd(next, "Thumbnail", 0);
             AddGpsPosition();
+            if (_valueBytesLeft < 0) metadata.Add(rootGroup, "Metadata Notice", TooMuchMetadataNotice);
         }
 
         private uint ReadIfd(uint offset, string group, int depth)
         {
-            if (depth > 8 || offset > data.Length - 2 || !_visitedOffsets.Add(offset)) return 0;
+            if (depth > 8 || offset > data.Length - 2 || _valueBytesLeft < 0 || !_visitedOffsets.Add(offset)) return 0;
             int position = (int)offset;
             int count = Math.Min(ReadUInt16(position), (ushort)4096);
             position += 2;
             if (position + (long)count * 12 > data.Length) return 0;
 
             List<(string Group, uint Offset)> childIfds = [];
-            for (int index = 0; index < count; index++, position += 12)
+            for (int index = 0; index < count && _valueBytesLeft >= 0; index++, position += 12)
             {
+                cancellationToken.ThrowIfCancellationRequested();
+                // The entry itself counts too, so a file of many small entries is limited as well.
+                _valueBytesLeft -= 12;
                 ushort tag = ReadUInt16(position);
                 ushort type = ReadUInt16(position + 2);
                 uint valueCount = ReadUInt32(position + 4);
@@ -157,6 +170,8 @@ internal static class TiffMetadataReader
             if (byteCount > 32 * 1024 * 1024) return null;
             long valueOffset = byteCount <= 4 ? entryPosition + 8 : ReadUInt32(entryPosition + 8);
             if (valueOffset < 0 || valueOffset + byteCount > data.Length) return null;
+            _valueBytesLeft -= byteCount;
+            if (_valueBytesLeft < 0) return null;
             int offset = (int)valueOffset;
 
             switch (type)

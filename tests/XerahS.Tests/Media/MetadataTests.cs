@@ -151,6 +151,39 @@ public class MetadataTests
     }
 
     [Test]
+    public async Task ATiffWhoseEntriesAllPointAtOneLargeValue_IsReadToALimit()
+    {
+        // 4,096 entries, each a 1,000,000-value LONG array at the same offset: 16 GB to copy without a limit.
+        const int entries = 4096;
+        const int values = 1_000_000;
+        int valueOffset = 8 + 2 + entries * 12 + 4;
+        byte[] file = new byte[valueOffset + values * 4];
+        "II"u8.CopyTo(file);
+        BinaryPrimitives.WriteUInt16LittleEndian(file.AsSpan(2), 42);
+        BinaryPrimitives.WriteUInt32LittleEndian(file.AsSpan(4), 8);
+        BinaryPrimitives.WriteUInt16LittleEndian(file.AsSpan(8), entries);
+        for (int index = 0; index < entries; index++)
+        {
+            Span<byte> entry = file.AsSpan(10 + index * 12, 12);
+            BinaryPrimitives.WriteUInt16LittleEndian(entry, (ushort)(0xC000 + index));
+            BinaryPrimitives.WriteUInt16LittleEndian(entry[2..], 4);
+            BinaryPrimitives.WriteUInt32LittleEndian(entry[4..], values);
+            BinaryPrimitives.WriteUInt32LittleEndian(entry[8..], (uint)valueOffset);
+        }
+        string path = Path.Combine(_directory, "crafted.tif");
+        await File.WriteAllBytesAsync(path, file);
+
+        var watch = System.Diagnostics.Stopwatch.StartNew();
+        IReadOnlyList<MetadataValue> metadata = await MetadataService.ReadMetadataAsync(path);
+        Assert.That(watch.Elapsed, Is.LessThan(TimeSpan.FromSeconds(10)));
+        Assert.That(metadata.Select(value => value.Value), Does.Contain(TiffMetadataReader.TooMuchMetadataNotice));
+
+        using var cancelled = new CancellationTokenSource();
+        cancelled.Cancel();
+        Assert.That(async () => await MetadataService.ReadMetadataAsync(path, cancelled.Token), Throws.InstanceOf<OperationCanceledException>());
+    }
+
+    [Test]
     public async Task DeeplyNestedMp4Tracks_AreRefusedByStrip()
     {
         const int levels = 100_000;
