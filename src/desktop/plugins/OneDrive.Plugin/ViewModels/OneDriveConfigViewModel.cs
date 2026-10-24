@@ -138,6 +138,10 @@ public partial class OneDriveConfigViewModel : ObservableObject, IUploaderConfig
             SelectedFolder = Folders.FirstOrDefault(folder => folder.ID == previous) ?? Folders[0];
             StatusMessage = folders == null ? "Loading the folders failed. " + string.Join(" ", uploader.Errors.Errors.Select(e => e.Text)) : null;
         }
+        catch (Exception ex)
+        {
+            StatusMessage = "Loading the folders failed: " + ex.Message;
+        }
         finally
         {
             IsBusy = false;

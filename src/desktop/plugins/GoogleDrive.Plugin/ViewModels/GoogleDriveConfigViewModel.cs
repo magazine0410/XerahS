@@ -147,6 +147,10 @@ public partial class GoogleDriveConfigViewModel : ObservableObject, IUploaderCon
             SelectedDrive = Drives.FirstOrDefault(drive => drive.ID == previous) ?? Drives[0];
             StatusMessage = drives == null ? "Loading the shared drives failed. " + string.Join(" ", uploader.Errors.Errors.Select(e => e.Text)) : null;
         }
+        catch (Exception ex)
+        {
+            StatusMessage = "Loading the shared drives failed: " + ex.Message;
+        }
         finally
         {
             IsBusy = false;
@@ -167,6 +171,10 @@ public partial class GoogleDriveConfigViewModel : ObservableObject, IUploaderCon
             foreach (GoogleDriveItem folder in folders ?? []) Folders.Add(folder);
             SelectedFolder = Folders.FirstOrDefault(folder => folder.ID == FolderID);
             StatusMessage = folders == null ? "Loading the folders failed. " + string.Join(" ", uploader.Errors.Errors.Select(e => e.Text)) : null;
+        }
+        catch (Exception ex)
+        {
+            StatusMessage = "Loading the folders failed: " + ex.Message;
         }
         finally
         {

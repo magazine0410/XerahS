@@ -32,12 +32,16 @@ using Newtonsoft.Json.Linq;
 using NUnit.Framework;
 using ShareX.BackblazeB2.Plugin;
 using ShareX.Box.Plugin;
+using ShareX.Box.Plugin.ViewModels;
+using ShareX.Flickr.Plugin.ViewModels;
 using ShareX.GoogleCloudStorage.Plugin;
 using ShareX.GoogleDrive.Plugin;
+using ShareX.GoogleDrive.Plugin.ViewModels;
 using ShareX.Filen.Plugin;
 using ShareX.ImgFish.Plugin;
 using ShareX.Mega.Plugin;
 using ShareX.OneDrive.Plugin;
+using ShareX.OneDrive.Plugin.ViewModels;
 using ShareX.Pushbullet.Plugin;
 using ShareX.Sul.Plugin;
 using ShareX.YouTube.Plugin;
@@ -278,6 +282,34 @@ public class FileHostPluginTests
             Assert.That(BackblazeB2Uploader.DescribeError(new BackblazeB2Uploader.B2Response(HttpStatusCode.Unauthorized, """{"status":401,"code":"bad_auth_token","message":""}""")),
                 Is.EqualTo("Got status 401 (bad_auth_token)"));
         });
+    }
+
+    // ── Settings pages ──────────────────────────────────────────────────────
+
+    [Test]
+    public async Task SettingsCommands_ShowAnErrorInsteadOfThrowingIt()
+    {
+        // A null client ID makes creating the uploader throw, as a dropped connection or an unexpected answer can
+        // later; an exception that escapes a command reaches the UI thread and ends the app.
+        var googleDrive = new GoogleDriveConfigViewModel { ClientId = null! };
+        await googleDrive.LoadDrivesCommand.ExecuteAsync(null);
+        Assert.That(googleDrive.StatusMessage, Does.StartWith("Loading the shared drives failed: "));
+        await googleDrive.LoadFoldersCommand.ExecuteAsync(null);
+        Assert.That(googleDrive.StatusMessage, Does.StartWith("Loading the folders failed: "));
+
+        var oneDrive = new OneDriveConfigViewModel { ClientId = null! };
+        await oneDrive.LoadFoldersCommand.ExecuteAsync(null);
+        Assert.That(oneDrive.StatusMessage, Does.StartWith("Loading the folders failed: "));
+
+        var box = new BoxConfigViewModel { ClientId = null! };
+        await box.LoadFoldersCommand.ExecuteAsync(null);
+        Assert.That(box.StatusMessage, Does.StartWith("Loading the folders failed: "));
+
+        var flickr = new FlickrConfigViewModel { ConsumerKey = null! };
+        await flickr.OpenAuthorizationPageCommand.ExecuteAsync(null);
+        Assert.That(flickr.StatusMessage, Does.StartWith("Opening the authorization page failed: "));
+
+        Assert.That(new[] { googleDrive.IsBusy, oneDrive.IsBusy, box.IsBusy, flickr.IsBusy }, Has.All.False);
     }
 
     // ── Pushbullet ──────────────────────────────────────────────────────────

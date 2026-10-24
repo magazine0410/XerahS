@@ -71,6 +71,10 @@ public partial class PushbulletConfigViewModel : ObservableObject, IUploaderConf
                 ? "No devices were found. " + (uploader.Errors.Count > 0 ? uploader.Errors.Errors[^1].Text : "Check the access token.")
                 : null;
         }
+        catch (Exception ex)
+        {
+            StatusMessage = "Loading the devices failed: " + ex.Message;
+        }
         finally
         {
             IsBusy = false;

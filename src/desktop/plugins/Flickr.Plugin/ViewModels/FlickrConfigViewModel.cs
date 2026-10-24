@@ -97,6 +97,10 @@ public partial class FlickrConfigViewModel : ObservableObject, IUploaderConfigVi
                 StatusMessage = uploader.Errors.ToString();
             }
         }
+        catch (Exception ex)
+        {
+            StatusMessage = "Opening the authorization page failed: " + ex.Message;
+        }
         finally
         {
             IsBusy = false;
@@ -132,6 +136,10 @@ public partial class FlickrConfigViewModel : ObservableObject, IUploaderConfigVi
                 StatusMessage = uploader.Errors.ToString();
                 ConnectionStatus = "Authorization failed";
             }
+        }
+        catch (Exception ex)
+        {
+            StatusMessage = "Completing the authorization failed: " + ex.Message;
         }
         finally
         {
