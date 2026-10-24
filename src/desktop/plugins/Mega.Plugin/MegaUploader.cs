@@ -106,20 +106,7 @@ public sealed partial class MegaUploader : FileUploader
                 RawResponse uploadResponse = Send($"{uploadURL}/{uploadPosition}", chunkStream, "application/octet-stream", null)
                     ?? throw new MegaRequestException("MEGA rejected the upload request.");
 
-                string response = Encoding.UTF8.GetString(uploadResponse.Body).Trim();
-                if (long.TryParse(response, out long uploadError) && uploadError < 0)
-                {
-                    throw new MegaApiException(uploadError);
-                }
-
-                if (uploadResponse.Body.Length == UploadTokenLength)
-                {
-                    completionHandle = ToBase64URL(uploadResponse.Body);
-                }
-                else if (uploadResponse.Body.Length > 0)
-                {
-                    throw new MegaRequestException($"MEGA returned an invalid upload token ({uploadResponse.Body.Length} bytes).");
-                }
+                completionHandle = ReadChunkResponse(uploadResponse.Status, uploadResponse.Body) ?? completionHandle;
 
                 uploadPosition += chunkSize;
                 if (wasProgressReportingEnabled && fileSize > 0 && progress.UpdateProgress(chunkSize))
@@ -301,6 +288,31 @@ public sealed partial class MegaUploader : FileUploader
         }
 
         return null;
+    }
+
+    /// <summary>
+    /// The answer to one uploaded chunk: nothing, or the completion handle after the last chunk. A negative number
+    /// is a MEGA error code, and a status outside 2xx means the chunk was not stored.
+    /// </summary>
+    internal static string? ReadChunkResponse(HttpStatusCode status, byte[] body)
+    {
+        string response = Encoding.UTF8.GetString(body).Trim();
+        if (long.TryParse(response, out long uploadError) && uploadError < 0)
+        {
+            throw new MegaApiException(uploadError);
+        }
+
+        if ((int)status is < 200 or > 299)
+        {
+            throw new MegaRequestException($"MEGA rejected an upload chunk with HTTP status {(int)status}.");
+        }
+
+        if (body.Length == UploadTokenLength)
+        {
+            return ToBase64URL(body);
+        }
+
+        return body.Length > 0 ? throw new MegaRequestException($"MEGA returned an invalid upload token ({body.Length} bytes).") : null;
     }
 
     private string GetUploadURL(long fileSize)

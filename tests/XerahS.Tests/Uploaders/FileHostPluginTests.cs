@@ -249,6 +249,21 @@ public class FileHostPluginTests
     }
 
     [Test]
+    public void Mega_ChunkResponse_FailsOnAnHttpError_AndReturnsTheCompletionHandle()
+    {
+        byte[] handle = Enumerable.Range(1, 36).Select(i => (byte)i).ToArray();
+        Assert.Multiple(() =>
+        {
+            Assert.That(MegaUploader.ReadChunkResponse(HttpStatusCode.OK, []), Is.Null);
+            Assert.That(MegaUploader.ReadChunkResponse(HttpStatusCode.OK, handle), Is.EqualTo(MegaUploader.ToBase64URL(handle)));
+            Assert.Throws<MegaRequestException>(() => MegaUploader.ReadChunkResponse(HttpStatusCode.InternalServerError, []));
+            Assert.Throws<MegaRequestException>(() => MegaUploader.ReadChunkResponse(HttpStatusCode.ServiceUnavailable, Encoding.UTF8.GetBytes("<html>busy</html>")));
+            Assert.That(Assert.Throws<MegaApiException>(() => MegaUploader.ReadChunkResponse(HttpStatusCode.OK, Encoding.UTF8.GetBytes("-3")))!.ErrorCode,
+                Is.EqualTo(-3));
+        });
+    }
+
+    [Test]
     public void UploaderErrors_UseTheUploadersRedactedRequestURL()
     {
         // Nothing listens on the port once the listener is stopped, so the request fails and the error text is written.
