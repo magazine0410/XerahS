@@ -80,6 +80,12 @@ public static partial class ImageHelpers
         return null;
     }
 
+    /// <summary>
+    /// The largest TIFF that is decoded, in pixels: 800 MB with the RGBA buffer and the bitmap. The size comes from the
+    /// header, before any pixels are read, so a small file could otherwise ask for gigabytes.
+    /// </summary>
+    internal const long MaximumTiffPixels = 100_000_000;
+
     private static SKBitmap? LoadTiff(Stream stream, bool rotate)
     {
         using var tiff = Tiff.ClientOpen("image", "r", stream, new TiffStream());
@@ -87,7 +93,12 @@ public static partial class ImageHelpers
         int width = tiff.GetField(TiffTag.IMAGEWIDTH)[0].ToInt();
         int height = tiff.GetField(TiffTag.IMAGELENGTH)[0].ToInt();
         if (width <= 0 || height <= 0) return null;
-        int count = checked(width * height);
+        if ((long)width * height > MaximumTiffPixels)
+        {
+            DebugHelper.WriteLine($"The TIFF is {width} x {height} pixels, more than the {MaximumTiffPixels:N0} pixels that are decoded.");
+            return null;
+        }
+        int count = width * height;
         int orientation = tiff.GetFieldDefaulted(TiffTag.ORIENTATION)[0].ToInt();
         // Decode stored pixels without libtiff's partial orientation handling. All eight EXIF
         // orientations (including transpose) are handled in one place below.

@@ -400,6 +400,30 @@ public class ImageProcessingParityTests
     }
 
     [Test]
+    public void Tiff_ASmallFileClaimingAHugeImage_IsRefusedWithoutAllocatingIt()
+    {
+        // 20,000 x 20,000 pixels in the header, one written row: 1.6 GB for the RGBA buffer alone.
+        string path = Path.Combine(_directory, "huge.tiff");
+        using (var tiff = Tiff.Open(path, "w"))
+        {
+            tiff.SetField(TiffTag.IMAGEWIDTH, 20_000);
+            tiff.SetField(TiffTag.IMAGELENGTH, 20_000);
+            tiff.SetField(TiffTag.SAMPLESPERPIXEL, 1);
+            tiff.SetField(TiffTag.BITSPERSAMPLE, 8);
+            tiff.SetField(TiffTag.ROWSPERSTRIP, 20_000);
+            tiff.SetField(TiffTag.PHOTOMETRIC, Photometric.MINISBLACK);
+            tiff.SetField(TiffTag.COMPRESSION, Compression.ADOBE_DEFLATE);
+            Assert.That(tiff.WriteScanline(new byte[20_000], 0), Is.True);
+        }
+        Assert.That(new FileInfo(path).Length, Is.LessThan(100_000));
+
+        using var file = File.OpenRead(path);
+        long allocated = GC.GetAllocatedBytesForCurrentThread();
+        Assert.That(ImageHelpers.LoadBitmap(file, true), Is.Null);
+        Assert.That(GC.GetAllocatedBytesForCurrentThread() - allocated, Is.LessThan(64L * 1024 * 1024));
+    }
+
+    [Test]
     public void Tiff_SavedTransparentImagesRoundTrip_AndInvalidFilesReturnNull()
     {
         using var source = new SKBitmap(3, 1);
