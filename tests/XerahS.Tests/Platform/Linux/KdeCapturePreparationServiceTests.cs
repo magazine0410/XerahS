@@ -179,6 +179,41 @@ public sealed class KdeCapturePreparationServiceTests
     }
 
     [Test]
+    public void ACaptureCancelledWhileTheIconsSettle_ShowsThemAgain()
+    {
+        _shell.Answers[KdeCapturePreparationService.BuildDesktopQueryScript()] = DesktopsJson;
+        var service = Service();
+        service.IconSettleDelay = TimeSpan.FromSeconds(30);
+        using var cancellation = new CancellationTokenSource(TimeSpan.FromMilliseconds(100));
+
+        Assert.That(async () => await service.HideDesktopIconsAsync(cancellation.Token), Throws.InstanceOf<OperationCanceledException>());
+        Assert.Multiple(() =>
+        {
+            Assert.That(_shell.Scripts, Has.Count.EqualTo(3));
+            Assert.That(_shell.Scripts[2], Does.Contain("writeConfig(\"filterMode\", 2); d2.writeConfig(\"filterPattern\", \"*.tmp\")"));
+            Assert.That(File.Exists(_marker), Is.False);
+        });
+    }
+
+    [Test]
+    public void ACaptureCancelledWhileThePanelsHide_ShowsThemAgain()
+    {
+        _shell.Answers[KdeCapturePreparationService.BuildPanelQueryScript()] = PanelsJson;
+        var service = Service();
+        service.PanelSettleDelay = TimeSpan.FromSeconds(30);
+        using var cancellation = new CancellationTokenSource(TimeSpan.FromMilliseconds(100));
+
+        Assert.That(async () => await service.HidePanelsIntersectingAsync(new Rectangle(100, 500, 800, 600), cancellation.Token),
+            Throws.InstanceOf<OperationCanceledException>());
+        Assert.Multiple(() =>
+        {
+            Assert.That(_shell.Scripts, Has.Count.EqualTo(3));
+            Assert.That(_shell.Scripts[2], Does.Contain("panelById(167)").And.Contain("hiding = \"none\""));
+            Assert.That(File.Exists(_marker), Is.False);
+        });
+    }
+
+    [Test]
     public async Task HideDesktopIcons_LeavesThemAlone_WhenTheActiveWindowIsFullScreen()
     {
         _shell.Answers[KdeCapturePreparationService.BuildDesktopQueryScript()] = DesktopsJson;

@@ -127,15 +127,35 @@ public sealed class KdeCapturePreparationService : ICapturePreparationService
             foreach (PlasmaPanel panel in toHide) _hiddenPanels[panel.Id] = panel.Hiding;
             SaveMarker();
             DebugHelper.WriteLine($"KDE capture preparation: hiding panel(s) {string.Join(", ", toHide.Select(p => p.Id))} for the capture.");
-            await _shell.EvaluateAsync(BuildPanelHidingScript(toHide.Select(p => (p.Id, AutoHideMode))), token).ConfigureAwait(false);
             hidden = toHide.Select(p => p.Id).ToArray();
+            try
+            {
+                await _shell.EvaluateAsync(BuildPanelHidingScript(toHide.Select(p => (p.Id, AutoHideMode))), token).ConfigureAwait(false);
+            }
+            catch
+            {
+                // The script may have run, and no scope is returned to undo it, so the modes are given back now.
+                _unrestoredPanels.UnionWith(hidden);
+                await TryRestorePanelsAsync().ConfigureAwait(false);
+                throw;
+            }
         }
         finally
         {
             _gate.Release();
         }
 
-        await WaitForPanelsHiddenAsync(bounds, token).ConfigureAwait(false);
+        try
+        {
+            await WaitForPanelsHiddenAsync(bounds, token).ConfigureAwait(false);
+        }
+        catch
+        {
+            // A capture cancelled during the wait gets no scope, so the panels are shown again here.
+            await RestorePanelsAsync(hidden).ConfigureAwait(false);
+            throw;
+        }
+
         return new Scope(() => RestorePanelsAsync(hidden));
     }
 
@@ -252,7 +272,18 @@ public sealed class KdeCapturePreparationService : ICapturePreparationService
             // XerahS's own.
             _desktopRestorePending = false;
             DebugHelper.WriteLine($"KDE capture preparation: hiding the desktop icons of {_filteredDesktops.Count} Folder View desktop(s) for the capture.");
-            await _shell.EvaluateAsync(BuildDesktopFilterScript(_filteredDesktops.Keys.Select(id => (id, FilterShowMatches, HiddenIconsPattern))), token).ConfigureAwait(false);
+            try
+            {
+                await _shell.EvaluateAsync(BuildDesktopFilterScript(_filteredDesktops.Keys.Select(id => (id, FilterShowMatches, HiddenIconsPattern))), token).ConfigureAwait(false);
+            }
+            catch
+            {
+                // The script may have run, and no scope is returned to undo it, so the filters are given back now.
+                _desktopRestorePending = true;
+                await TryRestoreDesktopsAsync().ConfigureAwait(false);
+                throw;
+            }
+
             _iconScopes = 1;
         }
         finally
@@ -260,7 +291,17 @@ public sealed class KdeCapturePreparationService : ICapturePreparationService
             _gate.Release();
         }
 
-        await Task.Delay(IconSettleDelay, token).ConfigureAwait(false);
+        try
+        {
+            await Task.Delay(IconSettleDelay, token).ConfigureAwait(false);
+        }
+        catch (OperationCanceledException)
+        {
+            // A capture cancelled during the wait gets no scope, so the icons are shown again here.
+            await RestoreDesktopIconsAsync().ConfigureAwait(false);
+            throw;
+        }
+
         return new Scope(RestoreDesktopIconsAsync);
     }
 
