@@ -388,6 +388,31 @@ public sealed class HistoryManagementTests
     }
 
     [Test]
+    public async Task Delete_RemovesTheEntriesOcrText_WithTheEntries()
+    {
+        using var manager = new HistoryManagerSQLite(SettingsManager.GetHistoryFilePath());
+        HistoryItem[] entries = Enumerable.Range(0, 3).Select(i => Item($"ocr-{i}.png", i)).ToArray();
+        Assert.That(manager.AppendHistoryItems(entries), Is.True);
+        var ocrIndex = new HistoryOcrIndexStore(SettingsManager.GetHistoryFilePath());
+        foreach (HistoryItem entry in entries) ocrIndex.UpsertText(entry.Id, entry.FilePath, null, "text of " + entry.FileName);
+        using var vm = ViewModel();
+        vm.IsGridView = false;
+        await vm.LoadHistoryCommand.ExecuteAsync(null);
+
+        vm.SetSelectedHistoryItems([vm.HistoryItems[0], vm.HistoryItems[1]]);
+        await vm.DeleteItemCommand.ExecuteAsync(vm.HistoryItems[0]);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(manager.GetTotalCount(), Is.EqualTo(1));
+            Assert.That(ocrIndex.GetText(entries[2].Id), Is.Null);
+            Assert.That(ocrIndex.GetText(entries[1].Id), Is.Null);
+            Assert.That(ocrIndex.GetText(entries[0].Id), Is.EqualTo("text of ocr-0.png"));
+            Assert.That(_dialogs.Errors, Is.Empty);
+        });
+    }
+
+    [Test]
     public async Task Delete_RemovesEverySelectedEntryAfterOneConfirmation_AndDeleteFileRemovesTheirFiles()
     {
         using var manager = new HistoryManagerSQLite(SettingsManager.GetHistoryFilePath());

@@ -240,17 +240,16 @@ public partial class HistoryViewModel
         {
             try
             {
-                lock (_databaseLock)
+                // The history's own Delete also removes the entries' OCR index rows, in the same transaction.
+                HistoryItem[] deleted = items;
+                await Task.Run(() =>
                 {
-                    if (!_disposed) _historyManager.Delete(items);
-                }
-
-                var ocrIndex = new HistoryOcrIndexStore(SettingsManager.GetHistoryFilePath());
-                foreach (HistoryItem entry in items)
-                {
-                    ocrIndex.Delete(entry.Id);
-                    DebugHelper.WriteLine($"Deleted history item: {entry.FileName}");
-                }
+                    lock (_databaseLock)
+                    {
+                        if (!_disposed) _historyManager.Delete(deleted);
+                    }
+                });
+                DebugHelper.WriteLine($"Deleted {items.Length:N0} history item(s).");
             }
             catch (Exception ex)
             {
