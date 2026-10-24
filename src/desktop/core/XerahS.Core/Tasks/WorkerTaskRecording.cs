@@ -167,17 +167,26 @@ namespace XerahS.Core.Tasks
                 DebugHelper.WriteLine($"Output path: {recordingOptions.OutputPath}");
 
                 var recordingCoordinator = CreateRecordingCoordinator();
-                await RecordUntilStoppedAsync(recordingCoordinator, recordingOptions, plannedPath =>
+                string? outputPath;
+                _recordingInProgress = true;
+                try
                 {
-                    recordingStarted = true;
-                    Info.FilePath = plannedPath ?? Info.FilePath;
-                    XerahS.Common.TroubleshootingHelper.Log(taskSettings.Job.ToString(), "WORKER_TASK", "Recording started; waiting for stop signal...");
-                });
-                XerahS.Common.TroubleshootingHelper.Log(taskSettings.Job.ToString(), "WORKER_TASK", "Stop signal received. Resuming...");
+                    await RecordUntilStoppedAsync(recordingCoordinator, recordingOptions, plannedPath =>
+                    {
+                        recordingStarted = true;
+                        Info.FilePath = plannedPath ?? Info.FilePath;
+                        XerahS.Common.TroubleshootingHelper.Log(taskSettings.Job.ToString(), "WORKER_TASK", "Recording started; waiting for stop signal...");
+                    });
+                    XerahS.Common.TroubleshootingHelper.Log(taskSettings.Job.ToString(), "WORKER_TASK", "Stop signal received. Resuming...");
 
-                // 3. Stop recording
-                DebugHelper.WriteLine("Stopping recording...");
-                string? outputPath = await recordingCoordinator.StopRecordingAsync();
+                    // 3. Stop recording
+                    DebugHelper.WriteLine("Stopping recording...");
+                    outputPath = await recordingCoordinator.StopRecordingAsync();
+                }
+                finally
+                {
+                    _recordingInProgress = false;
+                }
                 if (outputPath == null)
                 {
                     // Aborted while recording. ShareX plays the action sound when a recording ends, aborted or not.

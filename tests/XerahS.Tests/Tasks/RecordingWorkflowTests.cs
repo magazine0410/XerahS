@@ -124,6 +124,80 @@ public sealed class RecordingWorkflowTests
         }
     }
 
+    [Test]
+    public async Task StopDuringTheRecording_KeepsTheFinishedRecordingsUploadAndHistory()
+    {
+        string directory = Path.Combine(Path.GetTempPath(), "recording-workflow-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(directory);
+        var folder = typeof(PathsManager).GetField("_personalFolder", BindingFlags.Static | BindingFlags.NonPublic)!;
+        var folderOverride = typeof(PathsManager).GetField("_personalFolderOverrideSet", BindingFlags.Static | BindingFlags.NonPublic)!;
+        object? oldFolder = folder.GetValue(null), oldOverride = folderOverride.GetValue(null);
+        IScreenRecordingManager previousManager = WorkerTask.RecordingManagerService;
+        var previousPrompt = UploadJobProcessor.ShowBeforeUploadCallback;
+        int prompts = 0;
+        try
+        {
+            PathsManager.PersonalFolder = directory;
+            var recording = new StoppableRecording();
+            WorkerTask.RecordingManagerService = recording;
+            // Prevent network access: the before-upload window declines the upload.
+            UploadJobProcessor.ShowBeforeUploadCallback = (_, _) => { prompts++; return Task.FromResult(false); };
+            var settings = new TaskSettings
+            {
+                Job = WorkflowType.ScreenRecorder,
+                AfterCaptureJob = AfterCaptureTasks.ShowBeforeUploadWindow | AfterCaptureTasks.UploadImageToHost,
+                OverrideScreenshotsFolder = true, ScreenshotsFolder = directory,
+                GeneralSettings = new() { PlaySoundAfterAction = false }
+            };
+            using var worker = WorkerTask.Create(settings);
+            Task recordingTask = worker.HandleStartRecordingAsync(CaptureMode.Screen);
+            await recording.Started.WaitAsync(TimeSpan.FromSeconds(10));
+            Assert.That(worker.IsRecordingInProgress, Is.True);
+
+            // What "Stop all uploads" and a task's "Stop upload" do while the recording runs.
+            worker.Stop();
+            recording.Stop();
+            await recordingTask.WaitAsync(TimeSpan.FromSeconds(10));
+
+            Assert.That(worker.IsRecordingInProgress, Is.False);
+            Assert.That(prompts, Is.EqualTo(1), "The finished recording must still reach its upload.");
+            Assert.That(worker.Info.HistoryItemId, Is.GreaterThan(0), "The finished recording must still be added to the history.");
+        }
+        finally
+        {
+            UploadJobProcessor.ShowBeforeUploadCallback = previousPrompt;
+            WorkerTask.RecordingManagerService = previousManager;
+            folder.SetValue(null, oldFolder);
+            folderOverride.SetValue(null, oldOverride);
+            Directory.Delete(directory, true);
+        }
+    }
+
+    /// <summary>A recording that runs until <see cref="Stop"/> is called.</summary>
+    private sealed class StoppableRecording : IScreenRecordingManager
+    {
+        private readonly TaskCompletionSource _stop = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        private readonly TaskCompletionSource _started = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        public Task Started => _started.Task;
+        public bool IsRecording => !_stop.Task.IsCompleted;
+        public bool IsPaused => false;
+        public bool IsUsingFallback => false;
+        public string? PlannedOutputPath { get; private set; }
+        public void Stop() => _stop.TrySetResult();
+        public void SignalStop() => Stop();
+        public Task WaitForStopSignalAsync() => _stop.Task;
+        public Task StartRecordingAsync(object options)
+        {
+            PlannedOutputPath = ((RecordingOptions)options).OutputPath;
+            File.WriteAllText(PlannedOutputPath!, "test recording");
+            _started.TrySetResult();
+            return Task.CompletedTask;
+        }
+        public Task<string?> StopRecordingAsync() => Task.FromResult(PlannedOutputPath);
+        public Task AbortRecordingAsync() => Task.CompletedTask;
+        public Task TogglePauseResumeAsync() => Task.CompletedTask;
+    }
+
     private sealed class CompletedRecording : IScreenRecordingManager
     {
         public bool IsRecording => true;

@@ -103,6 +103,7 @@ namespace XerahS.Core.Tasks
             !string.IsNullOrEmpty(Info.TextContent) || !string.IsNullOrEmpty(Info.Metadata?.UploadURL);
 
         private CancellationTokenSource _cancellationTokenSource;
+        private volatile bool _recordingInProgress;
         private bool _hasImageOutput;
         private bool _failureNotificationShown;
         private bool _disposeRequested;
@@ -316,8 +317,20 @@ namespace XerahS.Core.Tasks
         internal static TaskStatus ResolvePipelineStatus(TaskStatus taskStatus, TaskStatus pipelineStatus) =>
             taskStatus == TaskStatus.Stopped ? TaskStatus.Stopped : pipelineStatus;
 
+        /// <summary>True while the task's screen recording runs, from its start until it has been stopped.</summary>
+        public bool IsRecordingInProgress => _recordingInProgress;
+
         public void Stop()
         {
+            // ShareX turns a recording into a task only when it ends, so neither "Stop all uploads" nor a task's
+            // "Stop upload" reaches a recording in progress; the recording's own controls stop it. Cancelling here
+            // would only drop the finished recording's after-capture tasks, upload, and history entry.
+            if (_recordingInProgress)
+            {
+                DebugHelper.WriteLine("WorkerTask: Stop ignored while the task's recording is in progress.");
+                return;
+            }
+
             if (IsBusy)
             {
                 // Keep queued tasks startable so StartAsync can finalize their cancellation.

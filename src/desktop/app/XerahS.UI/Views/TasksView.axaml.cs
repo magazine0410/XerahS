@@ -237,7 +237,8 @@ namespace XerahS.UI.Views
             menu.Items.Add(copy);
             menu.Items.Add(MenuEntry("Edit image...", () => _ = EditImageAsync(item.FilePath), item.IsImageFile));
             menu.Items.Add(new Separator());
-            menu.Items.Add(MenuEntry("Stop upload", () => selected.ForEach(i => i.Task?.Stop()), selected.Any(i => i.IsWorking)));
+            menu.Items.Add(MenuEntry("Stop upload", () => selected.ForEach(i => i.Task?.Stop()),
+                selected.Any(i => i.IsWorking && i.Task?.IsRecordingInProgress != true)));
             menu.Items.Add(MenuEntry("Remove task from list", () => TaskListService.Instance.Remove(selected)));
             menu.Items.Add(MenuEntry("Clear task list", TaskListService.Instance.Clear, Items.Any(i => !i.IsWorking)));
             return menu;
