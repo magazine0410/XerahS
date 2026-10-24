@@ -431,6 +431,26 @@ public class MetadataTests
         Assert.That(metadata.Any(value => value.Tag == "Duration"), Is.False);
     }
 
+    [TestCase(true)]
+    [TestCase(false)]
+    public async Task MetadataKeys_AreRead_FromQuickTimeAndMp4MetaBoxes(bool quickTime)
+    {
+        // A QuickTime moov/meta (as an iPhone writes) has no version and flags; an MP4 one does.
+        byte[] handler = Box("hdlr", [0, 0, 0, 0, 0, 0, 0, 0, .. "mdta"u8.ToArray(), .. new byte[13]]);
+        byte[] keys = Box("keys", [0, 0, 0, 0, 0, 0, 0, 1, .. Box("mdta", "com.apple.quicktime.model"u8.ToArray())]);
+        byte[] value = Box("data", [0, 0, 0, 1, 0, 0, 0, 0, .. "iPhone 15 Pro"u8.ToArray()]);
+        byte[] item = [0, 0, 0, (byte)(8 + value.Length), 0, 0, 0, 1, .. value];
+        byte[] children = [.. handler, .. keys, .. Box("ilst", item)];
+        byte[] meta = Box("meta", quickTime ? children : [0, 0, 0, 0, .. children]);
+        byte[] file = [.. Box("ftyp", "qt  \0\0\0\0qt  "u8.ToArray()), .. Box("moov", meta), .. Box("mdat", [1, 2])];
+        string path = Path.Combine(_directory, quickTime ? "iphone.mov" : "keys.mp4");
+        await File.WriteAllBytesAsync(path, file);
+
+        IReadOnlyList<MetadataValue> metadata = await MetadataService.ReadMetadataAsync(path);
+        Assert.That(metadata.Any(entry => entry.Tag == "com.apple.quicktime.model" && entry.Value == "iPhone 15 Pro"), Is.True,
+            string.Join("; ", metadata.Select(entry => $"{entry.Group}/{entry.Tag}={entry.Value}")));
+    }
+
     [Test]
     public async Task StripAvi_ClearsTheXmpChunk()
     {

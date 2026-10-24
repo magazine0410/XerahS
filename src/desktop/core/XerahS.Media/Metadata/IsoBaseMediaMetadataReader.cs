@@ -270,7 +270,10 @@ internal static class IsoBaseMediaMetadataReader
     private static void ReadMeta(ReadOnlySpan<byte> data, MetadataCollector metadata)
     {
         if (data.Length < 4) return;
-        byte[] children = data[4..].ToArray();
+        // An MP4 "meta" box is a full box: 4 bytes of version and flags come before its children. A QuickTime one,
+        // such as an iPhone's moov/meta, has none, and its first child, "hdlr", starts at once.
+        bool quickTime = data.Length >= 8 && data[4..8].SequenceEqual("hdlr"u8);
+        byte[] children = data[(quickTime ? 0 : 4)..].ToArray();
         List<string> keys = [];
         MemoryBox? itemList = null;
         foreach (MemoryBox box in GetBoxes(children))
