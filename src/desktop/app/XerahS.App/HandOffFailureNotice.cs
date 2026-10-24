@@ -24,6 +24,7 @@
 #endregion License Information (GPL v3)
 
 using System.Diagnostics;
+using XerahS.Core.Cloud;
 
 namespace XerahS.App;
 
@@ -44,7 +45,8 @@ internal static class HandOffFailureNotice
             return "XerahS is already running but did not respond. Restart XerahS and try again.";
         }
 
-        string listed = string.Join(", ", arguments.Take(MaxListedArguments));
+        // An OAuth callback carries the authorization code and state, which stay out of stderr and the notification.
+        string listed = string.Join(", ", XerahSCloudArgumentRedactor.Redact(arguments.Take(MaxListedArguments)));
         if (arguments.Count > MaxListedArguments)
         {
             listed += $" and {arguments.Count - MaxListedArguments} more";

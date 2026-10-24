@@ -414,6 +414,15 @@ public class SingleInstanceManagerTests
         Assert.That(HandOffFailureNotice.BuildMessage([]), Does.Contain("did not respond"));
     }
 
+    [Test]
+    public void HandOffFailureNotice_LeavesOutTheOAuthCallbacksCodeAndState()
+    {
+        string message = HandOffFailureNotice.BuildMessage(["xerahs://oauth/callback?code=secret-code&state=secret-state"]);
+
+        Assert.That(message, Does.Contain(XerahS.Core.Cloud.XerahSCloudArgumentRedactor.RedactedCallback));
+        Assert.That(message, Does.Not.Contain("secret-code").And.Not.Contain("secret-state"));
+    }
+
     private (string MutexName, string PipePath) NewIdentity()
     {
         string id = Guid.NewGuid().ToString("N")[..12];
