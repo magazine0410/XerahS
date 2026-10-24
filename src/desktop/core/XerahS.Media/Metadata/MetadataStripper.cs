@@ -32,6 +32,12 @@ internal static class MetadataStripper
 {
     private static readonly byte[] ZeroBuffer = new byte[64 * 1024];
 
+    /// <summary>
+    /// Real files nest AVI lists and MP4 boxes a few levels deep; a crafted file can nest them until the stack
+    /// overflows, which ends the process. Such a file is rejected rather than reported as stripped.
+    /// </summary>
+    private const int MaximumNestingDepth = 16;
+
     public static void Strip(string filePath, CancellationToken cancellationToken)
     {
         MetadataFormat format = MetadataFormatDetector.Detect(filePath);
@@ -263,8 +269,10 @@ internal static class MetadataStripper
         stream.Flush(true);
     }
 
-    private static void CollectAviInfoRanges(FileStream stream, long start, long end, List<OverwriteRange> ranges, CancellationToken cancellationToken)
+    private static void CollectAviInfoRanges(FileStream stream, long start, long end, List<OverwriteRange> ranges, CancellationToken cancellationToken,
+        int depth = 0)
     {
+        if (depth > MaximumNestingDepth) throw new InvalidDataException("The AVI file nests its lists too deeply.");
         long position = start;
         byte[] header = new byte[8];
         byte[] listType = new byte[4];
@@ -283,7 +291,7 @@ internal static class MetadataStripper
                 stream.ReadExactly(listType);
                 if (listType.SequenceEqual("INFO"u8)) ranges.Add(new OverwriteRange(position, 8 + size + (size & 1), true));
                 else if (listType.SequenceEqual("hdrl"u8) || listType.SequenceEqual("odml"u8))
-                    CollectAviInfoRanges(stream, position + 12, chunkEnd, ranges, cancellationToken);
+                    CollectAviInfoRanges(stream, position + 12, chunkEnd, ranges, cancellationToken, depth + 1);
             }
             position = next;
         }
@@ -317,8 +325,10 @@ internal static class MetadataStripper
         long end,
         string parentType,
         List<IsoRange> ranges,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        int depth = 0)
     {
+        if (depth > MaximumNestingDepth) throw new InvalidDataException("The file nests its boxes too deeply.");
         long position = start;
         while (position + 8 <= end)
         {
@@ -330,7 +340,7 @@ internal static class MetadataStripper
             }
             else if (box.Type is "moov" or "trak")
             {
-                CollectIsoMetadataRanges(stream, box.PayloadOffset, box.End, box.Type, ranges, cancellationToken);
+                CollectIsoMetadataRanges(stream, box.PayloadOffset, box.End, box.Type, ranges, cancellationToken, depth + 1);
             }
             position = box.End;
         }

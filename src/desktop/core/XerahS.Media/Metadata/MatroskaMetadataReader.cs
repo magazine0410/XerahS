@@ -220,8 +220,15 @@ internal static class MatroskaMetadataReader
         }
     }
 
-    private static void ReadSimpleTag(byte[] data, MetadataCollector metadata, string fallbackName)
+    /// <summary>
+    /// Real files nest SimpleTags a few levels deep; a crafted file can nest them until the stack overflows, which
+    /// ends the process, so deeper tags are skipped.
+    /// </summary>
+    private const int MaximumSimpleTagDepth = 16;
+
+    private static void ReadSimpleTag(byte[] data, MetadataCollector metadata, string fallbackName, int depth = 0)
     {
+        if (depth > MaximumSimpleTagDepth) return;
         string name = fallbackName;
         string? value = null;
         List<byte[]> nested = [];
@@ -234,7 +241,7 @@ internal static class MatroskaMetadataReader
             else if (element.Id == 0x67C8) nested.Add(payload.ToArray());
         }
         if (value != null) metadata.Add("Matroska Tags", name, value);
-        foreach (byte[] child in nested) ReadSimpleTag(child, metadata, name);
+        foreach (byte[] child in nested) ReadSimpleTag(child, metadata, name, depth + 1);
     }
 
     internal static List<MemoryElement> GetElements(byte[] data)

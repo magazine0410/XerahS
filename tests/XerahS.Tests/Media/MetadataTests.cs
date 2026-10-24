@@ -72,6 +72,81 @@ public class MetadataTests
     }
 
     [Test]
+    public async Task DeeplyNestedAviLists_AreReadWithoutOverflowingTheStack_AndRefusedByStrip()
+    {
+        // 100,000 nested LIST hdrl chunks, 12 bytes each: deep enough to end the process if each level recursed.
+        const int levels = 100_000;
+        byte[] file = new byte[12 + 12 * levels];
+        "RIFF"u8.CopyTo(file);
+        BinaryPrimitives.WriteInt32LittleEndian(file.AsSpan(4), 4 + 12 * levels);
+        "AVI "u8.CopyTo(file.AsSpan(8));
+        for (int level = 0; level < levels; level++)
+        {
+            Span<byte> chunk = file.AsSpan(12 + 12 * level, 12);
+            "LIST"u8.CopyTo(chunk);
+            BinaryPrimitives.WriteInt32LittleEndian(chunk[4..], 4 + 12 * (levels - 1 - level));
+            "hdrl"u8.CopyTo(chunk[8..]);
+        }
+        string path = Path.Combine(_directory, "nested.avi");
+        await File.WriteAllBytesAsync(path, file);
+
+        Assert.That(await MetadataService.ReadMetadataAsync(path), Is.Not.Null);
+        Assert.That(async () => await MetadataService.StripMetadataAsync(path), Throws.InstanceOf<InvalidDataException>());
+        Assert.That(await File.ReadAllBytesAsync(path), Is.EqualTo(file));
+    }
+
+    [Test]
+    public async Task DeeplyNestedMp4Tracks_AreRefusedByStrip()
+    {
+        const int levels = 100_000;
+        byte[] header = Box("ftyp", "isom\0\0\0\0isom"u8.ToArray());
+        byte[] movie = new byte[8 + 8 * levels];
+        BinaryPrimitives.WriteInt32BigEndian(movie, movie.Length);
+        "moov"u8.CopyTo(movie.AsSpan(4));
+        for (int level = 0; level < levels; level++)
+        {
+            Span<byte> box = movie.AsSpan(8 + 8 * level, 8);
+            BinaryPrimitives.WriteInt32BigEndian(box, 8 * (levels - level));
+            "trak"u8.CopyTo(box[4..]);
+        }
+        byte[] file = [.. header, .. movie];
+        string path = Path.Combine(_directory, "nested.mp4");
+        await File.WriteAllBytesAsync(path, file);
+
+        Assert.That(async () => await MetadataService.StripMetadataAsync(path), Throws.InstanceOf<InvalidDataException>());
+        Assert.That(await File.ReadAllBytesAsync(path), Is.EqualTo(file));
+    }
+
+    [Test]
+    public async Task NestedMatroskaSimpleTags_AreReadToALimitedDepth()
+    {
+        byte[] simpleTag = [];
+        for (int level = 39; level >= 0; level--)
+        {
+            simpleTag = Ebml([0x67, 0xC8], [.. Ebml([0x45, 0xA3], Encoding.UTF8.GetBytes($"Level{level}")),
+                .. Ebml([0x44, 0x87], Encoding.UTF8.GetBytes($"value{level}")), .. simpleTag]);
+        }
+        byte[] tags = Ebml([0x12, 0x54, 0xC3, 0x67], Ebml([0x73, 0x73], simpleTag));
+        byte[] file = [.. Ebml([0x1A, 0x45, 0xDF, 0xA3], []), .. Ebml([0x18, 0x53, 0x80, 0x67], tags)];
+        string path = Path.Combine(_directory, "nested.mkv");
+        await File.WriteAllBytesAsync(path, file);
+
+        IReadOnlyList<MetadataValue> values = await MetadataService.ReadMetadataAsync(path);
+
+        Assert.That(values.Select(value => value.Value), Has.Member("value0").And.Member("value16"));
+        Assert.That(values.Select(value => value.Value), Has.No.Member("value17"));
+    }
+
+    /// <summary>An EBML element with an eight-byte size.</summary>
+    private static byte[] Ebml(byte[] id, byte[] payload)
+    {
+        byte[] size = new byte[8];
+        BinaryPrimitives.WriteUInt64BigEndian(size, (ulong)payload.Length);
+        size[0] = 0x01;
+        return [.. id, .. size, .. payload];
+    }
+
+    [Test]
     public async Task CancellationAndUnsupportedFormat_LeaveOriginalAndNoTemporaryFiles()
     {
         string path = Path.Combine(_directory, "data.bin");

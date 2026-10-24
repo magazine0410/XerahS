@@ -99,8 +99,14 @@ internal static class RiffMetadataReader
     {
         using FileStream stream = OpenRead(filePath);
         int streamIndex = 0;
-        ReadAviChunks(stream, 12, stream.Length, metadata, cancellationToken, ref streamIndex, null);
+        ReadAviChunks(stream, 12, stream.Length, metadata, cancellationToken, ref streamIndex, null, 0);
     }
+
+    /// <summary>
+    /// Real AVI files nest lists three levels deep; a crafted file can nest them until the stack overflows, which
+    /// ends the process, so deeper lists are skipped.
+    /// </summary>
+    private const int MaximumListDepth = 16;
 
     private static void ReadAviChunks(
         FileStream stream,
@@ -109,8 +115,10 @@ internal static class RiffMetadataReader
         MetadataCollector metadata,
         CancellationToken cancellationToken,
         ref int streamIndex,
-        AviStreamContext? streamContext)
+        AviStreamContext? streamContext,
+        int depth)
     {
+        if (depth > MaximumListDepth) return;
         stream.Position = start;
         byte[] header = new byte[8];
         byte[] listTypeBytes = new byte[4];
@@ -132,7 +140,7 @@ internal static class RiffMetadataReader
                 if (listType == "strl")
                 {
                     AviStreamContext context = new(++streamIndex);
-                    ReadAviChunks(stream, contentStart + 4, chunkEnd, metadata, cancellationToken, ref streamIndex, context);
+                    ReadAviChunks(stream, contentStart + 4, chunkEnd, metadata, cancellationToken, ref streamIndex, context, depth + 1);
                 }
                 else if (listType == "INFO")
                 {
@@ -140,7 +148,7 @@ internal static class RiffMetadataReader
                 }
                 else if (listType is "hdrl" or "odml")
                 {
-                    ReadAviChunks(stream, contentStart + 4, chunkEnd, metadata, cancellationToken, ref streamIndex, streamContext);
+                    ReadAviChunks(stream, contentStart + 4, chunkEnd, metadata, cancellationToken, ref streamIndex, streamContext, depth + 1);
                 }
             }
             else if (size <= MaximumChunkReadSize)
