@@ -242,6 +242,23 @@ public class FileHostPluginTests
         Assert.That(MegaUploader.PasswordToBytes("abcde"), Is.EqualTo(new byte[] { 97, 98, 99, 100, 101, 0, 0, 0 }));
     }
 
+    [Test]
+    public void Mega_Version2Keys_AreDerivedFromTheUtf8Password_LikeMegasWebClient()
+    {
+        // Reference: PBKDF2-HMAC-SHA512 over the UTF-8 bytes of "pässwort", 100,000 iterations, 32 bytes (Python hashlib).
+        MegaAuthenticationInfo info = MegaUploader.CreateAuthenticationInfo("user@example.test", "pässwort", 2,
+            "AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8");
+        Assert.That(Convert.ToHexStringLower(info.PasswordKey), Is.EqualTo("26add6a0ff690628aa452c9ff7164791"));
+        Assert.That(info.UserHash, Is.EqualTo("R5pQoUUbW81U9THQO1Etvg"));
+
+        // HMAC pads a short key with zeros, so an ASCII password derives the same key as with the padded conversion.
+        byte[] salt = MegaUploader.FromBase64URL("AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8");
+        byte[] padded = System.Security.Cryptography.Rfc2898DeriveBytes.Pbkdf2(MegaUploader.PasswordToBytes("abcde"), salt, 100000,
+            System.Security.Cryptography.HashAlgorithmName.SHA512, 32);
+        Assert.That(MegaUploader.CreateAuthenticationInfo("user@example.test", "abcde", 2, "AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8").PasswordKey,
+            Is.EqualTo(padded[..16]));
+    }
+
     // ── Backblaze B2 ────────────────────────────────────────────────────────
 
     [TestCase(0, null, "NewUrl")]

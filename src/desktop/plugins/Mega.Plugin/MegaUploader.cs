@@ -454,11 +454,12 @@ public sealed class MegaUploader : FileUploader
 
     internal static MegaAuthenticationInfo CreateAuthenticationInfo(string email, string password, int accountVersion, string? salt)
     {
-        byte[] passwordBytes = PasswordToBytes(password);
-
         if (accountVersion == 2 && !string.IsNullOrWhiteSpace(salt))
         {
-            byte[] derivedKey = Rfc2898DeriveBytes.Pbkdf2(passwordBytes, FromBase64URL(salt), 100000,
+            // MEGA's web client derives version 2 keys from the password's UTF-8 bytes (security.stringToByteArray).
+            // ShareX uses the version 1 conversion here, one byte per character, so a password with a character
+            // outside ASCII derived the wrong key and the login was refused.
+            byte[] derivedKey = Rfc2898DeriveBytes.Pbkdf2(Encoding.UTF8.GetBytes(password), FromBase64URL(salt), 100000,
                 HashAlgorithmName.SHA512, 32);
             return new MegaAuthenticationInfo
             {
@@ -469,7 +470,7 @@ public sealed class MegaUploader : FileUploader
 
         if (accountVersion == 1)
         {
-            byte[] passwordKey = PrepareLegacyPasswordKey(passwordBytes);
+            byte[] passwordKey = PrepareLegacyPasswordKey(PasswordToBytes(password));
             return new MegaAuthenticationInfo
             {
                 PasswordKey = passwordKey,
