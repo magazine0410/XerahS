@@ -60,9 +60,7 @@ public partial class HistoryViewModel
         if (tag == null) return;
         try
         {
-            item.Tag = tag;
-            await PersistHistoryItemAsync(item);
-            ReplaceLoadedHistoryItem(item);
+            await UpdateHistoryItemAsync(item, entry => entry.Tag = tag);
         }
         catch (Exception ex)
         {
@@ -76,13 +74,13 @@ public partial class HistoryViewModel
     private async Task EditItemAsync(HistoryItem? item)
     {
         if (item == null || item.Id <= 0) return;
-        var editor = new HistoryItemEditViewModel(item);
+        // The dialog shows the entry as saved now, which can be newer than the loaded row (an upload finished since).
+        HistoryItem current = await Task.Run(() => GetHistoryItem(item.Id)) ?? item;
+        var editor = new HistoryItemEditViewModel(current);
         if (!await ShowEditItemDialogAsync(editor)) return;
         try
         {
-            editor.ApplyTo(item);
-            await PersistHistoryItemAsync(item);
-            ReplaceLoadedHistoryItem(item);
+            await UpdateHistoryItemAsync(item, editor.ApplyTo);
         }
         catch (Exception ex)
         {
@@ -109,11 +107,15 @@ public partial class HistoryViewModel
         try
         {
             string oldPath = item.FilePath;
+            string? oldSidecarPath = item.AnnotationSidecarPath;
             string newPath = await Task.Run(() => RenameHistoryFile(item, newName));
-            item.FileName = newName;
-            item.FilePath = newPath;
-            await PersistHistoryItemAsync(item);
-            ReplaceLoadedHistoryItem(item);
+            string? newSidecarPath = item.AnnotationSidecarPath;
+            await UpdateHistoryItemAsync(item, entry =>
+            {
+                entry.FileName = newName;
+                entry.FilePath = newPath;
+                if (newSidecarPath != oldSidecarPath) entry.AnnotationSidecarPath = newSidecarPath;
+            });
             DebugHelper.WriteLine($"Renamed history file: {oldPath} -> {newPath}");
         }
         catch (Exception ex)

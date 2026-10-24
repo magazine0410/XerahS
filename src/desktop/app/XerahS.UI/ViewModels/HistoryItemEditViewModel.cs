@@ -47,8 +47,13 @@ public partial class HistoryItemEditViewModel : ViewModelBase
 
     public Action<bool>? CloseRequested { get; set; }
 
+    // The values shown when the dialog opened, to tell which ones the user changed.
+    private readonly string[] _shownFields = [];
+    private readonly Dictionary<string, string?> _shownTags = new();
+
     public HistoryItemEditViewModel()
     {
+        _shownFields = Fields();
     }
 
     public HistoryItemEditViewModel(HistoryItem item)
@@ -63,21 +68,44 @@ public partial class HistoryItemEditViewModel : ViewModelBase
         DeletionUrl = item.DeletionURL ?? string.Empty;
         ShortenedUrl = item.ShortenedURL ?? string.Empty;
         Tags = HistoryHelpers.FormatTags(item.Tags);
+        _shownFields = Fields();
+        _shownTags = HistoryHelpers.ParseTags(Tags);
     }
 
-    /// <summary>Writes the edited fields to the entry, as ShareX's "Save" does.</summary>
+    /// <summary>
+    /// Writes the fields the user changed to the entry, as ShareX's "Save" does. Unchanged fields and tags are left as
+    /// the entry has them, so that values saved while the dialog was open (an upload's URLs, the OCR text) are kept.
+    /// </summary>
     public void ApplyTo(HistoryItem item)
     {
-        item.FileName = FileName ?? string.Empty;
-        item.FilePath = FilePath ?? string.Empty;
-        item.Type = Type ?? string.Empty;
-        item.Host = Host ?? string.Empty;
-        item.URL = Url ?? string.Empty;
-        item.ThumbnailURL = ThumbnailUrl ?? string.Empty;
-        item.DeletionURL = DeletionUrl ?? string.Empty;
-        item.ShortenedURL = ShortenedUrl ?? string.Empty;
-        item.Tags = HistoryHelpers.ParseTags(Tags);
+        string[] fields = Fields();
+        if (fields[0] != _shownFields[0]) item.FileName = fields[0];
+        if (fields[1] != _shownFields[1]) item.FilePath = fields[1];
+        if (fields[2] != _shownFields[2]) item.Type = fields[2];
+        if (fields[3] != _shownFields[3]) item.Host = fields[3];
+        if (fields[4] != _shownFields[4]) item.URL = fields[4];
+        if (fields[5] != _shownFields[5]) item.ThumbnailURL = fields[5];
+        if (fields[6] != _shownFields[6]) item.DeletionURL = fields[6];
+        if (fields[7] != _shownFields[7]) item.ShortenedURL = fields[7];
+
+        Dictionary<string, string?> tags = HistoryHelpers.ParseTags(Tags);
+        item.Tags ??= new Dictionary<string, string?>();
+        foreach (string removed in _shownTags.Keys.Where(key => !tags.ContainsKey(key)))
+        {
+            item.Tags.Remove(removed);
+        }
+
+        foreach ((string key, string? value) in tags)
+        {
+            if (!_shownTags.TryGetValue(key, out string? shown) || shown != value) item.Tags[key] = value;
+        }
     }
+
+    private string[] Fields() =>
+    [
+        FileName ?? string.Empty, FilePath ?? string.Empty, Type ?? string.Empty, Host ?? string.Empty,
+        Url ?? string.Empty, ThumbnailUrl ?? string.Empty, DeletionUrl ?? string.Empty, ShortenedUrl ?? string.Empty
+    ];
 
     [RelayCommand]
     private void Save() => CloseRequested?.Invoke(true);

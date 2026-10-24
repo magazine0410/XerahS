@@ -214,6 +214,72 @@ public sealed class HistoryManagementTests
     }
 
     [Test]
+    public async Task EditTagItemAndRename_KeepAnUploadResultSavedAfterTheListWasLoaded()
+    {
+        using var manager = new HistoryManagerSQLite(SettingsManager.GetHistoryFilePath());
+        var entry = Item("shot.png", 0);
+        entry.URL = string.Empty;
+        File.WriteAllBytes(entry.FilePath, [1]);
+        Assert.That(manager.AppendHistoryItem(entry), Is.True);
+        using var vm = ViewModel();
+        await vm.LoadHistoryCommand.ExecuteAsync(null);
+
+        // The upload finishes after the window loaded the row, as UploadJobProcessor updates the entry.
+        void SaveUpload(string url)
+        {
+            HistoryItem uploaded = manager.GetHistoryItem(entry.Id)!;
+            uploaded.URL = url;
+            uploaded.DeletionURL = url + "/delete";
+            uploaded.Tags["OcrText"] = "Text from " + url;
+            manager.Edit(uploaded);
+        }
+
+        SaveUpload("https://cdn.example.test/1");
+        _dialogs.InputAnswers.Enqueue("reviewed");
+        await vm.EditTagCommand.ExecuteAsync(vm.HistoryItems[0]);
+        HistoryItem saved = manager.GetHistoryItem(entry.Id)!;
+        Assert.Multiple(() =>
+        {
+            Assert.That(saved.Tag, Is.EqualTo("reviewed"));
+            Assert.That(saved.URL, Is.EqualTo("https://cdn.example.test/1"));
+            Assert.That(saved.DeletionURL, Is.EqualTo("https://cdn.example.test/1/delete"));
+            Assert.That(vm.HistoryItems[0].URL, Is.EqualTo("https://cdn.example.test/1"), "The row shows the saved entry.");
+        });
+
+        SaveUpload("https://cdn.example.test/2");
+        vm.ShowEditItemDialogAsync = dialog =>
+        {
+            Assert.That(dialog.Url, Is.EqualTo("https://cdn.example.test/2"), "The dialog shows the entry as saved now.");
+            SaveUpload("https://cdn.example.test/3");
+            dialog.Host = "edited.example.test";
+            dialog.Tags += Environment.NewLine + "Note=edited";
+            return Task.FromResult(true);
+        };
+        await vm.EditItemCommand.ExecuteAsync(vm.HistoryItems[0]);
+        saved = manager.GetHistoryItem(entry.Id)!;
+        Assert.Multiple(() =>
+        {
+            Assert.That(saved.Host, Is.EqualTo("edited.example.test"));
+            Assert.That(saved.Tags["Note"], Is.EqualTo("edited"));
+            Assert.That(saved.URL, Is.EqualTo("https://cdn.example.test/3"), "A field the user did not change keeps the newer value.");
+            Assert.That(saved.Tags["OcrText"], Is.EqualTo("Text from https://cdn.example.test/3"), "So does a tag.");
+            Assert.That(saved.Tag, Is.EqualTo("reviewed"));
+        });
+
+        SaveUpload("https://cdn.example.test/4");
+        _dialogs.InputAnswers.Enqueue("renamed");
+        await vm.RenameFileCommand.ExecuteAsync(vm.HistoryItems[0]);
+        saved = manager.GetHistoryItem(entry.Id)!;
+        Assert.Multiple(() =>
+        {
+            Assert.That(saved.FileName, Is.EqualTo("renamed.png"));
+            Assert.That(saved.FilePath, Is.EqualTo(Path.Combine(_directory, "renamed.png")));
+            Assert.That(saved.URL, Is.EqualTo("https://cdn.example.test/4"));
+            Assert.That(saved.Host, Is.EqualTo("edited.example.test"));
+        });
+    }
+
+    [Test]
     public async Task EditItem_SavedUnchanged_KeepsTagsWithLineBreaks()
     {
         using var manager = new HistoryManagerSQLite(SettingsManager.GetHistoryFilePath());

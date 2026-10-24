@@ -562,9 +562,10 @@ namespace XerahS.UI.ViewModels
 
         /// <summary>
         /// Shows an entry's current values in the loaded rows by replacing it with a copy (the row templates bind once),
-        /// keeping the selection, as ShareX's RefreshVisibleItem does. Returns the copy, or null when the entry is not loaded.
+        /// keeping the selection, as ShareX's RefreshVisibleItem does. <paramref name="saved"/> is the entry as saved, when
+        /// it differs from the loaded one. Returns the copy, or null when the entry is not loaded.
         /// </summary>
-        private HistoryItem? ReplaceLoadedHistoryItem(HistoryItem item)
+        private HistoryItem? ReplaceLoadedHistoryItem(HistoryItem item, HistoryItem? saved = null)
         {
             int index = HistoryItems.IndexOf(item);
             if (index < 0)
@@ -573,7 +574,7 @@ namespace XerahS.UI.ViewModels
             }
 
             bool wasSelected = SelectedHistoryItems.Contains(item);
-            var refreshedItem = CloneHistoryItem(item);
+            var refreshedItem = CloneHistoryItem(saved ?? item);
             HistoryItems[index] = refreshedItem;
             int cachedIndex = _filteredHistoryItems.FindIndex(entry => ReferenceEquals(entry, item));
             if (cachedIndex >= 0) _filteredHistoryItems[cachedIndex] = refreshedItem;
@@ -959,6 +960,32 @@ namespace XerahS.UI.ViewModels
                 DebugHelper.WriteException(ex, "XerahS Cloud unpublish failed");
                 ShowCloudToast("Unpublish failed", ex.Message);
             }
+        }
+
+        /// <summary>
+        /// Applies <paramref name="change"/> to the entry as the database holds it now and saves it, then shows the saved
+        /// entry. The loaded row can be older: an upload's URLs and the OCR text are written to the entry after the
+        /// capture, and saving the loaded row would erase them. An entry no longer in the database changes in the list only.
+        /// </summary>
+        private async Task UpdateHistoryItemAsync(HistoryItem item, Action<HistoryItem> change)
+        {
+            HistoryItem? saved = item.Id > 0
+                ? await Task.Run(() =>
+                {
+                    lock (_databaseLock)
+                    {
+                        if (_disposed) return null;
+                        HistoryItem? current = _historyManager.GetHistoryItem(item.Id);
+                        if (current == null) return null;
+                        change(current);
+                        _historyManager.Edit(current);
+                        return current;
+                    }
+                })
+                : null;
+
+            if (saved == null) change(item);
+            ReplaceLoadedHistoryItem(item, saved);
         }
 
         private Task PersistHistoryItemAsync(HistoryItem item) =>
