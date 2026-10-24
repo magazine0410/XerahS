@@ -274,14 +274,16 @@ public sealed class SecretStore : ISecretStore, ISecretStoreInfo
     }
 
     /// <summary>
-    /// Copies the file store's secrets into the keyring, each checked by reading it back, then renames the file
-    /// (to <c>.migrated-to-keyring</c>) so that it is not used again. The file is left as it is when a secret could
+    /// Copies the file store's secrets into the keyring, each checked by reading it back, then deletes the file and
+    /// its key, which could otherwise still decrypt the secrets. The files are left as they are when a secret could
     /// not be copied, and false is returned so that the file store stays in use.
     /// </summary>
     internal static bool MoveFileSecretsToKeyring(string filePath, IKeyringAccounts keyring)
     {
         if (!File.Exists(filePath))
         {
+            // Earlier versions renamed the moved store to .migrated-to-keyring and left the key next to it.
+            DeleteMovedFileStore(filePath);
             return true;
         }
 
@@ -312,7 +314,8 @@ public sealed class SecretStore : ISecretStore, ISecretStoreInfo
                 moved++;
             }
 
-            File.Move(filePath, filePath + ".migrated-to-keyring", overwrite: true);
+            File.Delete(filePath);
+            DeleteMovedFileStore(filePath);
             DebugHelper.WriteLine($"SecretStore: moved {moved} secret(s) from {Path.GetFileName(filePath)} to the keyring.");
             return true;
         }
@@ -320,6 +323,25 @@ public sealed class SecretStore : ISecretStore, ISecretStoreInfo
         {
             DebugHelper.WriteException(ex, "SecretStore failed to move the file store's secrets to the keyring.");
             return false;
+        }
+    }
+
+    private static void DeleteMovedFileStore(string filePath)
+    {
+        foreach (string path in new[] { filePath + ".migrated-to-keyring", GetKeyPath(filePath) })
+        {
+            try
+            {
+                if (File.Exists(path))
+                {
+                    File.Delete(path);
+                    DebugHelper.WriteLine($"SecretStore: deleted {Path.GetFileName(path)}, which the keyring replaced.");
+                }
+            }
+            catch (Exception ex)
+            {
+                DebugHelper.WriteException(ex, $"SecretStore could not delete {Path.GetFileName(path)}.");
+            }
         }
     }
 

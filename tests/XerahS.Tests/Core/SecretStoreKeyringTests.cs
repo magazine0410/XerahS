@@ -61,6 +61,41 @@ public class SecretStoreKeyringTests
         Assert.That(keyring.Values["p:k:n"], Is.EqualTo(" padded "));
     }
 
+    [Test]
+    public void MovingTheFileStore_DeletesTheStoreAndItsKey()
+    {
+        string filePath = Path.Combine(_directory, "SecretsStore.json");
+        string keyPath = Path.Combine(_directory, "SecretsStore.key");
+        new SecretStore.AesFileSecretStore(filePath, keyPath).SetSecret("p", "k", "n", "value");
+        Assert.That(File.Exists(keyPath), Is.True);
+
+        Assert.That(SecretStore.MoveFileSecretsToKeyring(filePath, new FakeKeyring()), Is.True);
+        Assert.That(Directory.GetFiles(_directory), Is.Empty);
+    }
+
+    [Test]
+    public void AStoreMovedByAnEarlierVersion_IsDeletedWithItsKey()
+    {
+        string filePath = Path.Combine(_directory, "SecretsStore.json");
+        File.WriteAllText(filePath + ".migrated-to-keyring", "{}");
+        File.WriteAllBytes(Path.Combine(_directory, "SecretsStore.key"), new byte[32]);
+
+        Assert.That(SecretStore.MoveFileSecretsToKeyring(filePath, new FakeKeyring()), Is.True);
+        Assert.That(Directory.GetFiles(_directory), Is.Empty);
+    }
+
+    [Test]
+    public void WhenTheKeyringRefusesASecret_TheStoreAndKeyAreKept()
+    {
+        string filePath = Path.Combine(_directory, "SecretsStore.json");
+        string keyPath = Path.Combine(_directory, "SecretsStore.key");
+        new SecretStore.AesFileSecretStore(filePath, keyPath).SetSecret("p", "k", "n", "value");
+
+        Assert.That(SecretStore.MoveFileSecretsToKeyring(filePath, new FakeKeyring { RefuseWrites = true }), Is.False);
+        Assert.That(File.Exists(filePath) && File.Exists(keyPath), Is.True);
+        Assert.That(new SecretStore.AesFileSecretStore(filePath, keyPath).GetSecret("p", "k", "n"), Is.EqualTo("value"));
+    }
+
     internal sealed class FakeKeyring : SecretStore.IKeyringAccounts
     {
         public Dictionary<string, string> Values { get; } = new(StringComparer.Ordinal);
