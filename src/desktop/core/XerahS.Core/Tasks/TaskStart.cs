@@ -135,6 +135,7 @@ namespace XerahS.Core.Tasks
                 string folder = TaskHelpers.GetScreenshotsFolder(settings, info.Metadata);
                 Directory.CreateDirectory(folder);
                 string path = Path.Combine(folder, fileName);
+                bool overwrite = settings.ImageSettings.FileExistAction == FileExistAction.Overwrite;
                 if (File.Exists(path) && settings.ImageSettings.FileExistAction == FileExistAction.Ask)
                 {
                     var resolution = PlatformServices.IsUIServiceInitialized
@@ -142,6 +143,7 @@ namespace XerahS.Core.Tasks
                     token.ThrowIfCancellationRequested();
                     if (resolution == null) return;
                     path = resolution.FilePath;
+                    overwrite = resolution.Overwrite;
                 }
                 else
                 {
@@ -150,7 +152,13 @@ namespace XerahS.Core.Tasks
                 }
 
                 // Without a byte order mark (ShareX writes one), so the file has the same bytes as the upload.
-                await File.WriteAllTextAsync(path, info.TextContent, new UTF8Encoding(false), token).ConfigureAwait(false);
+                // A file that exists by now is replaced only when overwriting was chosen.
+                await using (var stream = new FileStream(path, overwrite ? FileMode.Create : FileMode.CreateNew, FileAccess.Write,
+                    FileShare.None, 4096, FileOptions.Asynchronous))
+                await using (var writer = new StreamWriter(stream, new UTF8Encoding(false)))
+                {
+                    await writer.WriteAsync(info.TextContent.AsMemory(), token).ConfigureAwait(false);
+                }
                 info.FilePath = path;
                 DebugHelper.WriteLine("Text saved to file: " + path);
             }
