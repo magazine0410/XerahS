@@ -106,10 +106,7 @@ public sealed class ImageViewerViewModel : INotifyPropertyChanged, IDisposable
             return false;
         }
 
-        string? folder = Path.GetDirectoryName(filePath);
-        _images = !string.IsNullOrWhiteSpace(folder) && Directory.Exists(folder)
-            ? Directory.GetFiles(folder).Where(FileHelpers.IsImageFile).ToArray()
-            : [filePath];
+        _images = GetFolderImages(filePath);
 
         _currentImageIndex = Array.FindIndex(_images,
             path => string.Equals(path, filePath, OperatingSystem.IsWindows() ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal));
@@ -120,6 +117,26 @@ public sealed class ImageViewerViewModel : INotifyPropertyChanged, IDisposable
         }
 
         return LoadCurrentImage();
+    }
+
+    /// <summary>
+    /// The images in the file's folder, by name. ShareX relies on NTFS listing a folder in name order; ext4 and btrfs
+    /// list it in no particular order. A folder that cannot be listed gives the file alone.
+    /// </summary>
+    internal static string[] GetFolderImages(string filePath)
+    {
+        string? folder = Path.GetDirectoryName(filePath);
+        if (string.IsNullOrWhiteSpace(folder) || !Directory.Exists(folder)) return [filePath];
+        try
+        {
+            return Directory.GetFiles(folder).Where(FileHelpers.IsImageFile)
+                .OrderBy(Path.GetFileName, StringComparer.OrdinalIgnoreCase).ThenBy(Path.GetFileName, StringComparer.Ordinal).ToArray();
+        }
+        catch (Exception ex) when (ex is UnauthorizedAccessException or IOException)
+        {
+            DebugHelper.WriteException(ex, "The image viewer could not list the folder");
+            return [filePath];
+        }
     }
 
     public bool LoadFiles(IReadOnlyList<string> filePaths, int selectedIndex)

@@ -92,6 +92,36 @@ public class ImageProcessingViewsTests
     }
 
     [AvaloniaTest]
+    public void ImageViewer_StepsThroughTheFolderInNameOrder()
+    {
+        string folder = Directory.CreateTempSubdirectory("xerahs-viewer-order-").FullName;
+        try
+        {
+            using var image = new SKBitmap(4, 4);
+            foreach (string name in new[] { "c.png", "A.png", "b.png", "notes.txt" })
+            {
+                string path = Path.Combine(folder, name);
+                if (name.EndsWith(".png")) ImageHelpers.SaveBitmap(image, path);
+                else File.WriteAllText(path, "text");
+            }
+
+            Assert.That(ImageViewerViewModel.GetFolderImages(Path.Combine(folder, "b.png")).Select(Path.GetFileName),
+                Is.EqualTo(new[] { "A.png", "b.png", "c.png" }));
+
+            using var viewer = new ImageViewerViewModel();
+            Assert.That(viewer.LoadFile(Path.Combine(folder, "A.png")), Is.True);
+            viewer.Navigate(1);
+            Assert.That(Path.GetFileName(viewer.CurrentImageFilePath), Is.EqualTo("b.png"));
+            viewer.Navigate(1);
+            Assert.That(Path.GetFileName(viewer.CurrentImageFilePath), Is.EqualTo("c.png"));
+        }
+        finally
+        {
+            Directory.Delete(folder, true);
+        }
+    }
+
+    [AvaloniaTest]
     public async Task Tiff_LoadsInViewerHistoryThumbnailEffectsPinAndHostedEditor()
     {
         string path = Path.Combine(Path.GetTempPath(), "xerahs-ui-tiff-" + Guid.NewGuid().ToString("N") + ".tif");
