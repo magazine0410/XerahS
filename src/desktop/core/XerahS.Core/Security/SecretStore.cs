@@ -278,7 +278,7 @@ public sealed class SecretStore : ISecretStore, ISecretStoreInfo
     /// (to <c>.migrated-to-keyring</c>) so that it is not used again. The file is left as it is when a secret could
     /// not be copied, and false is returned so that the file store stays in use.
     /// </summary>
-    private static bool MoveFileSecretsToKeyring(string filePath, LinuxLibsecretSecretStore keyring)
+    internal static bool MoveFileSecretsToKeyring(string filePath, IKeyringAccounts keyring)
     {
         if (!File.Exists(filePath))
         {
@@ -297,8 +297,8 @@ public sealed class SecretStore : ISecretStore, ISecretStoreInfo
                     continue;
                 }
 
-                // secret-tool's lookup output is trimmed, as every keyring read is.
-                string expected = value.Trim();
+                // An empty value reads back as no secret.
+                string? expected = value.Length == 0 ? null : value;
                 if (keyring.GetSecret(account) != expected)
                 {
                     keyring.SetSecret(account, value);
@@ -455,7 +455,7 @@ public sealed class SecretStore : ISecretStore, ISecretStoreInfo
         }
     }
 
-    private sealed class AesFileSecretStore : ISecretStore
+    internal sealed class AesFileSecretStore : ISecretStore
     {
         private readonly object _lock = new();
         private readonly string _filePath;
@@ -730,7 +730,15 @@ public sealed class SecretStore : ISecretStore, ISecretStoreInfo
         }
     }
 
-    private sealed class LinuxLibsecretSecretStore : ISecretStore
+    /// <summary>The keyring's reads and writes by full account name, which moving the file store needs.</summary>
+    internal interface IKeyringAccounts
+    {
+        string? GetSecret(string account);
+
+        void SetSecret(string account, string value);
+    }
+
+    internal sealed class LinuxLibsecretSecretStore : ISecretStore, IKeyringAccounts
     {
         private readonly string _service;
 
@@ -755,11 +763,14 @@ public sealed class SecretStore : ISecretStore, ISecretStoreInfo
 
         public string? GetSecret(string providerId, string secretKey, string name) => GetSecret(BuildKey(providerId, secretKey, name));
 
-        public string? GetSecret(string account)
-        {
-            var result = RunCommand("secret-tool", $"lookup service {_service} key \"{account}\"");
-            return string.IsNullOrWhiteSpace(result) ? null : result.Trim();
-        }
+        public string? GetSecret(string account) =>
+            ReadLookupOutput(RunCommand("secret-tool", $"lookup service {_service} key \"{account}\""));
+
+        /// <summary>
+        /// secret-tool writes the stored value as it is, adding a line break only when the output is a terminal, so
+        /// the value is not trimmed: a secret with leading or trailing spaces is read back unchanged.
+        /// </summary>
+        internal static string? ReadLookupOutput(string output) => output.Length == 0 ? null : output;
 
         public void SetSecret(string providerId, string secretKey, string name, string value) => SetSecret(BuildKey(providerId, secretKey, name), value);
 
