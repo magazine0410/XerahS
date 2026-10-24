@@ -37,7 +37,7 @@
             <Grid Margin="16" RowDefinitions="Auto,*" RowSpacing="12">
                 <Border Grid.Row="0" Classes="tool-panel">
                     <Grid ColumnDefinitions="Auto,Auto,*" ColumnSpacing="8">
-                            <Button Grid.Column="0" Click="OnPickWindowClick">
+                            <Button Grid.Column="0" x:Name="PickWindowButton" Click="OnPickWindowClick">
                                 <StackPanel Orientation="Horizontal" Spacing="8">
                                     <TextBlock Text="{x:Static theming:LucideIcons.scan}"
                                                FontFamily="{DynamicResource ShareX.FontFamily.Icon}"

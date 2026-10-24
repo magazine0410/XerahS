@@ -64,6 +64,28 @@ public class HotkeyPrerequisiteTests
     }
 
     [AvaloniaTest]
+    public void Inspector_ShowsAgain_WhenAPickerOverlayIsClosedWithoutPicking()
+    {
+        using var model = new InspectWindowViewModel(new TestWindowService());
+        var inspect = new InspectWindowWindow(model);
+        try
+        {
+            inspect.Show();
+            inspect.FindControl<Button>("PickWindowButton")!.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+            Assert.That(inspect.IsVisible, Is.False, "the window hides while picking");
+            Assert.That(inspect.PickerOverlays, Is.Not.Empty);
+
+            // As Alt+F4 on an overlay does.
+            inspect.PickerOverlays[0].Close();
+            Dispatcher.UIThread.RunJobs();
+
+            Assert.That(inspect.IsVisible, Is.True);
+            Assert.That(inspect.PickerOverlays, Is.Empty, "the other overlays are closed too");
+        }
+        finally { inspect.Close(); }
+    }
+
+    [AvaloniaTest]
     public void Borderless_UsesRememberedTitleAndWorkingArea_PersistsOnlySuccessfulToggles()
     {
         var options = new BorderlessWindowSettings { WindowTitle = "Editor", ExcludeTaskbarArea = true, AutoCloseWindow = true };

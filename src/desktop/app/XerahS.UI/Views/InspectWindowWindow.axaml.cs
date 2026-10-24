@@ -63,6 +63,8 @@ public partial class InspectWindowWindow : Window
     }
 
     private void OnPickWindowClick(object? sender, RoutedEventArgs e) => StartPicking(true);
+
+    internal IReadOnlyList<InspectWindowPickerOverlay> PickerOverlays => _pickerOverlays;
     private void OnPickControlClick(object? sender, RoutedEventArgs e) => StartPicking(false);
 
     private void OnWindowListDropDownOpened(object? sender, EventArgs e)
@@ -80,6 +82,11 @@ public partial class InspectWindowWindow : Window
             InspectWindowPickerOverlay overlay = new(screen, selectTopLevelWindow);
             overlay.TargetPicked += (_, point) => CompletePicking(point, selectTopLevelWindow);
             overlay.PickingCanceled += (_, _) => CancelPicking();
+            // An overlay closed some other way, such as with Alt+F4, cancels the pick, so this window does not stay hidden.
+            overlay.Closed += (_, _) =>
+            {
+                if (_pickerOverlays.Remove(overlay)) CancelPicking();
+            };
             _pickerOverlays.Add(overlay);
             overlay.Show();
         }
@@ -108,11 +115,13 @@ public partial class InspectWindowWindow : Window
 
     private void ClosePickerOverlays()
     {
-        foreach (InspectWindowPickerOverlay overlay in _pickerOverlays)
+        // The list is emptied first, so the overlays' Closed handlers see a pick that has already ended.
+        InspectWindowPickerOverlay[] overlays = [.. _pickerOverlays];
+        _pickerOverlays.Clear();
+        foreach (InspectWindowPickerOverlay overlay in overlays)
         {
             overlay.Close();
         }
-        _pickerOverlays.Clear();
     }
 
     private async void OnCopyClick(object? sender, RoutedEventArgs e)
