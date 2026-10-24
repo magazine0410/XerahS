@@ -568,6 +568,13 @@ public static class FileHelpers
     }
 
     /// <summary>
+    /// How file names compare: Linux file names are case-sensitive, so "Shot" is another file than "shot" there.
+    /// Windows and macOS (by default) treat them as the same file.
+    /// </summary>
+    public static readonly StringComparison FileNameComparison =
+        OperatingSystem.IsWindows() || OperatingSystem.IsMacOS() ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal;
+
+    /// <summary>
     /// Creates a new file that only the current user can read or write (mode 0600 outside Windows), for temporary
     /// copies of the user's files. Fails if the path already exists.
     /// </summary>

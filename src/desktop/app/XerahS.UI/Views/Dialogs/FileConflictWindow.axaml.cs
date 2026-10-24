@@ -34,11 +34,6 @@ namespace XerahS.UI.Views.Dialogs;
 
 public partial class FileConflictWindow : SurfaceWindow
 {
-    // Linux file names are case-sensitive, so "Shot" is another file than "shot" there. Windows and macOS
-    // (by default) treat them as the same file.
-    internal static readonly StringComparison FileNameComparison =
-        OperatingSystem.IsWindows() || OperatingSystem.IsMacOS() ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal;
-
     private readonly string _path;
     private readonly string _uniquePath;
     private readonly TaskCompletionSource<FileConflictResolution?> _completion = new(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -80,7 +75,7 @@ public partial class FileConflictWindow : SurfaceWindow
     {
         if (NewNameButton == null) return;
         string name = NewName.Text?.Trim() ?? string.Empty;
-        NewNameButton.IsEnabled = name.Length > 0 && !string.Equals(name, Path.GetFileNameWithoutExtension(_path), FileNameComparison);
+        NewNameButton.IsEnabled = name.Length > 0 && !string.Equals(name, Path.GetFileNameWithoutExtension(_path), FileHelpers.FileNameComparison);
         NewNamePreview.Text = name.Length > 0 ? name + Path.GetExtension(_path) : string.Empty;
         Error.Text = string.Empty;
     }
@@ -109,7 +104,7 @@ public partial class FileConflictWindow : SurfaceWindow
         if (e.Key == Key.Escape) { Close(); e.Handled = true; }
         else if (e.Key == Key.Enter)
         {
-            if (string.Equals(NewName.Text?.Trim(), Path.GetFileNameWithoutExtension(_path), FileNameComparison))
+            if (string.Equals(NewName.Text?.Trim(), Path.GetFileNameWithoutExtension(_path), FileHelpers.FileNameComparison))
                 Complete(_path, true);
             else OnNewName(this, e);
             e.Handled = true;

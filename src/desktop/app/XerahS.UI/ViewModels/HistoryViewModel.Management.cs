@@ -101,14 +101,23 @@ public partial class HistoryViewModel
         string oldName = Path.GetFileNameWithoutExtension(item.FilePath);
         string? input = await _coreDialogService.ShowInputAsync("Rename file", "Enter a new file name.", oldName);
         string newName = input?.Trim() ?? string.Empty;
-        if (string.IsNullOrWhiteSpace(newName) || newName.Equals(oldName, StringComparison.OrdinalIgnoreCase)) return;
+        // As in ShareX, a name that differs only in case is no change on Windows and macOS; on Linux it is another name.
+        if (string.IsNullOrWhiteSpace(newName) || newName.Equals(oldName, FileHelpers.FileNameComparison)) return;
+        if (newName is "." or ".." || newName.IndexOfAny(Path.GetInvalidFileNameChars()) >= 0 || newName.Contains('\\'))
+        {
+            // A path separator would move the file to another folder instead of renaming it.
+            await _coreDialogService.ShowErrorAsync("Rename file", "Enter a file name without / or \\.");
+            return;
+        }
         if (Path.HasExtension(item.FilePath)) newName += Path.GetExtension(item.FilePath);
 
+        string oldPath = item.FilePath;
+        string? oldSidecarPath = item.AnnotationSidecarPath;
+        HistoryFileRename? renamed = null;
         try
         {
-            string oldPath = item.FilePath;
-            string? oldSidecarPath = item.AnnotationSidecarPath;
-            string newPath = await Task.Run(() => RenameHistoryFile(item, newName));
+            renamed = await Task.Run(() => RenameHistoryFile(item, newName));
+            string newPath = renamed.Value.NewPath;
             string? newSidecarPath = item.AnnotationSidecarPath;
             await UpdateHistoryItemAsync(item, entry =>
             {
@@ -121,14 +130,19 @@ public partial class HistoryViewModel
         catch (Exception ex)
         {
             DebugHelper.WriteException(ex, "Failed to rename the history file");
+            // The entry still names the old path, so the file goes back there.
+            if (renamed is { } moved) await Task.Run(() => UndoRename(moved));
+            item.AnnotationSidecarPath = oldSidecarPath;
             await _coreDialogService.ShowErrorAsync("Rename file", "Could not rename the file. " + ex.Message);
         }
     }
 
-    private static string RenameHistoryFile(HistoryItem item, string newFileName)
+    private readonly record struct HistoryFileRename(string OldPath, string NewPath, string? OldSidecar, string? NewSidecar);
+
+    private static HistoryFileRename RenameHistoryFile(HistoryItem item, string newFileName)
     {
         string filePath = item.FilePath;
-        if (!File.Exists(filePath)) return filePath;
+        if (!File.Exists(filePath)) return new HistoryFileRename(filePath, filePath, null, null);
 
         string directory = Path.GetDirectoryName(filePath) ?? string.Empty;
         string newPath = Path.Combine(directory, newFileName);
@@ -144,6 +158,7 @@ public partial class HistoryViewModel
             {
                 File.Move(oldSidecar, newSidecar);
                 if (!string.IsNullOrWhiteSpace(item.AnnotationSidecarPath)) item.AnnotationSidecarPath = newSidecar;
+                return new HistoryFileRename(filePath, newPath, oldSidecar, newSidecar);
             }
             catch (Exception ex)
             {
@@ -151,7 +166,20 @@ public partial class HistoryViewModel
             }
         }
 
-        return newPath;
+        return new HistoryFileRename(filePath, newPath, null, null);
+    }
+
+    private static void UndoRename(HistoryFileRename rename)
+    {
+        try
+        {
+            if (rename.NewPath != rename.OldPath) File.Move(rename.NewPath, rename.OldPath);
+            if (rename.OldSidecar != null && rename.NewSidecar != null) File.Move(rename.NewSidecar, rename.OldSidecar);
+        }
+        catch (Exception ex)
+        {
+            DebugHelper.WriteException(ex, $"The renamed file '{rename.NewPath}' could not be moved back after the history was not saved");
+        }
     }
 
     internal static bool IsAnnotationSidecarPath([NotNullWhen(true)] string? path) =>

@@ -197,7 +197,16 @@ public sealed class HistoryManagementTests
 
         _dialogs.InputAnswers.Enqueue("RENAMED.JPG");
         await vm.RenameFileCommand.ExecuteAsync(vm.HistoryItems[0]);
-        Assert.That(manager.GetHistoryItem(entry.Id)!.FileName, Is.EqualTo("renamed.jpg.png"), "A name that differs only in case is ignored, as in ShareX.");
+        if (OperatingSystem.IsLinux())
+        {
+            Assert.That(manager.GetHistoryItem(entry.Id)!.FileName, Is.EqualTo("RENAMED.JPG.png"), "On Linux a name in other case is another name.");
+            Assert.That(File.Exists(Path.Combine(_directory, "RENAMED.JPG.png")), Is.True);
+            Assert.That(File.Exists(Path.Combine(_directory, "RENAMED.JPG.xann")), Is.True);
+        }
+        else
+        {
+            Assert.That(manager.GetHistoryItem(entry.Id)!.FileName, Is.EqualTo("renamed.jpg.png"), "A name that differs only in case is ignored, as in ShareX.");
+        }
 
         var missing = Item("gone.png", 1);
         Assert.That(manager.AppendHistoryItem(missing), Is.True);
@@ -210,6 +219,58 @@ public sealed class HistoryManagementTests
         {
             Assert.That(saved.FileName, Is.EqualTo("still gone.png"), "As in ShareX, a missing file only renames the entry.");
             Assert.That(saved.FilePath, Is.EqualTo(missing.FilePath));
+        });
+    }
+
+    [Test]
+    public async Task RenameFile_RefusesAPathInsteadOfAName()
+    {
+        using var manager = new HistoryManagerSQLite(SettingsManager.GetHistoryFilePath());
+        var entry = Item("shot.png", 0);
+        File.WriteAllBytes(entry.FilePath, [1, 2, 3]);
+        Assert.That(manager.AppendHistoryItem(entry), Is.True);
+        Directory.CreateDirectory(Path.Combine(_directory, "other"));
+        using var vm = ViewModel();
+        await vm.LoadHistoryCommand.ExecuteAsync(null);
+
+        _dialogs.InputAnswers.Enqueue("other/moved");
+        await vm.RenameFileCommand.ExecuteAsync(vm.HistoryItems[0]);
+        Assert.Multiple(() =>
+        {
+            Assert.That(File.Exists(entry.FilePath), Is.True);
+            Assert.That(Directory.GetFiles(Path.Combine(_directory, "other")), Is.Empty);
+            Assert.That(manager.GetHistoryItem(entry.Id)!.FilePath, Is.EqualTo(entry.FilePath));
+            Assert.That(_dialogs.Errors.Single().Title, Is.EqualTo("Rename file"));
+        });
+    }
+
+    [Test]
+    public async Task RenameFile_MovesTheFileBack_WhenTheHistoryCannotBeSaved()
+    {
+        using var manager = new HistoryManagerSQLite(SettingsManager.GetHistoryFilePath());
+        var entry = Item("shot.png", 0);
+        File.WriteAllBytes(entry.FilePath, [1, 2, 3]);
+        File.WriteAllText(Path.Combine(_directory, "shot.xann"), "{}");
+        Assert.That(manager.AppendHistoryItem(entry), Is.True);
+        using var vm = ViewModel();
+        await vm.LoadHistoryCommand.ExecuteAsync(null);
+        using (var connection = new Microsoft.Data.Sqlite.SqliteConnection($"Data Source={SettingsManager.GetHistoryFilePath()};Pooling=False"))
+        {
+            connection.Open();
+            using var command = connection.CreateCommand();
+            command.CommandText = "CREATE TRIGGER RefuseEdits BEFORE UPDATE ON History BEGIN SELECT RAISE(ABORT, 'disk full'); END;";
+            command.ExecuteNonQuery();
+        }
+
+        _dialogs.InputAnswers.Enqueue("renamed");
+        await vm.RenameFileCommand.ExecuteAsync(vm.HistoryItems[0]);
+        Assert.Multiple(() =>
+        {
+            Assert.That(File.Exists(entry.FilePath), Is.True, "the file is where the history says it is");
+            Assert.That(File.Exists(Path.Combine(_directory, "shot.xann")), Is.True);
+            Assert.That(File.Exists(Path.Combine(_directory, "renamed.png")), Is.False);
+            Assert.That(manager.GetHistoryItem(entry.Id)!.FilePath, Is.EqualTo(entry.FilePath));
+            Assert.That(_dialogs.Errors.Single().Message, Does.Contain("disk full"));
         });
     }
 
