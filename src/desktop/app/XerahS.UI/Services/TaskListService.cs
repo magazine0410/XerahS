@@ -52,7 +52,7 @@ public sealed class TaskListService
 
     public IDesktopTaskManager? TaskManager => _taskManager;
 
-    private TaskListService()
+    internal TaskListService()
     {
     }
 
@@ -60,7 +60,7 @@ public sealed class TaskListService
     {
         if (_taskManager != null) return;
         _taskManager = taskManager;
-        taskManager.TaskStarted += (_, task) => Dispatcher.UIThread.Post(() => Track(task));
+        taskManager.TaskStarted += (_, task) => Track(task);
 
         // ShareX's AddRecentTasksToMainWindow, when its main window opens with no tasks.
         ApplicationConfig settings = SettingsManager.Settings;
@@ -73,25 +73,38 @@ public sealed class TaskListService
         }
     }
 
+    /// <summary>
+    /// Runs when the task manager raises TaskStarted, before the task starts, so the task's events are handled
+    /// from the start even when the task ends at once. The list is changed on the UI thread, in the order the
+    /// events came: a task that completed before the UI thread added it is still removed.
+    /// </summary>
     private void Track(WorkerTask task)
     {
-        _activeTasks.Add(task);
         void OnChanged(object? sender, EventArgs e) => Dispatcher.UIThread.Post(() => Update(task));
         void OnProgress(ProgressManager progress) => Dispatcher.UIThread.Post(() => Update(task));
-        void OnCompleted(object? sender, EventArgs e) => Dispatcher.UIThread.Post(() =>
+        void OnCompleted(object? sender, EventArgs e)
         {
             task.StatusChanged -= OnChanged;
             task.TaskCompleted -= OnCompleted;
             if (task.Info != null) task.Info.UploadProgressChanged -= OnProgress;
-            _activeTasks.Remove(task);
-            Update(task);
-        });
+            Dispatcher.UIThread.Post(() =>
+            {
+                _activeTasks.Remove(task);
+                Update(task);
+            });
+        }
 
         task.StatusChanged += OnChanged;
         task.TaskCompleted += OnCompleted;
         if (task.Info != null) task.Info.UploadProgressChanged += OnProgress;
-        Update(task);
+        Dispatcher.UIThread.Post(() =>
+        {
+            _activeTasks.Add(task);
+            Update(task);
+        });
     }
+
+    internal int ActiveTaskCount => _activeTasks.Count;
 
     /// <summary>
     /// As in ShareX, a capture appears once it has captured something, and an upload at once. Tasks that only
