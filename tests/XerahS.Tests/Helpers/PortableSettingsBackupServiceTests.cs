@@ -294,6 +294,22 @@ public class PortableSettingsBackupServiceTests
     }
 
     [Test]
+    public void Export_RefusesABackupTheRestoreWouldRefuse()
+    {
+        const long megabyte = 1024 * 1024;
+        Assert.Multiple(() =>
+        {
+            Assert.DoesNotThrow(() => PortableSettingsBackupService.EnsureRestorable(512, 256 * megabyte, 128 * megabyte));
+            Assert.That(() => PortableSettingsBackupService.EnsureRestorable(513, 0, 0),
+                Throws.InvalidOperationException.With.Message.Contains("more than 512"));
+            Assert.That(() => PortableSettingsBackupService.EnsureRestorable(10, 256 * megabyte + 1, 0),
+                Throws.InvalidOperationException.With.Message.Contains("more than 256 MB"));
+            Assert.That(() => PortableSettingsBackupService.EnsureRestorable(10, 0, 128 * megabyte + 1),
+                Throws.InvalidOperationException.With.Message.Contains("larger than 128 MB"));
+        });
+    }
+
+    [Test]
     public void Restore_RejectsADamagedHistory_WithoutChangingTheCurrentOne()
     {
         string archivePath = Path.Combine(_testRoot, "damaged.xsbak");

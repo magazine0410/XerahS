@@ -445,6 +445,7 @@ public static class PortableSettingsBackupService
             throw new ArgumentException("Backup output path must include a directory.", nameof(outputFilePath));
         }
 
+        EnsureRestorable(content.Count + 1, manifestBytes.LongLength + content.Values.Sum(bytes => bytes.LongLength), archiveBytes: 0);
         Directory.CreateDirectory(directory);
         string tempFilePath = Path.Combine(directory, $".{Path.GetFileName(fullOutputPath)}.{Guid.NewGuid():N}.temp");
         try
@@ -459,6 +460,7 @@ public static class PortableSettingsBackupService
                 }
             }
 
+            EnsureRestorable(content.Count + 1, 0, new FileInfo(tempFilePath).Length);
             File.Move(tempFilePath, fullOutputPath, overwrite: true);
         }
         finally
@@ -467,6 +469,32 @@ public static class PortableSettingsBackupService
             {
                 File.Delete(tempFilePath);
             }
+        }
+    }
+
+    /// <summary>
+    /// The restore refuses a backup over these limits, so the export stops instead of writing a backup that
+    /// cannot be restored.
+    /// </summary>
+    internal static void EnsureRestorable(int entryCount, long expandedBytes, long archiveBytes)
+    {
+        const long megabyte = 1024 * 1024;
+        if (entryCount > MaximumEntryCount)
+        {
+            throw new InvalidOperationException(
+                $"The backup would contain {entryCount} files, and a backup with more than {MaximumEntryCount} cannot be restored. The backup was not created.");
+        }
+
+        if (expandedBytes > MaximumExpandedBytes)
+        {
+            throw new InvalidOperationException(
+                $"The backup would hold {expandedBytes / megabyte} MB, and a backup holding more than {MaximumExpandedBytes / megabyte} MB cannot be restored. The backup was not created.");
+        }
+
+        if (archiveBytes > MaximumArchiveBytes)
+        {
+            throw new InvalidOperationException(
+                $"The backup file would be {archiveBytes / megabyte} MB, and a backup file larger than {MaximumArchiveBytes / megabyte} MB cannot be restored. The backup was not created.");
         }
     }
 
