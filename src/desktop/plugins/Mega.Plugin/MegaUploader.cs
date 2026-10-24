@@ -27,6 +27,7 @@ using System.Collections.Specialized;
 using System.Net;
 using System.Security.Cryptography;
 using System.Text;
+using System.Text.RegularExpressions;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
 using XerahS.Uploaders;
@@ -37,7 +38,7 @@ namespace ShareX.Mega.Plugin;
 /// ShareX's MEGA uploader: log in with the email and password (and a two-factor code when MEGA asks for one), then
 /// encrypt and upload the file in chunks, create its node in the chosen folder, and return its public link.
 /// </summary>
-public sealed class MegaUploader : FileUploader
+public sealed partial class MegaUploader : FileUploader
 {
     private const string ApiURL = "https://g.api.mega.co.nz/cs";
     private const string PublicFileURL = "https://mega.nz/file/";
@@ -390,6 +391,14 @@ public sealed class MegaUploader : FileUploader
 
         return responseToken;
     }
+
+    /// <summary>The session ID gives full access to the account, so it is left out of the error text and the log.</summary>
+    protected override string RedactRequestURL(string url) => RedactSessionID(url);
+
+    internal static string RedactSessionID(string url) => SessionIDQueryPattern().Replace(url, "${1}[REDACTED]");
+
+    [GeneratedRegex("([?&]sid=)[^&#]*")]
+    private static partial Regex SessionIDQueryPattern();
 
     private RawResponse? Send(string url, Stream data, string contentType, NameValueCollection? headers)
     {

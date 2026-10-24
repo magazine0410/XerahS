@@ -407,12 +407,16 @@ namespace XerahS.Uploaders
             return !StopUploadRequested;
         }
 
+        /// <summary>The request URL as written to the error text and the log; uploaders that put a secret in the query string remove it here.</summary>
+        protected virtual string RedactRequestURL(string url) => url;
+
         private string? ProcessError(Exception e, string requestURL)
         {
             string? responseText = null;
 
             if (e != null)
             {
+                requestURL = string.IsNullOrEmpty(requestURL) ? requestURL : RedactRequestURL(requestURL);
                 StringBuilder sb = new StringBuilder();
                 sb.AppendLine("Error message:");
                 sb.AppendLine(e.Message);
@@ -442,11 +446,12 @@ namespace XerahS.Uploaders
                                     sb.AppendLine("Status code:");
                                     sb.AppendLine($"({(int)responseInfo.StatusCode}) {responseInfo.StatusDescription}");
 
-                                    if (!string.IsNullOrEmpty(requestURL) && !requestURL.Equals(responseInfo.ResponseURL))
+                                    string responseURL = string.IsNullOrEmpty(responseInfo.ResponseURL) ? responseInfo.ResponseURL : RedactRequestURL(responseInfo.ResponseURL);
+                                    if (!string.IsNullOrEmpty(requestURL) && !requestURL.Equals(responseURL))
                                     {
                                         sb.AppendLine();
                                         sb.AppendLine("Response URL:");
-                                        sb.AppendLine(responseInfo.ResponseURL);
+                                        sb.AppendLine(responseURL);
                                     }
 
                                     if (responseInfo.Headers != null)

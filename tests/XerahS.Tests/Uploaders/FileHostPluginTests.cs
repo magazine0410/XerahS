@@ -237,6 +237,41 @@ public class FileHostPluginTests
     }
 
     [Test]
+    public void Mega_SessionID_IsLeftOutOfLoggedRequestURLs()
+    {
+        Assert.Multiple(() =>
+        {
+            Assert.That(MegaUploader.RedactSessionID("https://g.api.mega.co.nz/cs?id=4&sid=secretSession-_1"),
+                Is.EqualTo("https://g.api.mega.co.nz/cs?id=4&sid=[REDACTED]"));
+            Assert.That(MegaUploader.RedactSessionID("https://g.api.mega.co.nz/cs?sid=abc&id=4"), Is.EqualTo("https://g.api.mega.co.nz/cs?sid=[REDACTED]&id=4"));
+            Assert.That(MegaUploader.RedactSessionID("https://g.api.mega.co.nz/cs?id=4"), Is.EqualTo("https://g.api.mega.co.nz/cs?id=4"));
+        });
+    }
+
+    [Test]
+    public void UploaderErrors_UseTheUploadersRedactedRequestURL()
+    {
+        // Nothing listens on the port once the listener is stopped, so the request fails and the error text is written.
+        var listener = new TcpListener(IPAddress.Loopback, 0);
+        listener.Start();
+        int port = ((IPEndPoint)listener.LocalEndpoint).Port;
+        listener.Stop();
+
+        var uploader = new RedactingUploader();
+        uploader.Get($"http://127.0.0.1:{port}/api?sid=secretSession");
+
+        Assert.That(uploader.Errors.Count, Is.GreaterThan(0));
+        Assert.That(uploader.Errors.ToString(), Does.Contain("sid=[REDACTED]").And.Not.Contain("secretSession"));
+    }
+
+    private sealed class RedactingUploader : Uploader
+    {
+        public void Get(string url) => SendRequest(XerahS.Uploaders.HttpMethod.GET, url);
+
+        protected override string RedactRequestURL(string url) => MegaUploader.RedactSessionID(url);
+    }
+
+    [Test]
     public void Mega_PasswordBytes_ArePaddedToFourBytes_LikeShareX()
     {
         Assert.That(MegaUploader.PasswordToBytes("abcde"), Is.EqualTo(new byte[] { 97, 98, 99, 100, 101, 0, 0, 0 }));
