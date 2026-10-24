@@ -45,7 +45,8 @@ public static class AppContracts
         /// <summary>
         /// Logical named pipe used to relay command-line arguments from subsequent instances.
         /// On Unix, <see cref="SingleInstanceManager.GetPlatformPipeName"/> remaps this to a
-        /// short rooted /tmp socket because AF_UNIX paths cannot exceed 104 bytes.
+        /// short socket path in the user's runtime folder (or a per-user name in /tmp),
+        /// because AF_UNIX paths cannot exceed 104 bytes.
         /// </summary>
         public const string PipeName = "XerahS-Pipe-1F42DA49-7B2A-4E6F-8A3C-D56F09E0C481";
     }

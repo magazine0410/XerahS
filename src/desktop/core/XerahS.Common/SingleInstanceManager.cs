@@ -51,6 +51,12 @@ namespace XerahS.Common
         private readonly int connectTimeout;
 
         /// <summary>
+        /// The socket that XerahS 0.31.x and earlier 0.32 builds listen on, which every user shared; null when it is
+        /// the same as <see cref="PipeName"/>.
+        /// </summary>
+        private readonly string? legacyPipeName;
+
+        /// <summary>
         /// Darwin <c>sockaddr_un.sun_path</c> is 104 bytes. Linux allows 108.
         /// Stay at the macOS limit so one pipe name works on both.
         /// </summary>
@@ -79,13 +85,21 @@ namespace XerahS.Common
         }
 
         internal SingleInstanceManager(string mutexName, string pipeName, bool isSingleInstance, string[] args, int connectTimeout)
+            : this(mutexName, GetPlatformPipeName(pipeName), GetLegacyPlatformPipeName(pipeName), isSingleInstance, args, connectTimeout)
+        {
+        }
+
+        internal SingleInstanceManager(string mutexName, string platformPipeName, string? legacyPlatformPipeName, bool isSingleInstance,
+            string[] args, int connectTimeout)
         {
             MutexName = mutexName;
-            PipeName = GetPlatformPipeName(pipeName);
+            PipeName = platformPipeName;
+            legacyPipeName = legacyPlatformPipeName == platformPipeName ? null : legacyPlatformPipeName;
             IsSingleInstance = isSingleInstance;
             this.connectTimeout = connectTimeout;
 
             IsFirstInstance = !IsSingleInstance || TryAcquirePrimaryLock();
+            bool argumentsPassed = false;
 
             if (IsSingleInstance && IsFirstInstance && IsUnixSocketPath(PipeName) && IsUnixSocketListening(PipeName))
             {
@@ -93,6 +107,15 @@ namespace XerahS.Common
                 // that kept its lock elsewhere. Creating a listener would unlink that instance's socket.
                 DebugHelper.WriteLine($"SingleInstanceManager: An instance is already listening on '{PipeName}'; passing the arguments to it.");
                 IsFirstInstance = false;
+            }
+            else if (IsSingleInstance && IsFirstInstance && legacyPipeName != null && IsUnixSocketListening(legacyPipeName) &&
+                TryPassArguments(legacyPipeName, args, connectTimeout))
+            {
+                // An older XerahS runs on the shared socket. The hand-off only reaches it when the listener belongs to
+                // this user (CurrentUserOnly), so another user's socket at that path cannot stop this instance.
+                DebugHelper.WriteLine($"SingleInstanceManager: Passed the arguments to an older instance listening on '{legacyPipeName}'.");
+                IsFirstInstance = false;
+                argumentsPassed = true;
             }
 
             if (IsSingleInstance)
@@ -106,7 +129,11 @@ namespace XerahS.Common
                 }
                 else
                 {
-                    RedirectArgumentsToFirstInstance(args);
+                    if (!argumentsPassed)
+                    {
+                        RedirectArgumentsToFirstInstance(args);
+                    }
+
                     ReleaseInstanceLocks();
                 }
             }
@@ -117,8 +144,12 @@ namespace XerahS.Common
         /// On Unix, <see cref="NamedPipeServerStream"/> stores the socket at
         /// <c>{TMPDIR}/CoreFxPipe_{pipeName}</c> unless <paramref name="logicalPipeName"/>
         /// is already rooted. macOS TMPDIR is already ~50 characters, so a GUID-sized
-        /// name overflows the 104-byte AF_UNIX limit. A short rooted path under /tmp
-        /// avoids that.
+        /// name overflows the 104-byte AF_UNIX limit, and a TMPDIR that differs between
+        /// processes would hide the running instance. The socket therefore goes in the
+        /// user's runtime folder (<c>XDG_RUNTIME_DIR</c>, which only the user can write to;
+        /// inside Flatpak, the app folder in it that all instances share). Without one it
+        /// goes in /tmp, under a name that includes the user name, so the users of one
+        /// machine do not share a socket.
         /// </summary>
         public static string GetPlatformPipeName(string logicalPipeName)
         {
@@ -134,17 +165,82 @@ namespace XerahS.Common
                 return logicalPipeName;
             }
 
-            string hash = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(logicalPipeName)))
-                .Substring(0, 8)
-                .ToLowerInvariant();
-            string path = Path.Combine("/tmp", $"xerahs-{hash}.sock");
+            string hash = HashPipeName(logicalPipeName);
+            string? runtimeDirectory = GetRuntimeDirectory();
+            if (runtimeDirectory != null)
+            {
+                string runtimePath = Path.Combine(runtimeDirectory, $"xerahs-{hash}.sock");
+                if (IsUnixDomainSocketPathLengthValid(runtimePath))
+                {
+                    return runtimePath;
+                }
+            }
+
+            string userHash = HashPipeName(logicalPipeName + "\0" + Environment.UserName);
+            string path = Path.Combine("/tmp", $"xerahs-{userHash}.sock");
 
             if (!IsUnixDomainSocketPathLengthValid(path))
             {
-                path = "/tmp/xs-" + hash + ".s";
+                path = "/tmp/xs-" + userHash + ".s";
             }
 
             return path;
+        }
+
+        /// <summary>
+        /// The socket path of XerahS 0.31.x and earlier 0.32 builds, which every user of the machine shared;
+        /// null on Windows and for rooted names, which are not remapped.
+        /// </summary>
+        internal static string? GetLegacyPlatformPipeName(string logicalPipeName)
+        {
+            if (OperatingSystem.IsWindows() || (Path.IsPathRooted(logicalPipeName) && IsUnixDomainSocketPathLengthValid(logicalPipeName)))
+            {
+                return null;
+            }
+
+            string hash = HashPipeName(logicalPipeName);
+            string path = Path.Combine("/tmp", $"xerahs-{hash}.sock");
+            return IsUnixDomainSocketPathLengthValid(path) ? path : "/tmp/xs-" + hash + ".s";
+        }
+
+        /// <summary>
+        /// The socket a second instance hands off to: the current one, or an older version's shared socket when only
+        /// that one exists.
+        /// </summary>
+        internal static string ResolveHandOffPath(string platformPipeName, string? legacyPlatformPipeName)
+        {
+            if (legacyPlatformPipeName == null || OperatingSystem.IsWindows() || File.Exists(platformPipeName) || !File.Exists(legacyPlatformPipeName))
+            {
+                return platformPipeName;
+            }
+
+            return legacyPlatformPipeName;
+        }
+
+        private static string HashPipeName(string value)
+        {
+            return Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(value)))
+                .Substring(0, 8)
+                .ToLowerInvariant();
+        }
+
+        private static string? GetRuntimeDirectory()
+        {
+            string? runtimeDirectory = Environment.GetEnvironmentVariable("XDG_RUNTIME_DIR");
+            if (string.IsNullOrEmpty(runtimeDirectory) || !Path.IsPathRooted(runtimeDirectory) || !Directory.Exists(runtimeDirectory))
+            {
+                return null;
+            }
+
+            // Flatpak gives each instance its own runtime folder; app/<id> in it is shared by all instances of the app.
+            string? flatpakId = Environment.GetEnvironmentVariable("FLATPAK_ID");
+            if (!string.IsNullOrEmpty(flatpakId))
+            {
+                string appDirectory = Path.Combine(runtimeDirectory, "app", flatpakId);
+                return Directory.Exists(appDirectory) ? appDirectory : null;
+            }
+
+            return runtimeDirectory;
         }
 
         internal static bool IsUnixDomainSocketPathLengthValid(string path)
@@ -159,8 +255,9 @@ namespace XerahS.Common
 
         /// <summary>
         /// True when something accepts connections on the Unix domain socket at <paramref name="path"/>.
-        /// A missing file or a refused connection means nothing is listening. Any other failure counts as
-        /// listening, so an uncertain socket is never deleted.
+        /// A missing file or a refused connection means nothing is listening. A socket this user may not connect
+        /// to belongs to another user and cannot be a hand-off target, so it does not count either. Any other
+        /// failure counts as listening, so an uncertain socket is never deleted.
         /// </summary>
         internal static bool IsUnixSocketListening(string path)
         {
@@ -178,6 +275,11 @@ namespace XerahS.Common
             }
             catch (SocketException e) when (e.SocketErrorCode is SocketError.ConnectionRefused or SocketError.AddressNotAvailable)
             {
+                return false;
+            }
+            catch (SocketException e) when (e.SocketErrorCode == SocketError.AccessDenied)
+            {
+                DebugHelper.WriteLine($"SingleInstanceManager: '{path}' does not accept this user's connections; it is not this user's instance.");
                 return false;
             }
             catch (Exception e)
@@ -431,8 +533,8 @@ namespace XerahS.Common
         }
 
         /// <summary>
-        /// On Unix the lock file sits next to the socket, both at fixed paths. The temporary folder follows
-        /// TMPDIR, so a lock there would be missed by a process started with another TMPDIR, which would then
+        /// On Unix the lock file sits next to the socket, both at paths that do not depend on TMPDIR. The temporary
+        /// folder follows TMPDIR, so a lock there would be missed by a process started with another TMPDIR, which would then
         /// take over the running instance's socket. The named mutex also follows TMPDIR, so the lock file is
         /// the lock that all processes of one identity share.
         /// </summary>
@@ -460,24 +562,20 @@ namespace XerahS.Common
         /// </summary>
         public static bool TrySendToRunningInstance(string logicalPipeName, string[] args, int timeoutMs = 1000)
         {
-            string pipeName = GetPlatformPipeName(logicalPipeName);
+            string pipeName = ResolveHandOffPath(GetPlatformPipeName(logicalPipeName), GetLegacyPlatformPipeName(logicalPipeName));
             if (!OperatingSystem.IsWindows() && Path.IsPathRooted(pipeName) && !File.Exists(pipeName))
             {
                 return false;
             }
 
+            return TryPassArguments(pipeName, args, timeoutMs);
+        }
+
+        private static bool TryPassArguments(string pipeName, string[] args, int timeoutMs)
+        {
             try
             {
-                using var namedPipeClient = new NamedPipeClientStream(".", pipeName, PipeDirection.Out, PipeOptions.CurrentUserOnly);
-                namedPipeClient.Connect(timeoutMs);
-
-                using var writer = new BinaryWriter(namedPipeClient, Encoding.UTF8);
-                writer.Write(args.Length);
-                foreach (string argument in args)
-                {
-                    writer.Write(argument);
-                }
-
+                PassArguments(pipeName, args, timeoutMs);
                 return true;
             }
             catch (Exception e) when (e is TimeoutException or IOException or UnauthorizedAccessException)
@@ -487,33 +585,34 @@ namespace XerahS.Common
             }
         }
 
+        /// <summary>
+        /// Writes the arguments to the instance listening on <paramref name="pipeName"/>. CurrentUserOnly makes the
+        /// connection fail unless that instance runs as this user.
+        /// </summary>
+        private static void PassArguments(string pipeName, string[] args, int timeoutMs)
+        {
+            using var namedPipeClient = new NamedPipeClientStream(".", pipeName, PipeDirection.Out, PipeOptions.CurrentUserOnly);
+            namedPipeClient.Connect(timeoutMs);
+
+            using var writer = new BinaryWriter(namedPipeClient, Encoding.UTF8);
+            writer.Write(args.Length);
+            foreach (string argument in args)
+            {
+                writer.Write(argument);
+            }
+        }
+
         private void RedirectArgumentsToFirstInstance(string[] args)
         {
+            string pipeName = ResolveHandOffPath(PipeName, legacyPipeName);
             try
             {
-                using (NamedPipeClientStream namedPipeClient = new NamedPipeClientStream(
-                    ".",
-                    PipeName,
-                    PipeDirection.Out,
-                    PipeOptions.CurrentUserOnly))
-                {
-                    namedPipeClient.Connect(connectTimeout);
-
-                    using (BinaryWriter writer = new BinaryWriter(namedPipeClient, Encoding.UTF8))
-                    {
-                        writer.Write(args.Length);
-
-                        foreach (string argument in args)
-                        {
-                            writer.Write(argument);
-                        }
-                    }
-                }
+                PassArguments(pipeName, args, connectTimeout);
             }
             catch (Exception e)
             {
                 RedirectError = e;
-                DebugHelper.WriteException(e, $"SingleInstanceManager: Could not pass the arguments to the running instance on '{PipeName}'");
+                DebugHelper.WriteException(e, $"SingleInstanceManager: Could not pass the arguments to the running instance on '{pipeName}'");
             }
         }
 

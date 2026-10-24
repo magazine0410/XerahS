@@ -140,6 +140,129 @@ public class SingleInstanceManagerTests
     }
 
     [Test]
+    public void GetPlatformPipeName_OnUnix_UsesTheUsersRuntimeFolder()
+    {
+        Assume.That(OperatingSystem.IsWindows(), Is.False, "Unix domain sockets only.");
+
+        string runtimeDirectory = Directory.CreateTempSubdirectory("xs-run-").FullName;
+        string pipeName;
+        string? legacyPipeName;
+        using (new EnvironmentScope(("XDG_RUNTIME_DIR", runtimeDirectory), ("FLATPAK_ID", null)))
+        {
+            pipeName = SingleInstanceManager.GetPlatformPipeName(AppContracts.SingleInstance.PipeName);
+            legacyPipeName = SingleInstanceManager.GetLegacyPlatformPipeName(AppContracts.SingleInstance.PipeName);
+        }
+        Directory.Delete(runtimeDirectory);
+
+        Assert.That(Path.GetDirectoryName(pipeName), Is.EqualTo(runtimeDirectory));
+        Assert.That(legacyPipeName, Does.StartWith("/tmp/"));
+        Assert.That(pipeName, Is.Not.EqualTo(legacyPipeName));
+    }
+
+    [Test]
+    public void GetPlatformPipeName_InFlatpak_UsesTheAppFolderThatInstancesShare()
+    {
+        Assume.That(OperatingSystem.IsWindows(), Is.False, "Unix domain sockets only.");
+
+        string runtimeDirectory = Directory.CreateTempSubdirectory("xs-run-").FullName;
+        string appDirectory = Directory.CreateDirectory(Path.Combine(runtimeDirectory, "app", "io.test.XerahS")).FullName;
+        try
+        {
+            using var scope = new EnvironmentScope(("XDG_RUNTIME_DIR", runtimeDirectory), ("FLATPAK_ID", "io.test.XerahS"));
+            Assert.That(Path.GetDirectoryName(SingleInstanceManager.GetPlatformPipeName(AppContracts.SingleInstance.PipeName)),
+                Is.EqualTo(appDirectory));
+        }
+        finally
+        {
+            Directory.Delete(runtimeDirectory, recursive: true);
+        }
+    }
+
+    [Test]
+    public void GetPlatformPipeName_WithoutARuntimeFolder_GivesEachUserTheirOwnSocketInTmp()
+    {
+        Assume.That(OperatingSystem.IsWindows(), Is.False, "Unix domain sockets only.");
+
+        using var scope = new EnvironmentScope(("XDG_RUNTIME_DIR", null), ("FLATPAK_ID", null));
+        string pipeName = SingleInstanceManager.GetPlatformPipeName(AppContracts.SingleInstance.PipeName);
+
+        Assert.That(pipeName, Does.StartWith("/tmp/"));
+        Assert.That(pipeName, Is.Not.EqualTo(SingleInstanceManager.GetLegacyPlatformPipeName(AppContracts.SingleInstance.PipeName)),
+            "The shared socket name of older versions let one user's socket stop another user's XerahS.");
+        Assert.That(pipeName.Length, Is.LessThanOrEqualTo(SingleInstanceManager.UnixDomainSocketPathMaxLength));
+    }
+
+    [Test]
+    public void IsUnixSocketListening_IsFalseForASocketThisUserMayNotConnectTo()
+    {
+        Assume.That(OperatingSystem.IsWindows(), Is.False, "Unix domain sockets only.");
+        Assume.That(Environment.UserName, Is.Not.EqualTo("root"), "root may connect to any socket.");
+
+        (_, string pipePath) = NewIdentity();
+        using Socket listener = CreateListeningSocket(pipePath);
+        if (!OperatingSystem.IsWindows()) File.SetUnixFileMode(pipePath, UnixFileMode.UserRead);
+
+        Assert.That(SingleInstanceManager.IsUnixSocketListening(pipePath), Is.False);
+    }
+
+    [Test]
+    public void FirstInstance_PassesTheArgumentsToAnOlderInstanceOnTheSharedSocket()
+    {
+        Assume.That(OperatingSystem.IsWindows(), Is.False, "Unix domain sockets only.");
+
+        (string olderMutexName, string legacyPath) = NewIdentity();
+        using SingleInstanceManager older = new SingleInstanceManager(olderMutexName, legacyPath, ["-silent"]);
+        Task<string[]> received = ReceiveNextArguments(older);
+        WaitForSocket(legacyPath);
+
+        (string mutexName, string pipePath) = NewIdentity();
+        using SingleInstanceManager launched = new SingleInstanceManager(mutexName, pipePath, legacyPath, true, ["/tmp/picture.png"], 5000);
+
+        Assert.That(launched.IsFirstInstance, Is.False);
+        Assert.That(launched.RedirectError, Is.Null);
+        Assert.That(received.Wait(DeliveryTimeout), Is.True, "The older instance did not receive the arguments.");
+        Assert.That(received.Result, Is.EqualTo(new[] { "/tmp/picture.png" }));
+        Assert.That(File.Exists(pipePath), Is.False, "No listener may be created when an older instance took the arguments.");
+    }
+
+    [Test]
+    public void FirstInstance_IgnoresASharedSocketItCannotHandOffTo()
+    {
+        Assume.That(OperatingSystem.IsWindows(), Is.False, "Unix domain sockets only.");
+        Assume.That(Environment.UserName, Is.Not.EqualTo("root"), "root may connect to any socket.");
+
+        // A socket this user may not connect to stands for another user's socket at the shared path.
+        (_, string legacyPath) = NewIdentity();
+        using Socket otherUsersListener = CreateListeningSocket(legacyPath);
+        if (!OperatingSystem.IsWindows()) File.SetUnixFileMode(legacyPath, UnixFileMode.UserRead);
+
+        (string mutexName, string pipePath) = NewIdentity();
+        using SingleInstanceManager first = new SingleInstanceManager(mutexName, pipePath, legacyPath, true, ["-silent"], 5000);
+        Task<string[]> received = ReceiveNextArguments(first);
+
+        Assert.That(first.IsFirstInstance, Is.True);
+        WaitForSocket(pipePath);
+        Assert.That(SingleInstanceManager.TrySendToRunningInstance(pipePath, ["/tmp/picture.png"], timeoutMs: 5000), Is.True);
+        Assert.That(received.Wait(DeliveryTimeout), Is.True);
+    }
+
+    [Test]
+    public void ResolveHandOffPath_UsesTheSharedSocketOnlyWhenTheCurrentOneIsMissing()
+    {
+        Assume.That(OperatingSystem.IsWindows(), Is.False, "Unix domain sockets only.");
+
+        (_, string pipePath) = NewIdentity();
+        (_, string legacyPath) = NewIdentity();
+
+        Assert.That(SingleInstanceManager.ResolveHandOffPath(pipePath, legacyPath), Is.EqualTo(pipePath));
+        Assert.That(SingleInstanceManager.ResolveHandOffPath(pipePath, null), Is.EqualTo(pipePath));
+        File.WriteAllText(legacyPath, string.Empty);
+        Assert.That(SingleInstanceManager.ResolveHandOffPath(pipePath, legacyPath), Is.EqualTo(legacyPath));
+        File.WriteAllText(pipePath, string.Empty);
+        Assert.That(SingleInstanceManager.ResolveHandOffPath(pipePath, legacyPath), Is.EqualTo(pipePath));
+    }
+
+    [Test]
     public void GetLockFilePath_OnUnix_SitsNextToTheSocketWhateverTmpDir()
     {
         Assume.That(OperatingSystem.IsWindows(), Is.False, "Unix domain sockets only.");
@@ -244,6 +367,7 @@ public class SingleInstanceManagerTests
         Task<string[]> received = ReceiveNextArguments(first);
 
         Assert.That(first.IsFirstInstance, Is.True);
+        WaitForSocket(pipePath);
         Assert.That(
             SingleInstanceManager.TrySendToRunningInstance(pipePath, ["/tmp/picture.png"], timeoutMs: 5000),
             Is.True,
@@ -313,6 +437,31 @@ public class SingleInstanceManagerTests
         {
             Assert.That(DateTime.UtcNow, Is.LessThan(deadline), $"No listener appeared on '{path}'.");
             Thread.Sleep(20);
+        }
+    }
+
+    private static Socket CreateListeningSocket(string path)
+    {
+        Socket socket = new Socket(AddressFamily.Unix, SocketType.Stream, ProtocolType.Unspecified);
+        socket.Bind(new UnixDomainSocketEndPoint(path));
+        socket.Listen();
+        return socket;
+    }
+
+    /// <summary>Sets environment variables for one test and restores them afterwards.</summary>
+    private sealed class EnvironmentScope : IDisposable
+    {
+        private readonly (string Name, string? Value)[] _previous;
+
+        public EnvironmentScope(params (string Name, string? Value)[] variables)
+        {
+            _previous = variables.Select(variable => (variable.Name, Environment.GetEnvironmentVariable(variable.Name))).ToArray();
+            foreach ((string name, string? value) in variables) Environment.SetEnvironmentVariable(name, value);
+        }
+
+        public void Dispose()
+        {
+            foreach ((string name, string? value) in _previous) Environment.SetEnvironmentVariable(name, value);
         }
     }
 
