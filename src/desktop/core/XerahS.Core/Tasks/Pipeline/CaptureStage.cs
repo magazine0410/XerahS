@@ -553,20 +553,37 @@ namespace XerahS.Core.Tasks.Pipeline
         /// </summary>
         private async Task<(bool Loaded, string[]? Files)?> LoadClipboardContentAsync(TaskSettings taskSettings, TaskMetadata metadata, CancellationToken token)
         {
-            var load = Task.Run(() =>
+            // Only the read runs in the background. A read that is given up on cannot change the task when it
+            // finishes later, and an image it returns then is freed.
+            Task<ClipboardContent?> read = Task.Run(WorkerTask.ReadClipboardContent);
+            Task finished;
+            try
             {
-                bool loaded = _workerTask.TryLoadClipboardContent(taskSettings, metadata, out var files);
-                return (loaded, files);
-            });
-            if (await Task.WhenAny(load, Task.Delay(ClipboardReadTimeout, token)) != load)
+                finished = await Task.WhenAny(read, Task.Delay(ClipboardReadTimeout, token));
+            }
+            catch (OperationCanceledException)
             {
+                DisposeWhenRead(read);
+                throw;
+            }
+
+            if (finished != read)
+            {
+                DisposeWhenRead(read);
                 token.ThrowIfCancellationRequested();
                 DebugHelper.WriteLine($"Upload from clipboard: the clipboard did not answer within {ClipboardReadTimeout.TotalSeconds:0} seconds.");
                 return null;
             }
 
-            return await load;
+            bool loaded = _workerTask.ApplyClipboardContent(await read, taskSettings, metadata, out string[]? files);
+            return (loaded, files);
         }
+
+        internal static void DisposeWhenRead(Task<ClipboardContent?> read) =>
+            read.ContinueWith(static completed =>
+            {
+                if (completed.IsCompletedSuccessfully) completed.Result?.Image?.Dispose();
+            }, TaskScheduler.Default);
 
         private static PipelineStageResult FinishCapture(PipelineContext context, SKBitmap? image, Stopwatch captureStopwatch)
         {

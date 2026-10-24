@@ -35,16 +35,17 @@ namespace XerahS.Core.Tasks
     /// </summary>
     public partial class WorkerTask
     {
-        internal bool TryLoadClipboardContent(TaskSettings taskSettings, TaskMetadata metadata, out string[]? clipboardFiles)
+        internal bool TryLoadClipboardContent(TaskSettings taskSettings, TaskMetadata metadata, out string[]? clipboardFiles) =>
+            ApplyClipboardContent(ReadClipboardContent(), taskSettings, metadata, out clipboardFiles);
+
+        /// <summary>Reads the clipboard without changing the task; this is the part that can take long.</summary>
+        internal static ClipboardContent? ReadClipboardContent() =>
+            PlatformServices.Clipboard is { } clipboard ? ClipboardContentHelper.ParseClipboard(clipboard) : null;
+
+        /// <summary>Makes the task upload what was read from the clipboard.</summary>
+        internal bool ApplyClipboardContent(ClipboardContent? content, TaskSettings taskSettings, TaskMetadata metadata, out string[]? clipboardFiles)
         {
             clipboardFiles = null;
-            var clipboard = PlatformServices.Clipboard;
-            if (clipboard == null)
-            {
-                return false;
-            }
-
-            var content = ClipboardContentHelper.ParseClipboard(clipboard);
             if (content == null)
             {
                 return false;

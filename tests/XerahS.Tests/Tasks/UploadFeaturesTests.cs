@@ -649,6 +649,38 @@ public class UploadFeaturesTests
         }
     }
 
+    [Test]
+    public async Task UploadFromClipboard_AReadThatAnswersAfterTheTimeout_DoesNotChangeTheTask_AndItsImageIsFreed()
+    {
+        var clipboard = new StalledClipboard { LateImage = new SKBitmap(8, 8) };
+        InitializePlatform(clipboard);
+        var previousTimeout = XerahS.Core.Tasks.Pipeline.CaptureStage.ClipboardReadTimeout;
+        XerahS.Core.Tasks.Pipeline.CaptureStage.ClipboardReadTimeout = TimeSpan.FromMilliseconds(200);
+        try
+        {
+            var settings = Settings(null);
+            settings.Job = WorkflowType.ClipboardUpload;
+            var task = await RunAsync(settings, () => TaskManager.Instance.StartTask(settings));
+            Assert.That(task.Status, Is.EqualTo(TaskStatus.Failed));
+
+            clipboard.Release.Set();
+            var waited = System.Diagnostics.Stopwatch.StartNew();
+            while (clipboard.LateImage.Handle != IntPtr.Zero && waited.Elapsed < TimeSpan.FromSeconds(5)) await Task.Delay(20);
+
+            Assert.Multiple(() =>
+            {
+                Assert.That(clipboard.LateImage.Handle, Is.EqualTo(IntPtr.Zero), "the late image is freed");
+                Assert.That(task.Info.DataType, Is.Not.EqualTo(EDataType.Image));
+                Assert.That(task.Info.Metadata?.Image, Is.Null);
+            });
+        }
+        finally
+        {
+            XerahS.Core.Tasks.Pipeline.CaptureStage.ClipboardReadTimeout = previousTimeout;
+            clipboard.Release.Set();
+        }
+    }
+
     /// <summary>The "Upload file" workflow runs the capture stage, which needs the platform services.</summary>
     private static void InitializePlatform(IClipboardService? clipboard = null)
     {
@@ -873,17 +905,18 @@ public class UploadFeaturesTests
         }
     }
 
-    /// <summary>A clipboard whose first read does not return until the test releases it.</summary>
+    /// <summary>A clipboard whose first read does not return until the test releases it, then holds <see cref="LateImage"/>.</summary>
     private sealed class StalledClipboard : IClipboardService
     {
         public ManualResetEventSlim Release { get; } = new();
+        public SKBitmap? LateImage { get; init; }
         public void Clear() { }
         public bool ContainsText() => false;
-        public bool ContainsImage() { Release.Wait(TimeSpan.FromSeconds(10)); return false; }
+        public bool ContainsImage() { Release.Wait(TimeSpan.FromSeconds(10)); return LateImage != null; }
         public bool ContainsFileDropList() => false;
         public string? GetText() => null;
         public void SetText(string text) { }
-        public SKBitmap? GetImage() => null;
+        public SKBitmap? GetImage() => LateImage;
         public void SetImage(SKBitmap image) { }
         public string[]? GetFileDropList() => null;
         public void SetFileDropList(string[] files) { }
