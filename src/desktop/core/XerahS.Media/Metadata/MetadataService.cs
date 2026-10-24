@@ -26,6 +26,7 @@
 using System.Buffers.Binary;
 using System.Runtime.InteropServices;
 using Microsoft.Win32.SafeHandles;
+using XerahS.Common;
 
 namespace XerahS.Media.Metadata;
 
@@ -91,7 +92,8 @@ public static class MetadataService
             // Some video formats strip in place. Work on a copy so a failure or cancellation
             // cannot leave the user's file partially modified.
             await using (FileStream input = new(fullPath, FileMode.Open, FileAccess.Read, FileShare.Read))
-            await using (FileStream output = new(temporaryPath, FileMode.CreateNew, FileAccess.Write, FileShare.None))
+            // Only the user can read the copy; its mode is set to the original's when it replaces the original.
+            await using (FileStream output = FileHelpers.CreatePrivateFile(temporaryPath))
                 await input.CopyToAsync(output, cancellationToken);
 
             await Task.Run(() => MetadataStripper.Strip(temporaryPath, cancellationToken), cancellationToken);

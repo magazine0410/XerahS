@@ -256,10 +256,15 @@ public sealed class LinuxPrintService : IPrintService
         }
     }
 
-    private static string WriteTemporaryPdf(byte[] pdf)
+    // The temporary folder is shared with other users, so only the user can read the printed image.
+    internal static string WriteTemporaryPdf(byte[] pdf)
     {
         string path = Path.Combine(Path.GetTempPath(), $"xerahs-print-{Guid.NewGuid():N}.pdf");
-        File.WriteAllBytes(path, pdf);
+        using (FileStream stream = FileHelpers.CreatePrivateFile(path))
+        {
+            stream.Write(pdf);
+        }
+
         return path;
     }
 

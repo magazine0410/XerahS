@@ -567,6 +567,25 @@ public static class FileHelpers
         return CultureInfo.CurrentCulture.Calendar.GetWeekOfYear(dateTime, CalendarWeekRule.FirstDay, DayOfWeek.Monday);
     }
 
+    /// <summary>
+    /// Creates a new file that only the current user can read or write (mode 0600 outside Windows), for temporary
+    /// copies of the user's files. Fails if the path already exists.
+    /// </summary>
+    public static FileStream CreatePrivateFile(string filePath, FileAccess access = FileAccess.Write, int bufferSize = 4096,
+        FileOptions options = FileOptions.None)
+    {
+        var fileOptions = new FileStreamOptions
+        {
+            Mode = FileMode.CreateNew,
+            Access = access,
+            Share = FileShare.None,
+            BufferSize = bufferSize,
+            Options = options
+        };
+        if (!OperatingSystem.IsWindows()) fileOptions.UnixCreateMode = UnixFileMode.UserRead | UnixFileMode.UserWrite;
+        return new FileStream(filePath, fileOptions);
+    }
+
     public static bool IsFileLocked(string filePath)
     {
         if (string.IsNullOrEmpty(filePath) || !File.Exists(filePath))

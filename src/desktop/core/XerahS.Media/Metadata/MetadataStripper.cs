@@ -25,6 +25,7 @@
 
 using System.Buffers.Binary;
 using System.Text;
+using XerahS.Common;
 
 namespace XerahS.Media.Metadata;
 
@@ -549,7 +550,7 @@ internal static class MetadataStripper
         {
             bool changed;
             using (FileStream input = new(filePath, FileMode.Open, FileAccess.Read, FileShare.Read))
-            using (FileStream output = new(temporaryPath, FileMode.CreateNew, FileAccess.Write, FileShare.None, 64 * 1024, FileOptions.WriteThrough))
+            using (FileStream output = FileHelpers.CreatePrivateFile(temporaryPath, FileAccess.Write, 64 * 1024, FileOptions.WriteThrough))
             {
                 changed = rewrite(input, output, cancellationToken);
                 output.Flush(true);

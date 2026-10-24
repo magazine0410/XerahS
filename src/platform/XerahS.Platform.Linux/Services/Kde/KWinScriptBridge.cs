@@ -97,11 +97,21 @@ internal sealed class KWinScriptBridge
     }
 
     [System.Runtime.Versioning.SupportedOSPlatform("linux")]
-    private static string CreateScriptDirectory()
+    private static string CreateScriptDirectory() => CreateScriptDirectory(Environment.GetEnvironmentVariable("XDG_RUNTIME_DIR"));
+
+    /// <summary>
+    /// The folder KWin loads the scripts from. Without a runtime folder it gets a new random name in the shared
+    /// temporary folder: another user could create a predictable name there first and replace the scripts.
+    /// </summary>
+    [System.Runtime.Versioning.SupportedOSPlatform("linux")]
+    internal static string CreateScriptDirectory(string? runtimeDirectory)
     {
-        string? runtimeDirectory = Environment.GetEnvironmentVariable("XDG_RUNTIME_DIR");
-        string root = string.IsNullOrEmpty(runtimeDirectory) || !Directory.Exists(runtimeDirectory) ? Path.GetTempPath() : runtimeDirectory;
-        string directory = Path.Combine(root, $"xerahs-kwin-{Environment.ProcessId}");
+        if (string.IsNullOrEmpty(runtimeDirectory) || !Directory.Exists(runtimeDirectory))
+        {
+            return Directory.CreateTempSubdirectory("xerahs-kwin-").FullName;
+        }
+
+        string directory = Path.Combine(runtimeDirectory, $"xerahs-kwin-{Environment.ProcessId}");
         Directory.CreateDirectory(directory, UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.UserExecute);
         return directory;
     }
