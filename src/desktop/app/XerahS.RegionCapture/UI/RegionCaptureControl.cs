@@ -144,6 +144,11 @@ public sealed class RegionCaptureControl : UserControl
 
     internal bool IsPointerOnMonitor => _pointerOnMonitor;
 
+    // None while the drawn crosshair is the cursor (hovering, drawing a new region).
+    private StandardCursorType _pointerCursorType = StandardCursorType.None;
+
+    internal StandardCursorType PointerCursorTypeForTests => _pointerCursorType;
+
     /// <summary>Raised with the physical pointer position after every pointer update on this overlay.</summary>
     internal event Action<PixelPoint>? PointerLocationChanged;
 
@@ -191,6 +196,7 @@ public sealed class RegionCaptureControl : UserControl
         _stateMachine.StateChanged += state =>
         {
             HasPendingSelection = state == CaptureState.Selected;
+            UpdatePointerCursor();
             InvalidateVisual();
         };
         _stateMachine.SelectionChanged += OnSelectionChanged;
@@ -369,7 +375,12 @@ public sealed class RegionCaptureControl : UserControl
         }
         RegionSelected?.Invoke(result);
     }
-    private void OnSelectionChanged(PixelRect rect) => SelectionChanged?.Invoke(rect);
+    private void OnSelectionChanged(PixelRect rect)
+    {
+        // Keyboard nudging can move a handle under a pointer that has not moved.
+        UpdatePointerCursor();
+        SelectionChanged?.Invoke(rect);
+    }
     private void OnSelectionCancelled() => Cancelled?.Invoke();
 
     protected override void OnPointerPressed(PointerPressedEventArgs e)
@@ -469,6 +480,8 @@ public sealed class RegionCaptureControl : UserControl
             _stateMachine.UpdateHoveredWindow(window);
         }
 
+        UpdatePointerCursor();
+
         // While a drag holds the pointer capture, moves arrive here even when the pointer is over
         // another monitor, so presence follows the position rather than the event.
         SetPointerOnMonitor(_physicalViewportBounds.Contains(physicalPoint));
@@ -525,6 +538,52 @@ public sealed class RegionCaptureControl : UserControl
             _lastCrosshairInvalidateTicks = now;
             InvalidateVisual();
         }
+    }
+
+    /// <summary>
+    /// Once a region is selected, shows the system cursor instead of the drawn crosshair: a resize
+    /// cursor over a resize handle, a move cursor inside the selection and the arrow outside it.
+    /// </summary>
+    private void UpdatePointerCursor()
+    {
+        // Inactive monitors keep the arrow set by the overlay window.
+        if (_isInactiveMonitor)
+            return;
+
+        var type = GetPointerCursorType();
+        if (type == _pointerCursorType)
+            return;
+
+        _pointerCursorType = type;
+        Cursor = new Cursor(type);
+        InvalidateVisual();
+    }
+
+    private StandardCursorType GetPointerCursorType()
+    {
+        // The ruler keeps the crosshair for measuring; the color picker never has a selection.
+        if (_mode is RegionCaptureMode.Ruler or RegionCaptureMode.ScreenColorPicker)
+            return StandardCursorType.None;
+
+        SelectionHandle handle;
+        if (_state == CaptureState.Selected && !_selectionRect.IsEmpty)
+            handle = SelectionSnapHelper.HitTest(_selectionRect, _currentPoint, GetPhysicalHandleSize());
+        else if (_stateMachine.ActiveHandle != SelectionHandle.None)
+            handle = _stateMachine.ActiveHandle;
+        else
+            return StandardCursorType.None;
+
+        return handle switch
+        {
+            SelectionHandle.TopLeft => StandardCursorType.TopLeftCorner,
+            SelectionHandle.TopRight => StandardCursorType.TopRightCorner,
+            SelectionHandle.BottomLeft => StandardCursorType.BottomLeftCorner,
+            SelectionHandle.BottomRight => StandardCursorType.BottomRightCorner,
+            SelectionHandle.Top or SelectionHandle.Bottom => StandardCursorType.SizeNorthSouth,
+            SelectionHandle.Left or SelectionHandle.Right => StandardCursorType.SizeWestEast,
+            SelectionHandle.Body => StandardCursorType.SizeAll,
+            _ => StandardCursorType.Arrow
+        };
     }
 
     protected override void OnPointerReleased(PointerReleasedEventArgs e)
@@ -945,6 +1004,10 @@ public sealed class RegionCaptureControl : UserControl
 
     private void DrawCrosshair(DrawingContext context, Rect bounds)
     {
+        // The system cursor replaces the crosshair once a region is selected.
+        if (_pointerCursorType != StandardCursorType.None)
+            return;
+
         var cursorLocal = PhysicalToLocal(_currentPoint);
 
         // Only draw if cursor is within bounds and on this monitor

@@ -508,6 +508,56 @@ public class RegionCaptureBehaviorTests
         finally { window.Close(); }
     }
 
+    [AvaloniaTest]
+    public void SelectedRegion_ShowsSystemCursorAndResizeCursorsOverHandles()
+    {
+        var (window, _) = Open(new RegionCaptureOptions { QuickCrop = false });
+        try
+        {
+            var control = window.FindControl<Panel>("RootPanel")!.Children.OfType<RegionCaptureControl>().Single();
+            window.MouseMove(Inside);
+            Assert.That(control.PointerCursorTypeForTests, Is.EqualTo(StandardCursorType.None));
+
+            // Start (100,200) to End (300,360): the pointer ends on the bottom-right handle.
+            Drag(window, Start, End);
+            Assert.That(control.PointerCursorTypeForTests, Is.EqualTo(StandardCursorType.BottomRightCorner));
+            window.MouseMove(new Point(200, 200));
+            Assert.That(control.PointerCursorTypeForTests, Is.EqualTo(StandardCursorType.SizeNorthSouth));
+            window.MouseMove(Inside);
+            Assert.That(control.PointerCursorTypeForTests, Is.EqualTo(StandardCursorType.SizeAll));
+            window.MouseMove(new Point(50, 450));
+            Assert.That(control.PointerCursorTypeForTests, Is.EqualTo(StandardCursorType.Arrow));
+
+            // Resizing keeps the handle's cursor until the button is released.
+            window.MouseMove(new Point(300, 280));
+            window.MouseDown(new Point(300, 280), MouseButton.Left);
+            window.MouseMove(new Point(340, 300), RawInputModifiers.LeftMouseButton);
+            Assert.That(control.PointerCursorTypeForTests, Is.EqualTo(StandardCursorType.SizeWestEast));
+            window.MouseUp(new Point(340, 300), MouseButton.Left);
+
+            // Drawing a new region outside the selection brings the crosshair back.
+            window.MouseDown(new Point(20, 20), MouseButton.Left);
+            window.MouseMove(new Point(60, 60), RawInputModifiers.LeftMouseButton);
+            Assert.That(control.PointerCursorTypeForTests, Is.EqualTo(StandardCursorType.None));
+            window.MouseUp(new Point(60, 60), MouseButton.Left);
+        }
+        finally { window.Close(); }
+    }
+
+    [AvaloniaTest]
+    public void RulerSelection_KeepsCrosshair()
+    {
+        var (window, _) = Open(new RegionCaptureOptions { QuickCrop = false, Mode = RegionCaptureMode.Ruler });
+        try
+        {
+            var control = window.FindControl<Panel>("RootPanel")!.Children.OfType<RegionCaptureControl>().Single();
+            Drag(window, Start, End);
+            window.MouseMove(Inside);
+            Assert.That(control.PointerCursorTypeForTests, Is.EqualTo(StandardCursorType.None));
+        }
+        finally { window.Close(); }
+    }
+
     [Test]
     public void ToolSwap_SynchronizesRegionModeAndRestoresAnnotationToolAcrossMonitors()
     {

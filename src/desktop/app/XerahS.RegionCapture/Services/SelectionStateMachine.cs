@@ -313,6 +313,14 @@ public sealed class SelectionStateMachine
     public bool IsCreatingSelection =>
         _currentState == CaptureState.Dragging && _interaction == InteractionKind.Creating;
 
+    /// <summary>
+    /// The handle being dragged while an existing selection is moved (Body) or resized; None otherwise.
+    /// </summary>
+    public SelectionHandle ActiveHandle =>
+        _currentState == CaptureState.Dragging && _interaction is InteractionKind.Moving or InteractionKind.Resizing
+            ? _resizeHandle
+            : SelectionHandle.None;
+
     public bool TryClearSelection(PixelPoint point)
     {
         if (!IsCreatingSelection && !_selectionRect.Contains(point))
