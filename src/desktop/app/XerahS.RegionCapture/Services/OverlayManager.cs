@@ -123,6 +123,15 @@ public sealed class OverlayManager : IDisposable
                 _overlays.Add(overlay);
             }
 
+            // KWin stacks notification popups above keep-above windows, but below a fullscreen window that is
+            // active or whose output does not hold the active window, so on KDE the overlays go fullscreen.
+            // Set before Show: Avalonia's X11 window then only writes its initial state instead of activating it.
+            if (MonitorEnumerationService.IsX11OnKWin())
+            {
+                foreach (var overlay in _overlays)
+                    overlay.WindowState = WindowState.FullScreen;
+            }
+
             _disconnectPointerPresence = ConnectPointerPresence(_overlays.ToList());
 
             if (options.ActiveMonitorMode)

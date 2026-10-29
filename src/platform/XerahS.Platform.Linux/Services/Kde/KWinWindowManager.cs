@@ -49,7 +49,8 @@ internal sealed record KWinWindow(
     bool FullScreen = false,
     bool Hidden = false,
     double Opacity = 1,
-    uint X11WindowId = 0);
+    uint X11WindowId = 0,
+    bool Deleted = false);
 
 /// <summary>The window stack (bottom to top), the active window, and the pointer position.</summary>
 internal sealed record KWinSnapshot(IReadOnlyList<KWinWindow> Windows, string? ActiveWindowId, Point CursorPosition);
@@ -297,7 +298,8 @@ internal sealed class KWinWindowManager
                 GetBool(element, "fullScreen"),
                 GetBool(element, "hidden"),
                 element.TryGetProperty("opacity", out JsonElement opacity) && opacity.TryGetDouble(out double opacityValue) ? Math.Clamp(opacityValue, 0, 1) : 1,
-                element.TryGetProperty("windowId", out JsonElement windowId) && windowId.TryGetUInt32(out uint x11WindowId) ? x11WindowId : 0));
+                element.TryGetProperty("windowId", out JsonElement windowId) && windowId.TryGetUInt32(out uint x11WindowId) ? x11WindowId : 0,
+                GetBool(element, "deleted")));
         }
 
         return new KWinSnapshot(windows, GetString(root, "active"), cursor);

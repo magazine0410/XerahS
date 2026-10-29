@@ -120,6 +120,12 @@ namespace XerahS.Platform.Abstractions
         WindowInfo[] GetAllWindows();
 
         /// <summary>
+        /// The windows region capture snaps to, topmost first. The same as <see cref="GetAllWindows"/>, except where
+        /// that list leaves out windows worth selecting (notification popups on KDE Plasma Wayland).
+        /// </summary>
+        WindowInfo[] GetRegionCaptureWindows() => GetAllWindows();
+
+        /// <summary>
         /// Gets the process ID of the window
         /// </summary>
         uint GetWindowProcessId(IntPtr handle);

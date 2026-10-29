@@ -128,6 +128,37 @@ public class KWinWindowManagerTests
     }
 
     [Test]
+    public void SelectRegionCaptureWindows_AddsShownNotificationsToTheListedWindows()
+    {
+        WindowInfo[] windows = LinuxWindowService.SelectRegionCaptureWindows(Parse(), 1);
+
+        // Topmost first, as the X11 enumeration; the notification popup is above the other windows.
+        Assert.That(windows.Select(w => w.Title), Is.EqualTo(new[] { "plasmashell", "Minimized", "Brave", "Sheets — Dolphin" }));
+        Assert.That(windows[0].Bounds, Is.EqualTo(new Rectangle(1552, 885, 330, 110)));
+    }
+
+    [Test]
+    public void SelectRegionCaptureWindows_TitlesAnUntitledNotificationAndSkipsClosedOrHiddenOnes()
+    {
+        static WindowInfo[] Select(string json)
+        {
+            using var document = JsonDocument.Parse(json);
+            return LinuxWindowService.SelectRegionCaptureWindows(KWinWindowManager.ParseSnapshot(document.RootElement)!, 1);
+        }
+
+        string untitled = SnapshotJson.Replace("\"caption\": \"plasmashell\"", "\"caption\": \"\"");
+        string closing = SnapshotJson.Replace("\"notification\": true,", "\"notification\": true, \"deleted\": true,");
+        string hidden = SnapshotJson.Replace("\"notification\": true,", "\"notification\": true, \"hidden\": true,");
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(Select(untitled)[0].Title, Is.EqualTo("Notification"));
+            Assert.That(Select(closing).Select(w => w.Title), Does.Not.Contain("plasmashell"), "A notification fading out after closing.");
+            Assert.That(Select(hidden).Select(w => w.Title), Does.Not.Contain("plasmashell"));
+        });
+    }
+
+    [Test]
     public void ParseSnapshot_RejectsAnUnexpectedReport()
     {
         using var error = JsonDocument.Parse("""{ "error": "ReferenceError" }""");

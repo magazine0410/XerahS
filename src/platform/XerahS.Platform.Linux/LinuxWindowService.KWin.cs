@@ -79,6 +79,32 @@ public partial class LinuxWindowService
         return true;
     }
 
+    /// <summary>
+    /// Region capture also snaps to notification popups and on-screen displays, which the window tools do not list.
+    /// </summary>
+    public WindowInfo[] GetRegionCaptureWindows() =>
+        KWin?.GetSnapshot() is { } snapshot
+            ? SelectRegionCaptureWindows(snapshot, KWinWindowManager.X11Scale)
+            : GetAllWindows();
+
+    internal static WindowInfo[] SelectRegionCaptureWindows(KWinSnapshot snapshot, double scale) =>
+        snapshot.Windows
+            .Where(window => window.Listed || IsShownNotification(window))
+            .Reverse()
+            .Select(window =>
+            {
+                WindowInfo info = ToWindowInfo(window, scale);
+                // Region capture skips untitled windows; a notification popup may have no caption.
+                if (string.IsNullOrWhiteSpace(info.Title))
+                    info.Title = "Notification";
+                return info;
+            })
+            .ToArray();
+
+    private static bool IsShownNotification(KWinWindow window) =>
+        window.IsNotification && !window.Minimized && !window.Hidden && !window.Deleted &&
+        window.FrameGeometry.Width > 1 && window.FrameGeometry.Height > 1;
+
     private static bool TryGetKWinForegroundWindow(out IntPtr handle)
     {
         handle = IntPtr.Zero;

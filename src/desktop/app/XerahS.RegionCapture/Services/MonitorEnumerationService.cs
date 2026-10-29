@@ -225,6 +225,27 @@ public static class MonitorEnumerationService
         !string.IsNullOrWhiteSpace(Environment.GetEnvironmentVariable("SWAYSOCK")) &&
         !IsAvaloniaWaylandBackend();
 
+    /// <summary>
+    /// True when the overlays are X11 windows managed by KWin (KDE Plasma on X11 or XWayland).
+    /// </summary>
+    internal static bool IsX11OnKWin() =>
+        OperatingSystem.IsLinux() &&
+        !IsAvaloniaWaylandBackend() &&
+        IsKdeDesktop(Environment.GetEnvironmentVariable);
+
+    /// <summary>Whether the desktop named by XDG_CURRENT_DESKTOP (or the session variables after it) is KDE Plasma.</summary>
+    internal static bool IsKdeDesktop(Func<string, string?> getEnvironmentVariable)
+    {
+        string? desktop = new[] { "XDG_CURRENT_DESKTOP", "XDG_SESSION_DESKTOP", "DESKTOP_SESSION" }
+            .Select(getEnvironmentVariable)
+            .FirstOrDefault(value => !string.IsNullOrWhiteSpace(value));
+
+        return desktop != null && desktop
+            .Split(':', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .Any(token => token.Contains("KDE", StringComparison.OrdinalIgnoreCase) ||
+                token.Contains("PLASMA", StringComparison.OrdinalIgnoreCase));
+    }
+
 #if WINDOWS
     private static IReadOnlyList<MonitorInfo> GetWindowsMonitors()
     {

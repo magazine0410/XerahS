@@ -68,6 +68,7 @@ public sealed class WindowDetectionService
     private static readonly TimeSpan DirectQueryRefreshInterval = TimeSpan.FromMilliseconds(75);
     private readonly Func<IReadOnlyList<WindowInfo>> _enumerateVisibleWindows;
     private readonly Func<PixelPoint, WindowPointQueryResult> _tryGetWindowAtPointDirect;
+    private readonly bool _keepFirstWindowList;
 
     /// <summary>
     /// Gets the list of visible windows, refreshing if stale.
@@ -79,17 +80,26 @@ public sealed class WindowDetectionService
     private WindowInfo? _lastDirectQueryWindow;
     private PixelPoint _lastDirectQueryPoint;
 
-    public WindowDetectionService(bool detectControls = true)
-        : this(() => EnumerateVisibleWindows(detectControls), TryGetDirectWindowAtPoint)
+    /// <param name="detectControls">Also list child controls where the platform can (Windows).</param>
+    /// <param name="keepFirstWindowList">
+    /// For an overlay that shows a screenshot: keep the windows listed when it opens, as ShareX does, so snapping
+    /// matches the screenshot after a window (such as a notification popup) closes on the real screen.
+    /// </param>
+    public WindowDetectionService(bool detectControls = true, bool keepFirstWindowList = false)
+        : this(() => EnumerateVisibleWindows(detectControls), TryGetDirectWindowAtPoint, keepFirstWindowList)
     {
+        if (keepFirstWindowList)
+            RefreshWindowsAsync();
     }
 
     internal WindowDetectionService(
         Func<IReadOnlyList<WindowInfo>> enumerateVisibleWindows,
-        Func<PixelPoint, WindowPointQueryResult>? tryGetWindowAtPointDirect = null)
+        Func<PixelPoint, WindowPointQueryResult>? tryGetWindowAtPointDirect = null,
+        bool keepFirstWindowList = false)
     {
         _enumerateVisibleWindows = enumerateVisibleWindows ?? throw new ArgumentNullException(nameof(enumerateVisibleWindows));
         _tryGetWindowAtPointDirect = tryGetWindowAtPointDirect ?? (_ => default);
+        _keepFirstWindowList = keepFirstWindowList;
     }
 
     /// <summary>
@@ -127,6 +137,9 @@ public sealed class WindowDetectionService
     {
         get
         {
+            if (_keepFirstWindowList && _lastRefresh != DateTime.MinValue)
+                return _windows;
+
             var timeSinceLastRefresh = DateTime.UtcNow - _lastRefresh;
             if (timeSinceLastRefresh > RefreshInterval && !_isRefreshing)
             {
@@ -265,7 +278,7 @@ public sealed class WindowDetectionService
         _ = includeControls;
         try
         {
-            return ConvertPlatformWindows(XerahS.Platform.Abstractions.PlatformServices.Window.GetAllWindows());
+            return ConvertPlatformWindows(XerahS.Platform.Abstractions.PlatformServices.Window.GetRegionCaptureWindows());
         }
         catch (InvalidOperationException)
         {

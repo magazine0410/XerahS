@@ -183,7 +183,9 @@ public sealed class RegionCaptureControl : UserControl
         _physicalViewportBounds = monitor.PhysicalBounds;
         _ghostCursor = ghostCursor;
         _coordinateService = new CoordinateTranslationService();
-        _windowService = new WindowDetectionService(options.DetectControls);
+        _windowService = new WindowDetectionService(
+            options.DetectControls,
+            keepFirstWindowList: options.EnableWindowSnapping && !options.UseTransparentOverlay && options.BackgroundImage != null);
 
         // Initialize state machine
         _stateMachine = new SelectionStateMachine(

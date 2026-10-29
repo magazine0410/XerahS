@@ -135,6 +135,39 @@ public class WindowDetectionServiceTests
         Assert.That(hoveredWindow!.Handle, Is.EqualTo((nint)101));
     }
 
+    [TestCase(true, ExpectedResult = 303L)]
+    [TestCase(false, ExpectedResult = 0L)]
+    public long WindowThatClosesDuringCapture_StaysSnappableOnlyWhenTheFirstListIsKept(bool keepFirstWindowList)
+    {
+        IReadOnlyList<XerahS.RegionCapture.Models.WindowInfo> windows =
+        [
+            new(
+                Handle: (nint)303,
+                Title: "Notification",
+                ClassName: string.Empty,
+                Bounds: new PixelRect(0, 0, 200, 100),
+                VisualBounds: new PixelRect(0, 0, 200, 100),
+                IsMinimized: false,
+                ZOrder: 0)
+        ];
+
+        var service = new WindowDetectionService(() => windows, keepFirstWindowList: keepFirstWindowList);
+        service.RefreshWindows();
+
+        // The notification closes on the real screen while the overlay still shows the screenshot.
+        windows = [];
+        var deadline = DateTime.UtcNow.AddSeconds(2);
+        nint hovered;
+        do
+        {
+            Thread.Sleep(120);
+            hovered = service.GetWindowAtPoint(new PixelPoint(50, 50))?.Handle ?? 0;
+        }
+        while (hovered != 0 && DateTime.UtcNow < deadline);
+
+        return (long)hovered;
+    }
+
     [Test]
     public void WindowQueries_SkipExcludedHandlesEvenWhenWindowListWasAlreadyRefreshed()
     {
