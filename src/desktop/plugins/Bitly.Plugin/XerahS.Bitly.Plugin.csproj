@@ -17,23 +17,23 @@
 
   <ItemGroup>
     <PackageReference Include="Avalonia">
-      <ExcludeAssets>runtime</ExcludeAssets>
+      <ExcludeAssets>runtime;native</ExcludeAssets>
     </PackageReference>
     <PackageReference Include="Avalonia.Themes.Fluent">
-      <ExcludeAssets>runtime</ExcludeAssets>
+      <ExcludeAssets>runtime;native</ExcludeAssets>
     </PackageReference>
     <PackageReference Include="CommunityToolkit.Mvvm">
-      <ExcludeAssets>runtime</ExcludeAssets>
+      <ExcludeAssets>runtime;native</ExcludeAssets>
     </PackageReference>
     <PackageReference Include="Newtonsoft.Json">
-      <ExcludeAssets>runtime</ExcludeAssets>
+      <ExcludeAssets>runtime;native</ExcludeAssets>
     </PackageReference>
   </ItemGroup>
 
   <ItemGroup>
     <ProjectReference Include="..\..\core\XerahS.Uploaders\XerahS.Uploaders.csproj">
       <Private>false</Private>
-      <ExcludeAssets>runtime</ExcludeAssets>
+      <ExcludeAssets>runtime;native</ExcludeAssets>
     </ProjectReference>
   </ItemGroup>
 

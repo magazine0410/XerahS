@@ -30,7 +30,7 @@
       <PluginFiles Include="$(OutputPath)$(AssemblyName).pdb" Condition="Exists('$(OutputPath)$(AssemblyName).pdb')" />
       <PluginFiles Include="$(OutputPath)plugin.json" Condition="Exists('$(OutputPath)plugin.json')" />
       <!-- Include any additional runtime dependencies that aren't from the host -->
-      <PluginFiles Include="$(OutputPath)*.dll" Exclude="$(OutputPath)$(AssemblyName).dll;$(OutputPath)Avalonia*.dll;$(OutputPath)XerahS.*.dll;$(OutputPath)CommunityToolkit*.dll;$(OutputPath)Newtonsoft*.dll" />
+      <PluginFiles Include="$(OutputPath)*.dll" Exclude="$(OutputPath)$(AssemblyName).dll;$(OutputPath)Avalonia*.dll;$(OutputPath)XerahS.*.dll;$(OutputPath)ShareX.*.dll;$(OutputPath)CommunityToolkit*.dll;$(OutputPath)Newtonsoft*.dll" />
     </ItemGroup>
     <MakeDir Directories="$(PluginOutputDir)" Condition="!Exists('$(PluginOutputDir)')" />
     <Copy SourceFiles="@(PluginFiles)" DestinationFolder="$(PluginOutputDir)" SkipUnchangedFiles="true" />

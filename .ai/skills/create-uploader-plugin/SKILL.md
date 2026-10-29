@@ -59,7 +59,7 @@ This creates:
 2. Target `net10.0`.
 3. Reuse `src/desktop/plugins/Directory.Build.props`.
 4. Use `ShareX.<Name>.Plugin` namespaces and `XerahS.<Name>.Plugin` assembly/project names.
-5. Exclude Avalonia/runtime-shared dependencies from plugin output with `ExcludeAssets=runtime`.
+5. Exclude Avalonia/runtime-shared dependencies from plugin output with `ExcludeAssets=runtime;native`; without `native`, their native libraries for every platform are copied in.
 6. Copy `plugin.json` to output.
 7. If credentials are needed, store them through `ISecretStore`.
 8. If importing legacy plaintext settings, implement `IInstanceSecretMigrator`.

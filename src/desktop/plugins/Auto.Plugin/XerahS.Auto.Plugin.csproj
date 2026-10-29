@@ -17,18 +17,18 @@
 
   <ItemGroup>
     <PackageReference Include="Newtonsoft.Json">
-      <ExcludeAssets>runtime</ExcludeAssets>
+      <ExcludeAssets>runtime;native</ExcludeAssets>
     </PackageReference>
   </ItemGroup>
 
   <ItemGroup>
     <ProjectReference Include="..\..\core\XerahS.Uploaders\XerahS.Uploaders.csproj">
       <Private>false</Private>
-      <ExcludeAssets>runtime</ExcludeAssets>
+      <ExcludeAssets>runtime;native</ExcludeAssets>
     </ProjectReference>
     <ProjectReference Include="..\..\core\XerahS.Common\XerahS.Common.csproj">
       <Private>false</Private>
-      <ExcludeAssets>runtime</ExcludeAssets>
+      <ExcludeAssets>runtime;native</ExcludeAssets>
     </ProjectReference>
   </ItemGroup>
 

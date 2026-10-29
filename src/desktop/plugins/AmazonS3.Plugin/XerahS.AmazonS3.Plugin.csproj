@@ -17,31 +17,31 @@
   </PropertyGroup>
 
   <!-- Avalonia packages for UI - use exact versions from main app -->
-  <!-- Mark as ExcludeAssets=runtime so they are NOT copied to plugin output (use host's versions) -->
+  <!-- Mark as ExcludeAssets=runtime;native so they and their native libraries are NOT copied to plugin output (use host's versions) -->
   <ItemGroup>
     <PackageReference Include="Avalonia">
-      <ExcludeAssets>runtime</ExcludeAssets>
+      <ExcludeAssets>runtime;native</ExcludeAssets>
     </PackageReference>
     <PackageReference Include="AWSSDK.S3" />
     <PackageReference Include="Avalonia.Themes.Fluent">
-      <ExcludeAssets>runtime</ExcludeAssets>
+      <ExcludeAssets>runtime;native</ExcludeAssets>
     </PackageReference>
     <PackageReference Include="CommunityToolkit.Mvvm">
-      <ExcludeAssets>runtime</ExcludeAssets>
+      <ExcludeAssets>runtime;native</ExcludeAssets>
     </PackageReference>
     <PackageReference Include="Newtonsoft.Json">
-      <ExcludeAssets>runtime</ExcludeAssets>
+      <ExcludeAssets>runtime;native</ExcludeAssets>
     </PackageReference>
   </ItemGroup>
 
   <ItemGroup>
     <ProjectReference Include="..\..\core\XerahS.Uploaders\XerahS.Uploaders.csproj">
       <Private>false</Private>
-      <ExcludeAssets>runtime</ExcludeAssets>
+      <ExcludeAssets>runtime;native</ExcludeAssets>
     </ProjectReference>
     <ProjectReference Include="..\..\core\XerahS.Common\XerahS.Common.csproj">
       <Private>false</Private>
-      <ExcludeAssets>runtime</ExcludeAssets>
+      <ExcludeAssets>runtime;native</ExcludeAssets>
     </ProjectReference>
   </ItemGroup>
 
