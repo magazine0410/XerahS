@@ -176,6 +176,10 @@ publish_single_plugin() {
             fi
         done
 
+        # The main app is single-file, so the shared libraries it bundles (ShareX.ImageEditor,
+        # SkiaSharp, ONNX Runtime, ...) are not loose files the loop above can match.
+        strip_host_provided_plugin_libraries "$plugin_output" "$(dirname "$publish_dir")/XerahS.deps.json"
+
         # Make deps.json runtime/native/resources paths match the published layout
         # and fail the build if any asset is neither at its declared path nor in
         # plugin.json dependencies. See rewrite_plugin_deps_json / validate_plugin_dependencies.
@@ -337,6 +341,81 @@ smoke_test_omaxerahs_history() {
 # AppContext.BaseDirectory probing. PluginFolderCleaner then sees a file that is
 # neither at the declared deps.json path nor in plugin.json dependencies, and
 # quarantines it on every startup (observed with AWSSDK on the amazon3s plugin).
+# Remove from a plugin the libraries the main app ships at the same version, both their files and
+# their deps.json entries. Each plugin otherwise carried its own copy of ShareX.ImageEditor,
+# SkiaSharp, HarfBuzz and ONNX Runtime (about 1.1 GB over 30 plugins). Without the entries the
+# plugin's AssemblyLoadContext falls back to the app's copies, so plugin and app share one type.
+strip_host_provided_plugin_libraries() {
+    local plugin_output="$1"
+    local host_deps="$2"
+    local deps_path
+
+    if [ ! -f "$host_deps" ]; then
+        echo "  Warning: $host_deps not found; plugin libraries the app also ships are kept." >&2
+        return 0
+    fi
+
+    deps_path=$(find "$plugin_output" -maxdepth 1 -name '*.deps.json' -print -quit 2>/dev/null || true)
+    if [ -z "$deps_path" ]; then
+        return 0
+    fi
+
+    python3 - "$plugin_output" "$deps_path" "$host_deps" <<'PY'
+import json
+import os
+import sys
+
+plugin_dir, deps_path, host_deps_path = sys.argv[1:4]
+
+with open(deps_path, "r", encoding="utf-8") as handle:
+    deps = json.load(handle)
+with open(host_deps_path, "r", encoding="utf-8") as handle:
+    host_deps = json.load(handle)
+
+host_libraries = set()
+for libraries in host_deps.get("targets", {}).values():
+    if isinstance(libraries, dict):
+        host_libraries.update(libraries.keys())
+
+own_library = os.path.basename(deps_path)[: -len(".deps.json")]
+removed = set()
+for libraries in deps.get("targets", {}).values():
+    if not isinstance(libraries, dict):
+        continue
+    for library in list(libraries):
+        # "Name/Version": the same name at another version stays in the plugin.
+        if library not in host_libraries or library.split("/")[0] == own_library:
+            continue
+        info = libraries.pop(library)
+        removed.add(library)
+        for group in ("runtime", "native", "resources"):
+            for asset in (info.get(group) or {}) if isinstance(info, dict) else {}:
+                for candidate in (os.path.join(plugin_dir, asset), os.path.join(plugin_dir, os.path.basename(asset))):
+                    if os.path.isfile(candidate):
+                        os.remove(candidate)
+
+if not removed:
+    sys.exit(0)
+
+removed_names = {library.split("/")[0] for library in removed}
+for libraries in deps.get("targets", {}).values():
+    if isinstance(libraries, dict):
+        for info in libraries.values():
+            dependencies = info.get("dependencies") if isinstance(info, dict) else None
+            if isinstance(dependencies, dict):
+                for name in removed_names & dependencies.keys():
+                    del dependencies[name]
+library_index = deps.get("libraries")
+if isinstance(library_index, dict):
+    for library in removed:
+        library_index.pop(library, None)
+
+with open(deps_path, "w", encoding="utf-8") as handle:
+    json.dump(deps, handle, indent=2)
+    handle.write("\n")
+PY
+}
+
 rewrite_plugin_deps_json() {
     local plugin_output="$1"
     local deps_path
@@ -578,6 +657,7 @@ for ARCH in "${ARCHITECTURES[@]}"; do
     export PLUGINS_DIR PUBLISH_DIR ARCH
     export -f dotnet_publish_serial
     export -f publish_single_plugin
+    export -f strip_host_provided_plugin_libraries
     export -f rewrite_plugin_deps_json
     export -f validate_plugin_dependencies
 
