@@ -522,6 +522,14 @@ namespace XerahS.Core.Tasks.Processors
             }
 
             var primaryError = primaryResult?.Errors?.ToString() ?? primaryResult?.Response ?? "Unknown error";
+            if (!(SettingsManager.Settings?.TryOtherDestinationsIfUploadFails ?? true))
+            {
+                DebugHelper.WriteLine(
+                    $"Primary {category} uploader '{targetInstance.DisplayName}' failed ({primaryError}). " +
+                    "Trying other destinations is turned off.");
+                return primaryResult;
+            }
+
             DebugHelper.WriteLine(
                 $"Primary {category} uploader '{targetInstance.DisplayName}' failed ({primaryError}). " +
                 "Trying fallback uploaders.");
@@ -539,8 +547,14 @@ namespace XerahS.Core.Tasks.Processors
                 token,
                 attemptedInstanceIds).ConfigureAwait(false);
 
+            if (IsSuccessfulUploadResult(fallbackResult))
+            {
+                info.FailedUploaderHost = targetInstance.DisplayName;
+                return fallbackResult;
+            }
+
             // When the fallbacks fail too, keep the configured destination's own error.
-            return IsSuccessfulUploadResult(fallbackResult) ? fallbackResult : primaryResult ?? fallbackResult;
+            return primaryResult ?? fallbackResult;
         }
 
         internal static UploaderInstance? ResolveRequestedInstance(

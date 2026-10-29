@@ -892,6 +892,10 @@
                                                        HorizontalAlignment="Left"
                                                        AutomationProperties.Name="Number of times to retry if upload fails"/>
                                     </Grid>
+                                    <CheckBox Content="Try other destinations if upload fails"
+                                              IsChecked="{Binding TryOtherDestinationsIfUploadFails}"
+                                              ToolTip.Tip="When the selected destination still fails after its retries, upload with your other destinations of the same kind."
+                                              AutomationProperties.Name="Try other destinations if upload fails"/>
                                 </StackPanel>
                             </Border>
                         </StackPanel>

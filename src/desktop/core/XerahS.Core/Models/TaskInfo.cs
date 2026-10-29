@@ -107,6 +107,9 @@ public class TaskInfo
     /// <summary>Uploader instance that produced the successful upload (recorded in History for "Delete from host").</summary>
     internal string? ResolvedUploaderInstanceId { get; set; }
 
+    /// <summary>The selected destination that failed when another destination uploaded the file instead.</summary>
+    public string? FailedUploaderHost { get; internal set; }
+
     public string? UploaderHost
     {
         get

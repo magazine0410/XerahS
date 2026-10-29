@@ -68,5 +68,16 @@ namespace XerahS.UI.ViewModels
                 OnPropertyChanged();
             }
         }
+
+        /// <summary>When the selected destination fails, upload with the other destinations of the same kind.</summary>
+        public bool TryOtherDestinationsIfUploadFails
+        {
+            get => SettingsManager.Settings.TryOtherDestinationsIfUploadFails;
+            set
+            {
+                SettingsManager.Settings.TryOtherDestinationsIfUploadFails = value;
+                OnPropertyChanged();
+            }
+        }
     }
 }

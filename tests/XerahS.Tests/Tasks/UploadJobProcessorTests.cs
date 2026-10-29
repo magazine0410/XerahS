@@ -229,10 +229,53 @@ public class UploadJobProcessorTests
                 Assert.That(info.Result.URL, Is.EqualTo("https://example.test/fallback.bin"));
                 Assert.That(info.Metadata.UploadURL, Is.EqualTo("https://example.test/fallback.bin"));
                 Assert.That(info.UploaderHost, Is.EqualTo("Fallback Succeeds"));
+                Assert.That(info.FailedUploaderHost, Is.EqualTo("Default Fails"));
             });
         }
         finally
         {
+            File.Delete(tempFile);
+        }
+    }
+
+    [Test]
+    public async Task ProcessAsync_FileUploadReportsFailureWhenTryingOtherDestinationsIsOff()
+    {
+        var defaultInstance = CreateFileInstance("Default Fails", "fail:primary unavailable");
+        var fallbackInstance = CreateFileInstance("Fallback Succeeds", "success:https://example.test/fallback.bin");
+        InstanceManager.Instance.AddInstance(defaultInstance);
+        InstanceManager.Instance.AddInstance(fallbackInstance);
+        InstanceManager.Instance.SetDefaultInstance(UploaderCategory.File, defaultInstance.InstanceId);
+
+        var tempFile = Path.GetTempFileName();
+        await File.WriteAllTextAsync(tempFile, "fallback payload");
+        bool previous = SettingsManager.Settings.TryOtherDestinationsIfUploadFails;
+        SettingsManager.Settings.TryOtherDestinationsIfUploadFails = false;
+
+        try
+        {
+            var info = new TaskInfo(new TaskSettings
+            {
+                Job = WorkflowType.PrintScreen,
+                AfterUploadJob = AfterUploadTasks.None
+            })
+            {
+                Job = TaskJob.FileUpload,
+                DataType = EDataType.File
+            };
+            info.FilePath = tempFile;
+
+            await new UploadJobProcessor().ProcessAsync(info, CancellationToken.None);
+
+            Assert.Multiple(() =>
+            {
+                Assert.That(info.Result?.URL, Is.Null.Or.Empty);
+                Assert.That(info.FailedUploaderHost, Is.Null);
+            });
+        }
+        finally
+        {
+            SettingsManager.Settings.TryOtherDestinationsIfUploadFails = previous;
             File.Delete(tempFile);
         }
     }

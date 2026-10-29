@@ -210,6 +210,11 @@ public class ApplicationConfig : SettingsBase<ApplicationConfig>
     public List<ClipboardFormat> ClipboardContentFormats = new List<ClipboardFormat>();
 
     public int MaxUploadFailRetry = 1;
+    /// <summary>
+    /// When the selected destination still fails after its retries, the upload is tried with the other destinations of
+    /// the same kind. ShareX has no such fallback; turning this off makes XerahS report the failure as ShareX does.
+    /// </summary>
+    public bool TryOtherDestinationsIfUploadFails = true;
     /// <summary>Legacy; not used by runtime. Kept for config serialization.</summary>
     [Obsolete("Legacy; runtime uses plugin instances. Kept for config serialization.")]
     public bool UseSecondaryUploaders = false;

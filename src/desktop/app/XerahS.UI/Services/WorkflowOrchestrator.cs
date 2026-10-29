@@ -663,7 +663,10 @@ public sealed class WorkflowOrchestrator : IWorkflowOrchestrator
                 }
                 else if (!string.IsNullOrEmpty(url))
                 {
-                    title = "Upload Completed";
+                    // The toast shows an uploaded image instead of the text, so a fallback destination is named in the title.
+                    title = string.IsNullOrEmpty(task.Info?.FailedUploaderHost)
+                        ? "Upload Completed"
+                        : $"{task.Info.FailedUploaderHost} failed; uploaded with {task.Info.UploaderHost}";
                     text = url;
                 }
                 else if (string.IsNullOrEmpty(filePath))
