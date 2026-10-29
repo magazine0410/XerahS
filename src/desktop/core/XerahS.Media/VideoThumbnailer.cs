@@ -369,7 +369,7 @@ namespace XerahS.Media
                                         g.DrawRect(offsetX + shadowOffset, offsetY + shadowOffset, thumbnail.Image.Width, thumbnail.Image.Height, shadowPaint);
                                     }
 
-                                    g.DrawBitmap(thumbnail.Image, offsetX, offsetY, SKSamplingOptions.Default);
+                                    g.DrawBitmap(thumbnail.Image, offsetX, offsetY);
 
                                     if (Options.DrawBorder)
                                     {

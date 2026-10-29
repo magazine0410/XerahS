@@ -97,7 +97,7 @@ namespace XerahS.Platform.Windows
 
                     var cropped = new SKBitmap(cropRect.Width, cropRect.Height);
                     using var canvas = new SKCanvas(cropped);
-                    canvas.DrawBitmap(fullBitmap, cropRect, new SKRect(0, 0, cropRect.Width, cropRect.Height), SKSamplingOptions.Default);
+                    canvas.DrawBitmap(fullBitmap, cropRect, new SKRect(0, 0, cropRect.Width, cropRect.Height));
                     return cropped;
                 }
                 catch (Exception)
@@ -491,7 +491,7 @@ namespace XerahS.Platform.Windows
         {
             using SKBitmap bitmapToDraw = RotateBitmapForDesktop(sourceBitmap, rotation);
             var destRect = new SKRect(destX, destY, destX + destWidth, destY + destHeight);
-            canvas.DrawBitmap(bitmapToDraw, destRect, SKSamplingOptions.Default);
+            canvas.DrawBitmap(bitmapToDraw, destRect);
         }
 
         private void DrawMappedTextureToCanvas(
@@ -523,7 +523,7 @@ namespace XerahS.Platform.Windows
 
             using SKBitmap bitmapToDraw = RotateBitmapForDesktop(sourceBitmap, rotation);
             var destRect = new SKRect(destX, destY, destX + destWidth, destY + destHeight);
-            canvas.DrawBitmap(bitmapToDraw, destRect, SKSamplingOptions.Default);
+            canvas.DrawBitmap(bitmapToDraw, destRect);
         }
 
         /// <summary>

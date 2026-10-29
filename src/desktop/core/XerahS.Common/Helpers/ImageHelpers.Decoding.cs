@@ -138,7 +138,7 @@ public static partial class ImageHelpers
             _ => new SKMatrix(0, 1, 0, -1, 0, source.Width, 0, 0, 1)
         };
         canvas.SetMatrix(matrix);
-        canvas.DrawBitmap(source, 0, 0, SKSamplingOptions.Default);
+        canvas.DrawBitmap(source, 0, 0);
         source.Dispose();
         return result;
     }
@@ -148,7 +148,7 @@ public static partial class ImageHelpers
         var result = new SKBitmap(source.Width, source.Height, SKColorType.Bgra8888, SKAlphaType.Opaque);
         using var canvas = new SKCanvas(result);
         canvas.Clear(color);
-        canvas.DrawBitmap(source, 0, 0, SKSamplingOptions.Default);
+        canvas.DrawBitmap(source, 0, 0);
         return result;
     }
 

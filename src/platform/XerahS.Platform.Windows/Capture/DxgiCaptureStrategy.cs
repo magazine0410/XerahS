@@ -397,7 +397,7 @@ internal sealed class DxgiCaptureStrategy : ICaptureStrategy
 
         var cropped = new SKBitmap(crop.Width, crop.Height, SKColorType.Bgra8888, SKAlphaType.Premul);
         using var canvas = new SKCanvas(cropped);
-        canvas.DrawBitmap(source, crop, new SKRect(0, 0, crop.Width, crop.Height), SKSamplingOptions.Default);
+        canvas.DrawBitmap(source, crop, new SKRect(0, 0, crop.Width, crop.Height));
         return cropped;
     }
 

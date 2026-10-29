@@ -291,7 +291,7 @@ internal sealed class WaylandPortalStrategy : ICaptureStrategy
         var cropped = new SKBitmap(clamped.Width, clamped.Height, SKColorType.Bgra8888, SKAlphaType.Premul);
         using var canvas = new SKCanvas(cropped);
         var srcRect = new SKRectI(clamped.X, clamped.Y, clamped.X + clamped.Width, clamped.Y + clamped.Height);
-        canvas.DrawBitmap(source, srcRect, new SKRect(0, 0, clamped.Width, clamped.Height), SKSamplingOptions.Default, null);
+        canvas.DrawBitmap(source, srcRect, new SKRect(0, 0, clamped.Width, clamped.Height));
 
         return new CapturedBitmap(cropped, new PhysicalRectangle(clamped.X, clamped.Y, clamped.Width, clamped.Height), 1.0);
     }

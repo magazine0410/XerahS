@@ -134,7 +134,7 @@ namespace XerahS.Common
             using var canvas = new SKCanvas(rotated);
             canvas.Translate(image.Height, 0);
             canvas.RotateDegrees(90);
-            canvas.DrawBitmap(image, 0, 0, new SKSamplingOptions());
+            canvas.DrawBitmap(image, 0, 0);
             return rotated;
         }
     }

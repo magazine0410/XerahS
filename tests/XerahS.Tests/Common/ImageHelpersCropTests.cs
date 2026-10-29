@@ -44,7 +44,7 @@ public class ImageHelpersCropTests
             using (var canvas = new SKCanvas(screen))
             {
                 canvas.Clear(SKColors.DimGray);
-                canvas.DrawBitmap(qr!, 1300, 500, SKSamplingOptions.Default);
+                canvas.DrawBitmap(qr!, 1300, 500);
             }
 
             using SKBitmap cropped = ImageHelpers.Crop(screen, new SKRectI(1280, 480, 1620, 820));

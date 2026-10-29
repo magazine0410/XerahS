@@ -288,7 +288,7 @@ public sealed class RegionCaptureControl : UserControl
         {
             convertedBitmap = new SKBitmap(skBitmap.Width, skBitmap.Height, SKColorType.Bgra8888, SKAlphaType.Premul);
             using var canvas = new SKCanvas(convertedBitmap);
-            canvas.DrawBitmap(skBitmap, 0, 0, SKSamplingOptions.Default);
+            canvas.DrawBitmap(skBitmap, 0, 0);
             sourceBitmap = convertedBitmap;
         }
 

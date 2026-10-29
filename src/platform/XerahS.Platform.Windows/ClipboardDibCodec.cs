@@ -274,7 +274,7 @@ internal static class ClipboardDibCodec
 
         using var canvas = new SKCanvas(bitmap);
         canvas.Clear(backgroundColor);
-        canvas.DrawBitmap(source, 0, 0, SKSamplingOptions.Default);
+        canvas.DrawBitmap(source, 0, 0);
         canvas.Flush();
 
         return bitmap;

@@ -146,7 +146,7 @@ public static partial class ImageHelpers
         canvas.Translate(rotated.Width / 2f, rotated.Height / 2f);
         canvas.RotateDegrees(angle);
         canvas.Translate(-bitmap.Width / 2f, -bitmap.Height / 2f);
-        canvas.DrawBitmap(bitmap, 0, 0, SKSamplingOptions.Default);
+        canvas.DrawBitmap(bitmap, 0, 0);
 
         return rotated;
     }

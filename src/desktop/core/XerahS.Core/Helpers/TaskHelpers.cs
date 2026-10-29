@@ -767,7 +767,7 @@ public static partial class TaskHelpers
         var result = new SkiaSharp.SKBitmap(bmp.Width, bmp.Height, SkiaSharp.SKColorType.Bgra8888, SkiaSharp.SKAlphaType.Opaque);
         using var canvas = new SkiaSharp.SKCanvas(result);
         canvas.Clear(color);
-        canvas.DrawBitmap(bmp, 0, 0, new SkiaSharp.SKSamplingOptions());
+        canvas.DrawBitmap(bmp, 0, 0);
         return result;
     }
 

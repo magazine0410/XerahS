@@ -277,8 +277,7 @@ public partial class OverlayWindow
             subsetCanvas.DrawBitmap(
                 fullBackground,
                 sourceRect,
-                new SKRect(0, 0, monitorBitmap.Width, monitorBitmap.Height),
-                SKSamplingOptions.Default);
+                new SKRect(0, 0, monitorBitmap.Width, monitorBitmap.Height));
         }
 
         int logicalWidth = Math.Max(1, (int)Math.Round(monitor.PhysicalBounds.Width / monitor.ScaleFactor));

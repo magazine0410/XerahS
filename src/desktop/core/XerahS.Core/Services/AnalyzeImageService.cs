@@ -313,7 +313,7 @@ public sealed class AnalyzeImageService
         using (var canvas = new SKCanvas(opaque))
         {
             canvas.Clear(SKColors.White);
-            canvas.DrawBitmap(image, 0, 0, new SKSamplingOptions());
+            canvas.DrawBitmap(image, 0, 0);
         }
         using SKData jpeg = opaque.Encode(SKEncodedImageFormat.Jpeg, 90);
         return Convert.ToBase64String(jpeg.AsSpan());

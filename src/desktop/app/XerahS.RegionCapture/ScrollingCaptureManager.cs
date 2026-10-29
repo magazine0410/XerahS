@@ -585,13 +585,13 @@ namespace XerahS.RegionCapture
                 // Draw existing result (minus bottom edge offset)
                 var srcResultRect = new SKRect(0, 0, width, resultUsableHeight);
                 var dstResultRect = new SKRect(0, 0, width, resultUsableHeight);
-                canvas.DrawBitmap(result, srcResultRect, dstResultRect, SKSamplingOptions.Default);
+                canvas.DrawBitmap(result, srcResultRect, dstResultRect);
 
                 // Draw the non-overlapping bottom portion of the current frame.
                 int currentFrameNewStart = Math.Max(0, matchIndex + 1);
                 var srcCurrentRect = new SKRect(0, currentFrameNewStart, width, currentFrameNewStart + matchHeight);
                 var dstCurrentRect = new SKRect(0, resultUsableHeight, width, totalHeight);
-                canvas.DrawBitmap(currentFrame, srcCurrentRect, dstCurrentRect, SKSamplingOptions.Default);
+                canvas.DrawBitmap(currentFrame, srcCurrentRect, dstCurrentRect);
             }
 
             return newResult;

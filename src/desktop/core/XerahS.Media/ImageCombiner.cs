@@ -149,7 +149,7 @@ namespace XerahS.Media
 
                 for (int i = 0; i < imageList.Count; i++)
                 {
-                    canvas.DrawBitmap(imageList[i], imageRects[i].Left - left, imageRects[i].Top - top, SKSamplingOptions.Default);
+                    canvas.DrawBitmap(imageList[i], imageRects[i].Left - left, imageRects[i].Top - top);
                 }
             }
 
