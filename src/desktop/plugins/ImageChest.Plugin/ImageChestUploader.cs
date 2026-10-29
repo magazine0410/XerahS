@@ -73,8 +73,9 @@ public sealed class ImageChestUploader : ImageUploader
         var args = new Dictionary<string, string>
         {
             ["privacy"] = privacy,
-            ["nsfw"] = config.Nsfw ? "true" : "false",
-            ["anonymous"] = config.Anonymous ? "true" : "false"
+            // The API's boolean fields refuse "true" in a form ("The anonymous field must be true or false."); 1 and 0 pass.
+            ["nsfw"] = config.Nsfw ? "1" : "0",
+            ["anonymous"] = config.Anonymous ? "1" : "0"
         };
 
         if (!string.IsNullOrWhiteSpace(config.Title))
@@ -120,9 +121,11 @@ public sealed class ImageChestUploader : ImageUploader
 
         result.IsSuccess = false;
         string? message = response.Value<string>("message") ?? response["error"]?.ToString();
-        if (response["errors"] is JObject fieldErrors)
+        // Field errors come under "errors" with a message, or on their own, as {"anonymous":["..."]}.
+        JObject? fieldErrors = response["errors"] as JObject ?? (string.IsNullOrEmpty(message) ? response : null);
+        if (fieldErrors != null)
         {
-            string details = string.Join(" ", fieldErrors.Properties().SelectMany(p => p.Value.Values<string>()).Where(m => !string.IsNullOrEmpty(m)));
+            string details = string.Join(" ", fieldErrors.Properties().Where(p => p.Value is JArray).SelectMany(p => p.Value.Values<string>()).Where(m => !string.IsNullOrEmpty(m)));
             if (details.Length > 0) message = string.IsNullOrEmpty(message) ? details : message + " " + details;
         }
 

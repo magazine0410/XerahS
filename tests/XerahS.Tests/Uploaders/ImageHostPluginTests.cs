@@ -317,8 +317,20 @@ public class ImageHostPluginTests
 
         Assert.That(args["title"], Is.EqualTo("Capture"));
         Assert.That(args["privacy"], Is.EqualTo("hidden"));
-        Assert.That(args["nsfw"], Is.EqualTo("true"));
-        Assert.That(args["anonymous"], Is.EqualTo("false"));
+        Assert.That(args["nsfw"], Is.EqualTo("1"));
+        Assert.That(args["anonymous"], Is.EqualTo("0"));
+    }
+
+    [Test]
+    public void ImageChest_ReportsFieldErrorsWithoutAMessage()
+    {
+        // Image Chest's reply to anonymous=true, 2026-10-29.
+        var result = new UploadResult { Response = """{"anonymous":["The anonymous field must be true or false."]}""" };
+        var errors = new UploaderErrorManager();
+
+        ImageChestUploader.ApplyResponse(result, true, errors);
+
+        Assert.That(errors.ToString(), Does.Contain("Image Chest: The anonymous field must be true or false."));
     }
 
     // ── Settings views ──────────────────────────────────────────────────────
