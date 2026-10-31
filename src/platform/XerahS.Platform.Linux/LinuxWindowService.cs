@@ -55,6 +55,7 @@ namespace XerahS.Platform.Linux
         ];
         // The window manager marks a minimized (iconified) window hidden and unmaps it.
         private static readonly string[] MinimizedWindowStateNames = ["_NET_WM_STATE_HIDDEN"];
+        private static readonly string[] FullscreenWindowStateNames = ["_NET_WM_STATE_FULLSCREEN"];
         private readonly IntPtr _display;
         private readonly IntPtr _rootWindow;
         private readonly System.Collections.Concurrent.ConcurrentDictionary<string, IntPtr> _atomCache = new(StringComparer.Ordinal);
@@ -452,6 +453,20 @@ namespace XerahS.Platform.Linux
                 return GetKWinWindow(handle)?.Maximized == true;
             // Not implemented in MVP
             return false;
+        }
+
+        /// <summary>
+        /// As ShareX's CaptureHelpers.IsActiveWindowFullscreen, from the window manager's full-screen state: KWin's on
+        /// KDE Plasma Wayland, otherwise the active X11 window's _NET_WM_STATE_FULLSCREEN.
+        /// </summary>
+        public bool IsActiveWindowFullscreen()
+        {
+            if (KWin?.GetSnapshot() is { } snapshot)
+                return IsActiveKWinWindowFullscreen(snapshot);
+
+            return _display != IntPtr.Zero &&
+                TryGetWindowHandleArrayProperty(_rootWindow, "_NET_ACTIVE_WINDOW", out var active) && active.Length > 0 && active[0] != IntPtr.Zero &&
+                HasAnyPropertyAtom(active[0], "_NET_WM_STATE", FullscreenWindowStateNames);
         }
 
         public bool IsWindowMinimized(IntPtr handle)

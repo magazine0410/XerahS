@@ -628,6 +628,14 @@ public sealed class WorkflowOrchestrator : IWorkflowOrchestrator
             return;
         }
 
+        // Checked before anything else handles the completed task: after a capture hotkey, a visible main window is
+        // activated to show the capture, and would then be the active window.
+        if (IsNotificationDisabledOnFullscreen(taskSettings.GeneralSettings))
+        {
+            DebugHelper.WriteLine("The active window is full screen; no notification, as in ShareX.");
+            return;
+        }
+
         Dispatcher.UIThread.Post(() =>
         {
             try
@@ -749,6 +757,11 @@ public sealed class WorkflowOrchestrator : IWorkflowOrchestrator
         return (Core.Tasks.Processors.UploadJobProcessor.GetUploadErrorTitle(result) ?? "Task Failed",
             Core.Tasks.Processors.UploadJobProcessor.GetUploadErrorText(result));
     }
+
+    // ShareX's "Disable toast notifications on fullscreen", for the notifications after a task.
+    internal static bool IsNotificationDisabledOnFullscreen(TaskSettingsGeneral generalSettings) =>
+        generalSettings.DisableNotificationsOnFullscreen &&
+        PlatformServices.IsWindowServiceInitialized && PlatformServices.Window.IsActiveWindowFullscreen();
 
     // As in ShareX, a successful Share URL job shows no completion notification; failures still do.
     internal static bool ShouldShowCompletionNotification(TaskInfo? info) =>

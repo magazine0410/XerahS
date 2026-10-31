@@ -54,6 +54,12 @@ namespace XerahS.Platform.Abstractions
         bool ToggleActiveWindowTopmost() => false;
 
         /// <summary>
+        /// Whether the active window is full screen (ShareX's CaptureHelpers.IsActiveWindowFullscreen); false where
+        /// the window system cannot tell.
+        /// </summary>
+        bool IsActiveWindowFullscreen() => false;
+
+        /// <summary>
         /// The handle under which the window tools list one of XerahS's own windows, given its native handle.
         /// The same handle, except where another window list is used (KWin's on KDE Plasma Wayland).
         /// </summary>

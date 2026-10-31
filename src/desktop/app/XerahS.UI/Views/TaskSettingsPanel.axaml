@@ -487,7 +487,7 @@
                                     <CheckBox IsChecked="{Binding ShowToastNotification}" Content="Include toast notification"/>
                                     
                                     <!-- Toast Settings -->
-                                    <Grid ColumnDefinitions="Auto, 16, *" RowDefinitions="Auto, Auto, Auto, Auto, Auto, Auto" 
+                                    <Grid ColumnDefinitions="Auto, 16, *" RowDefinitions="Auto, Auto, Auto, Auto, Auto, Auto, Auto" 
                                           IsVisible="{Binding ShowToastNotification}" Margin="24,0,0,0">
                                         
                                         <!-- Duration -->
@@ -518,9 +518,10 @@
                                         
                                         <!-- Auto Hide -->
                                          <CheckBox Grid.Row="4" Grid.Column="0" Grid.ColumnSpan="3" IsChecked="{Binding ToastWindowAutoHide}" Content="Auto hide toast notification" Margin="0,8,0,0"/>
+                                         <CheckBox Grid.Row="5" Grid.Column="0" Grid.ColumnSpan="3" IsChecked="{Binding DisableNotificationsOnFullscreen}" Content="Disable toast notifications on fullscreen" Margin="0,8,0,0"/>
 
                                         <!-- Click Actions -->
-                                        <Grid Grid.Row="5" Grid.Column="0" Grid.ColumnSpan="3" ColumnDefinitions="Auto, 16, *" RowDefinitions="Auto, Auto, Auto" Margin="0,16,0,0">
+                                        <Grid Grid.Row="6" Grid.Column="0" Grid.ColumnSpan="3" ColumnDefinitions="Auto, 16, *" RowDefinitions="Auto, Auto, Auto" Margin="0,16,0,0">
                                             <TextBlock Grid.Row="0" Grid.Column="0" Text="Left click:" VerticalAlignment="Center"/>
                                             <ComboBox Grid.Row="0" Grid.Column="2" ItemsSource="{Binding ToastClickActions}" SelectedItem="{Binding ToastWindowLeftClickAction}" HorizontalAlignment="Stretch" AutomationProperties.Name="Left Click Action"/>
 

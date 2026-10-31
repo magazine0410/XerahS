@@ -31,6 +31,7 @@ using XerahS.Core.Tasks.Processors;
 using XerahS.RegionCapture.ScreenRecording;
 using XerahS.Tests.Xip0052;
 using XerahS.UI.Services;
+using XerahS.Platform.Abstractions;
 using HotkeyInfo = XerahS.Platform.Abstractions.HotkeyInfo;
 
 namespace XerahS.Tests.Services;
@@ -100,6 +101,37 @@ public class WorkflowOrchestratorTests
         };
 
         Assert.That(WorkflowOrchestrator.ShouldShowCompletionNotification(info), Is.False);
+    }
+
+    [TestCase(false, true, false)]
+    [TestCase(true, true, true)]
+    [TestCase(true, false, false)]
+    public void CompletionNotification_IsDisabledOnFullscreenOnlyWithTheSetting(bool disableOnFullscreen, bool fullscreen, bool expected)
+    {
+        var window = DispatchProxy.Create<IWindowService, FullscreenWindowProxy>();
+        ((FullscreenWindowProxy)(object)window).Fullscreen = fullscreen;
+        PlatformServices.Window = window;
+        try
+        {
+            var general = new TaskSettingsGeneral { DisableNotificationsOnFullscreen = disableOnFullscreen };
+
+            Assert.That(WorkflowOrchestrator.IsNotificationDisabledOnFullscreen(general), Is.EqualTo(expected));
+            Assert.That(((FullscreenWindowProxy)(object)window).Calls, Is.EqualTo(disableOnFullscreen ? 1 : 0), "The active window is only checked with the setting on.");
+        }
+        finally { PlatformServices.Reset(); }
+    }
+
+    public class FullscreenWindowProxy : DispatchProxy
+    {
+        public bool Fullscreen { get; set; }
+        public int Calls { get; private set; }
+        protected override object? Invoke(MethodInfo? targetMethod, object?[]? args)
+        {
+            if (targetMethod!.Name != nameof(IWindowService.IsActiveWindowFullscreen))
+                throw new AssertionException("Unexpected window operation: " + targetMethod.Name);
+            Calls++;
+            return Fullscreen;
+        }
     }
 
     [Test]

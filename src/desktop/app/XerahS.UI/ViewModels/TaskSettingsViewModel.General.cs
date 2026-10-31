@@ -321,6 +321,19 @@ namespace XerahS.UI.ViewModels
             }
         }
 
+        public bool DisableNotificationsOnFullscreen
+        {
+            get => GeneralSource.GeneralSettings.DisableNotificationsOnFullscreen;
+            set
+            {
+                if (GeneralSource.GeneralSettings.DisableNotificationsOnFullscreen != value)
+                {
+                    GeneralSource.GeneralSettings.DisableNotificationsOnFullscreen = value;
+                    OnPropertyChanged();
+                }
+            }
+        }
+
         #endregion
     }
 }

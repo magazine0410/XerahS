@@ -159,6 +159,22 @@ public class KWinWindowManagerTests
     }
 
     [Test]
+    public void IsActiveKWinWindowFullscreen_IsTheActiveWindowsFullScreenState()
+    {
+        static KWinWindow Window(string id, bool fullScreen, bool minimized = false) =>
+            new(id, id, id, 10, new Rectangle(0, 0, 1920, 1080), new Rectangle(0, 0, 1920, 1080), minimized, false, false, false, true, FullScreen: fullScreen);
+        KWinWindow[] windows = [Window("{game}", true), Window("{editor}", false)];
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(LinuxWindowService.IsActiveKWinWindowFullscreen(new KWinSnapshot(windows, "{game}", Point.Empty)), Is.True);
+            Assert.That(LinuxWindowService.IsActiveKWinWindowFullscreen(new KWinSnapshot(windows, "{editor}", Point.Empty)), Is.False);
+            Assert.That(LinuxWindowService.IsActiveKWinWindowFullscreen(new KWinSnapshot(windows, null, Point.Empty)), Is.False, "The desktop is active.");
+            Assert.That(LinuxWindowService.IsActiveKWinWindowFullscreen(new KWinSnapshot([Window("{game}", true, minimized: true)], "{game}", Point.Empty)), Is.False);
+        });
+    }
+
+    [Test]
     public void ParseSnapshot_RejectsAnUnexpectedReport()
     {
         using var error = JsonDocument.Parse("""{ "error": "ReferenceError" }""");

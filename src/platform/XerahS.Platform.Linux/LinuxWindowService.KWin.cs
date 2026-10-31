@@ -116,6 +116,10 @@ public partial class LinuxWindowService
         return true;
     }
 
+    internal static bool IsActiveKWinWindowFullscreen(KWinSnapshot snapshot) =>
+        snapshot.ActiveWindowId is { Length: > 0 } id &&
+        snapshot.Windows.Any(window => window.Id == id && window.FullScreen && !window.Minimized);
+
     private bool ToggleKWinBorderlessWindow(KWinWindowManager kwin, IntPtr handle, KWinWindow window, bool useWorkingArea)
     {
         lock (_kwinBorderlessWindows)

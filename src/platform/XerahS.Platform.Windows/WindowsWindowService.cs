@@ -48,6 +48,8 @@ namespace XerahS.Platform.Windows
             "Windows.UI.Core.CoreWindow"    // UWP system windows
         };
 
+        public bool IsActiveWindowFullscreen() => CaptureHelpers.IsActiveWindowFullscreen();
+
         public IntPtr GetForegroundWindow()
         {
             return NativeMethods.GetForegroundWindow();
