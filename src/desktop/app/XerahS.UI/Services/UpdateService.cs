@@ -43,6 +43,8 @@ public class UpdateService : IDisposable
 {
     private static UpdateService? _instance;
     private static readonly object _lock = new();
+    // The Release channel checks this fork's releases; the pre-release sources keep their own owners.
+    private const string ForkReleaseOwner = "magazine0410";
     private const string DefaultReleaseOwner = "ShareX";
     private const string DefaultPreReleaseOwner = "KovaForge";
     private const string DefaultRepo = "XerahS";
@@ -171,7 +173,7 @@ public class UpdateService : IDisposable
     {
         if (settings.UpdateChannel != UpdateChannel.PreRelease)
         {
-            return [(DefaultReleaseOwner, DefaultRepo)];
+            return [(ForkReleaseOwner, DefaultRepo)];
         }
 
         return settings.PreReleaseUpdateSource switch

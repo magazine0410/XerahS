@@ -34,7 +34,7 @@ namespace XerahS.Tests.Helpers;
 public class UpdateServicePreReleaseSourceTests
 {
     [Test]
-    public void ResolveUpdateRepository_Release_UsesShareX()
+    public void ResolveUpdateRepository_Release_UsesTheFork()
     {
         var settings = new ApplicationConfig
         {
@@ -44,7 +44,7 @@ public class UpdateServicePreReleaseSourceTests
 
         var repository = UpdateService.ResolveUpdateRepository(settings);
 
-        Assert.That(repository.Owner, Is.EqualTo("ShareX"));
+        Assert.That(repository.Owner, Is.EqualTo("magazine0410"));
         Assert.That(repository.Repo, Is.EqualTo("XerahS"));
     }
 
