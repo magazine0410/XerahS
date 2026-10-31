@@ -31,6 +31,7 @@ using System.Collections.ObjectModel;
 using System.Collections.Specialized;
 using XerahS.Common;
 using XerahS.Core;
+using XerahS.Core.Services;
 using XerahS.Platform.Abstractions;
 using XerahS.UI.Services;
 using XerahS.UI.ViewModels;
@@ -227,10 +228,10 @@ namespace XerahS.UI.Views
             open.Items.Add(MenuEntry("Folder", () => FileHelpers.OpenFolderWithFile(item.FilePath), hasFile));
 
             var copy = new MenuItem { Header = "Copy" };
-            copy.Items.Add(MenuEntry("URL", () => PlatformServices.Clipboard.SetText(string.Join(Environment.NewLine, selected.Select(i => i.Url).Where(u => !string.IsNullOrEmpty(u)))), hasUrl));
-            copy.Items.Add(MenuEntry("File", () => PlatformServices.Clipboard.SetFileDropList(selected.Select(i => i.FilePath).Where(File.Exists).ToArray()), hasFile));
+            copy.Items.Add(MenuEntry("URL", () => CopyTexts(selected.Select(i => i.Url)), hasUrl));
+            copy.Items.Add(MenuEntry("File", () => CopyFiles(selected.Select(i => i.FilePath)), hasFile));
             copy.Items.Add(MenuEntry("Image", () => CopyImage(item.FilePath), item.IsImageFile));
-            copy.Items.Add(MenuEntry("File path", () => PlatformServices.Clipboard.SetText(string.Join(Environment.NewLine, selected.Select(i => i.FilePath).Where(p => !string.IsNullOrEmpty(p)))), !string.IsNullOrEmpty(item.FilePath)));
+            copy.Items.Add(MenuEntry("File path", () => CopyTexts(selected.Select(i => i.FilePath)), !string.IsNullOrEmpty(item.FilePath)));
 
             var menu = new ContextMenu();
             menu.Items.Add(open);
@@ -251,10 +252,31 @@ namespace XerahS.UI.Views
 
         private static void OpenFile(string filePath) => PlatformServices.System.OpenFile(filePath);
 
-        private static void CopyImage(string filePath)
+        // As in ShareX's UploadInfoManager, each copy plays the action-completed sound.
+
+        /// <summary>ShareX's CopyTexts: the non-empty texts, one per line.</summary>
+        internal static void CopyTexts(IEnumerable<string> texts)
+        {
+            string text = string.Join(Environment.NewLine, texts.Where(t => !string.IsNullOrEmpty(t)));
+            if (text.Length == 0) return;
+            PlatformServices.Clipboard.SetText(text);
+            NotificationSoundService.PlayActionCompleted();
+        }
+
+        internal static void CopyFiles(IEnumerable<string> filePaths)
+        {
+            string[] files = filePaths.Where(File.Exists).ToArray();
+            if (files.Length == 0) return;
+            PlatformServices.Clipboard.SetFileDropList(files);
+            NotificationSoundService.PlayActionCompleted();
+        }
+
+        internal static void CopyImage(string filePath)
         {
             using var image = ImageHelpers.LoadBitmap(filePath);
-            if (image != null) PlatformServices.Clipboard.SetImage(image);
+            if (image == null) return;
+            PlatformServices.Clipboard.SetImage(image);
+            NotificationSoundService.PlayActionCompleted();
         }
 
         /// <summary>ShareX's AnnotateImageFromFile: the image opens in the image editor with the default task settings.</summary>
