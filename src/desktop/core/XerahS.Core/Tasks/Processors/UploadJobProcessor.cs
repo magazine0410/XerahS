@@ -1161,7 +1161,7 @@ namespace XerahS.Core.Tasks.Processors
             }
         }
 
-        private static string GetHistoryType(TaskInfo info)
+        internal static string GetHistoryType(TaskInfo info)
         {
             return info.DataType switch
             {

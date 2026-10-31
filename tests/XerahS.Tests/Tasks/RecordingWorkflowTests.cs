@@ -77,7 +77,8 @@ public sealed class RecordingWorkflowTests
         var settings = new TaskSettings();
         settings.CaptureSettings.FFmpegOptions.VideoSource = "";
         settings.CaptureSettings.FFmpegOptions.AudioSource = "default";
-        var history = WorkerTask.CreateRecordingHistoryItem(new TaskInfo(settings), "/tmp/audio.opus");
+        var info = new TaskInfo(settings) { DataType = TaskHelpers.FindDataType("/tmp/audio.opus", settings) };
+        var history = WorkerTask.CreateRecordingHistoryItem(info, "/tmp/audio.opus");
         Assert.That(history.IsVideo, Is.False);
         Assert.That(history.Type, Is.EqualTo("File"));
     }

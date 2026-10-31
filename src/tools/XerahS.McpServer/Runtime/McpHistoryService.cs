@@ -414,7 +414,7 @@ internal sealed class McpHistoryService
             null or "" or "all" => true,
             "image" => string.Equals(item.Type, "Image", StringComparison.OrdinalIgnoreCase),
             "text" => string.Equals(item.Type, "Text", StringComparison.OrdinalIgnoreCase),
-            "video" => string.Equals(item.Type, "Video", StringComparison.OrdinalIgnoreCase),
+            "video" => item.IsVideo,
             "file" => string.Equals(item.Type, "File", StringComparison.OrdinalIgnoreCase),
             _ => true
         };

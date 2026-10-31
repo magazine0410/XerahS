@@ -460,7 +460,8 @@ namespace XerahS.Core.Tasks
                 FilePath = outputPath,
                 FileName = Path.GetFileName(outputPath),
                 DateTime = DateTime.Now,
-                Type = info.TaskSettings?.CaptureSettings.FFmpegOptions.IsVideoSourceSelected == false ? "File" : "Video",
+                // As in ShareX, the task's data type: a GIF is an Image, a video or audio file a File.
+                Type = UploadJobProcessor.GetHistoryType(info),
                 Host = info.UploaderHost ?? string.Empty,
                 URL = info.Metadata?.UploadURL ?? string.Empty
             };

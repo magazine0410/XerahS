@@ -340,10 +340,11 @@ public partial class AfterUploadTasksTests
         info.Result.ShortenedURL = ShortUrl;
         info.Metadata.UploadURL = OriginalUrl;
         info.ResolvedUploaderInstanceId = _uploader.InstanceId;
+        info.DataType = EDataType.File;
         var history = WorkerTask.CreateRecordingHistoryItem(info, "/recordings/capture.mp4");
         Assert.Multiple(() =>
         {
-            Assert.That(history.Type, Is.EqualTo("Video"));
+            Assert.That(history.Type, Is.EqualTo("File"));
             Assert.That(history.URL, Is.EqualTo(OriginalUrl));
             Assert.That(history.ShortenedURL, Is.EqualTo(ShortUrl));
             Assert.That(history.DeletionURL, Is.EqualTo("https://files.test/delete"));

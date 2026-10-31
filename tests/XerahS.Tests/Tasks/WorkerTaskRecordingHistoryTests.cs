@@ -53,6 +53,7 @@ public sealed class WorkerTaskRecordingHistoryTests
     {
         var info = new TaskInfo
         {
+            DataType = EDataType.File,
             Metadata = new TaskMetadata
             {
                 UploadURL = "https://example.com/capture.mp4",
@@ -68,13 +69,26 @@ public sealed class WorkerTaskRecordingHistoryTests
         {
             Assert.That(historyItem.FilePath, Is.EqualTo("/tmp/capture.mp4"));
             Assert.That(historyItem.FileName, Is.EqualTo("capture.mp4"));
-            Assert.That(historyItem.Type, Is.EqualTo("Video"));
+            Assert.That(historyItem.Type, Is.EqualTo("File"));
             Assert.That(historyItem.Host, Is.Empty);
             Assert.That(historyItem.URL, Is.EqualTo("https://example.com/capture.mp4"));
             Assert.That(historyItem.Tags, Contains.Key("WindowTitle").WithValue("Quarterly review"));
             Assert.That(historyItem.Tags, Contains.Key("ProcessName").WithValue("obsidian"));
             Assert.That(historyItem.Tags, Contains.Key(nameof(TaskMetadata.OcrText)).WithValue("agenda item"));
         });
+    }
+
+    [TestCase("/tmp/capture.gif", "Image")]
+    [TestCase("/tmp/capture.mp4", "File")]
+    [TestCase("/tmp/capture.webm", "File")]
+    public void CreateRecordingHistoryItem_RecordsTheTaskDataTypeAsShareXDoes(string outputPath, string expectedType)
+    {
+        var settings = new TaskSettings();
+        var info = new TaskInfo(settings) { DataType = TaskHelpers.FindDataType(outputPath, settings) };
+
+        var historyItem = WorkerTask.CreateRecordingHistoryItem(info, outputPath);
+
+        Assert.That(historyItem.Type, Is.EqualTo(expectedType));
     }
 
     [Test]
