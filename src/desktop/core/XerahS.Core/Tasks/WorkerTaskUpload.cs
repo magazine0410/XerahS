@@ -222,10 +222,14 @@ namespace XerahS.Core.Tasks
             }
         }
 
-        /// <summary>The folder's index becomes the task's text, and the file name gets the indexer output's extension.</summary>
+        /// <summary>
+        /// The folder's index becomes the task's text, and the file name gets the indexer output's extension. As in
+        /// ShareX, sizes use the units chosen with "Use binary units" in the application settings.
+        /// </summary>
         private static void SetFolderIndex(TaskInfo info, TaskSettings taskSettings, string folderPath)
         {
             var indexerSettings = taskSettings.ToolsSettingsReference.IndexerSettings ?? new XerahS.Indexer.IndexerSettings();
+            indexerSettings.BinaryUnits = SettingsManager.Settings.BinaryUnits;
             info.TextContent = XerahS.Indexer.Indexer.Index(folderPath, indexerSettings);
             info.DataType = EDataType.Text;
             info.Job = TaskJob.TextUpload;

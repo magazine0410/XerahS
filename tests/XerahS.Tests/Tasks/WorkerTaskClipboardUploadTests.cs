@@ -118,6 +118,30 @@ public sealed class WorkerTaskClipboardUploadTests
         });
     }
 
+    [TestCase(true, "1.95 KiB")]
+    [TestCase(false, "2.00 KB")]
+    public void CopiedFolderPath_IndexSizes_UseTheApplicationBinaryUnitsSetting(bool binaryUnits, string expectedSize)
+    {
+        File.WriteAllBytes(Path.Combine(_directory, "alpha.bin"), new byte[2000]);
+        var settings = Settings();
+        settings.UploadSettings.ClipboardUploadAutoIndexFolder = true;
+        settings.ToolsSettingsReference.IndexerSettings.BinaryUnits = !binaryUnits;
+        _clipboard.SetText(_directory);
+        bool previous = SettingsManager.Settings.BinaryUnits;
+        SettingsManager.Settings.BinaryUnits = binaryUnits;
+
+        try
+        {
+            using var worker = Load(settings);
+
+            Assert.That(worker.Info.TextContent, Does.Contain(">" + expectedSize + "<"));
+        }
+        finally
+        {
+            SettingsManager.Settings.BinaryUnits = previous;
+        }
+    }
+
     [Test]
     public void CopiedFolderPath_IsUploadedAsTextWithTheOptionOff()
     {

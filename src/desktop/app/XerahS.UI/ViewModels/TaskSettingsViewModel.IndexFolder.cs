@@ -278,20 +278,6 @@ namespace XerahS.UI.ViewModels
                 }
             }
         }
-
-        public bool IndexerBinaryUnits
-        {
-            get => Tools.IndexerSettings.BinaryUnits;
-            set
-            {
-                if (Tools.IndexerSettings.BinaryUnits != value)
-                {
-                    Tools.IndexerSettings.BinaryUnits = value;
-                    OnPropertyChanged();
-                }
-            }
-        }
-
         #endregion
     }
 }

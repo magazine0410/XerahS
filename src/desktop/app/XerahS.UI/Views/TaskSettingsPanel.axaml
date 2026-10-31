@@ -301,7 +301,6 @@
                                 <StackPanel Spacing="10">
                                     <CheckBox IsChecked="{Binding IndexerUseAttribute}" Content="Write file info as attribute (XML)"/>
                                     <CheckBox IsChecked="{Binding IndexerCreateParseableJson}" Content="Create parseable JSON"/>
-                                    <CheckBox IsChecked="{Binding IndexerBinaryUnits}" Content="Use binary units for size"/>
                                 </StackPanel>
                             </StackPanel>
                         </Border>

@@ -408,19 +408,6 @@ public partial class IndexFolderViewModel : ViewModelBase
         return a.SequenceEqual(b);
     }
 
-    public bool BinaryUnits
-    {
-        get => Tools.IndexerSettings.BinaryUnits;
-        set
-        {
-            if (Tools.IndexerSettings.BinaryUnits != value)
-            {
-                Tools.IndexerSettings.BinaryUnits = value;
-                OnPropertyChanged();
-            }
-        }
-    }
-
     public bool HasOutput => !string.IsNullOrWhiteSpace(OutputText);
 
     public bool CanUpload => !string.IsNullOrWhiteSpace(GeneratedFilePath) && File.Exists(GeneratedFilePath) && !IsBusy;
@@ -498,6 +485,8 @@ public partial class IndexFolderViewModel : ViewModelBase
             Tools.IndexerFolderPath = FolderPath;
 
             var indexerSettings = Tools.IndexerSettings ?? new XerahS.Indexer.IndexerSettings();
+            // As in ShareX, sizes use the units chosen with "Use binary units" in the application settings.
+            indexerSettings.BinaryUnits = SettingsManager.Settings.BinaryUnits;
             
             // Use async indexer with progress reporting and cancellation support
             string outputExtension = GetOutputExtension(Output);

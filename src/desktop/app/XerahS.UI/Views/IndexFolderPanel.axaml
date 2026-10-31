@@ -81,7 +81,6 @@
                             <CheckBox IsChecked="{Binding SkipFiles}" Content="Skip files (Folders only)" AutomationProperties.Name="Skip Files"/>
                             <CheckBox IsChecked="{Binding IgnoreEmptyFolders}" Content="Ignore empty folders" AutomationProperties.Name="Ignore Empty Folders"/>
                             <CheckBox IsChecked="{Binding ShowSizeInfo}" Content="Include size information" AutomationProperties.Name="Include Size Info"/>
-                            <CheckBox IsChecked="{Binding BinaryUnits}" Content="Use binary units for size" AutomationProperties.Name="Use Binary Units"/>
                             <CheckBox IsChecked="{Binding AddFooter}" Content="Add generation footer" AutomationProperties.Name="Add Footer"/>
                         </StackPanel>
                     </Border>
