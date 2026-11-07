@@ -207,10 +207,17 @@ public partial class ToastViewModel : ObservableObject, IDisposable
             Interval = TimeSpan.FromMilliseconds(_fadeInterval)
         };
         _fadeTimer.Tick += OnFadeTick;
+    }
 
-        // Start duration timer if auto-hide is enabled. A zero display duration means the
-        // toast should begin fading immediately instead of staying visible forever.
-        switch (GetAutoHideStartMode(config))
+    /// <summary>
+    /// Starts the auto-hide countdown. The window calls this once it is open: a zero display
+    /// duration can request the close at once, and only an open window can act on that.
+    /// </summary>
+    public void StartAutoHide()
+    {
+        // A zero display duration means the toast should begin fading immediately instead of
+        // staying visible forever.
+        switch (GetAutoHideStartMode(_config))
         {
             case ToastAutoHideStartMode.WaitForDuration:
                 _durationTimer.Start();

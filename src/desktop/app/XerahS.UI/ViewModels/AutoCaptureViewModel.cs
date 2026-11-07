@@ -44,7 +44,7 @@ public partial class AutoCaptureViewModel : ViewModelBase, IDisposable
     private readonly IDesktopTaskManager _taskManager;
     private int _delayMs;
     private Rectangle _customRegion;
-    private bool _isFullScreenCapture;
+    private bool _isCaptureInProgress;
     private bool _disposed;
 
     public event EventHandler? MinimizeRequested;
@@ -107,10 +107,7 @@ public partial class AutoCaptureViewModel : ViewModelBase, IDisposable
         MinimizeToTray = settings.AutoCaptureMinimizeToTray;
         WaitUploads = settings.AutoCaptureWaitUpload;
 
-        if (_customRegion.IsEmpty)
-        {
-            IsFullScreen = true;
-        }
+        IsFullScreen = _customRegion.IsEmpty;
 
         UpdateRegionDisplay();
     }
@@ -118,15 +115,6 @@ public partial class AutoCaptureViewModel : ViewModelBase, IDisposable
     partial void OnIsFullScreenChanged(bool value)
     {
         IsSelectRegionEnabled = !value;
-
-        if (value)
-        {
-            _isFullScreenCapture = true;
-        }
-        else
-        {
-            _isFullScreenCapture = false;
-        }
 
         UpdateRegionDisplay();
     }
@@ -173,7 +161,7 @@ public partial class AutoCaptureViewModel : ViewModelBase, IDisposable
 
     private void StartCapture()
     {
-        if (!HasRegion && !_isFullScreenCapture)
+        if (!HasRegion && !IsFullScreen)
         {
             DebugHelper.WriteLine("AutoCapture: No region selected, cannot start.");
             return;
@@ -196,7 +184,7 @@ public partial class AutoCaptureViewModel : ViewModelBase, IDisposable
             MinimizeRequested?.Invoke(this, EventArgs.Empty);
         }
 
-        DebugHelper.WriteLine($"AutoCapture: Started with interval {RepeatTime}s, fullscreen={_isFullScreenCapture}");
+        DebugHelper.WriteLine($"AutoCapture: Started with interval {RepeatTime}s, fullscreen={IsFullScreen}");
     }
 
     public void StopCapture()
@@ -235,7 +223,7 @@ public partial class AutoCaptureViewModel : ViewModelBase, IDisposable
 
     private void UpdateRegionDisplay()
     {
-        if (_isFullScreenCapture)
+        if (IsFullScreen)
         {
             RegionText = "Full screen";
             HasRegion = true;
@@ -256,7 +244,7 @@ public partial class AutoCaptureViewModel : ViewModelBase, IDisposable
     {
         if (!IsRunning) return;
 
-        if (WaitUploads && _taskManager.Tasks.Any(t => t.IsBusy))
+        if (_isCaptureInProgress || (WaitUploads && _taskManager.Tasks.Any(t => t.IsBusy)))
         {
             _captureTimer.Interval = 1000;
             return;
@@ -289,18 +277,27 @@ public partial class AutoCaptureViewModel : ViewModelBase, IDisposable
 
             SKBitmap? bitmap;
 
-            if (_isFullScreenCapture)
+            // Covers the capture only: StartTask below runs until the task ends, upload included, and WaitUploads decides whether to wait for that.
+            _isCaptureInProgress = true;
+            try
             {
-                bitmap = await PlatformServices.ScreenCapture.CaptureFullScreenAsync(captureOptions);
-            }
-            else
-            {
-                var region = _customRegion;
-                if (region.IsEmpty) return;
+                if (IsFullScreen)
+                {
+                    bitmap = await PlatformServices.ScreenCapture.CaptureFullScreenAsync(captureOptions);
+                }
+                else
+                {
+                    var region = _customRegion;
+                    if (region.IsEmpty) return;
 
-                bitmap = await PlatformServices.ScreenCapture.CaptureRectAsync(
-                    new SKRect(region.Left, region.Top, region.Right, region.Bottom),
-                    captureOptions);
+                    bitmap = await PlatformServices.ScreenCapture.CaptureRectAsync(
+                        new SKRect(region.Left, region.Top, region.Right, region.Bottom),
+                        captureOptions);
+                }
+            }
+            finally
+            {
+                _isCaptureInProgress = false;
             }
 
             if (bitmap == null)

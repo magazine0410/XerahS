@@ -79,6 +79,12 @@ public partial class ToastWindow : OverlayWindow
         }
     }
 
+    protected override void OnOpened(EventArgs e)
+    {
+        base.OnOpened(e);
+        _viewModel?.StartAutoHide();
+    }
+
     public void Initialize(ToastConfig config, IDesktopTaskManager? taskManager = null)
     {
         _config = config;

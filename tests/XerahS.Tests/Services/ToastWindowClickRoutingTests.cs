@@ -23,6 +23,7 @@
 
 #endregion License Information (GPL v3)
 
+using Avalonia.Headless.NUnit;
 using Avalonia.Input;
 using NUnit.Framework;
 using Point = global::Avalonia.Point;
@@ -340,6 +341,7 @@ public class ToastWindowClickRoutingTests
         };
 
         using var viewModel = new ToastViewModel(config);
+        viewModel.StartAutoHide();
 
         // On Linux the fade is bypassed (compositor fade overrides per-window opacity,
         // so we just close when duration elapses). The drag-pause behavior is therefore
@@ -373,9 +375,38 @@ public class ToastWindowClickRoutingTests
         };
 
         using var viewModel = new ToastViewModel(config);
+        viewModel.StartAutoHide();
         viewModel.OnFileDragStarted();
         viewModel.OnFileDragEnded(pointerInside: true);
 
         Assert.That(viewModel.IsFadeTimerRunning, Is.False);
+    }
+
+    [AvaloniaTest]
+    public void ToastWindow_ClosesItself_WhenAutoHideEndsImmediately()
+    {
+        var window = new ToastWindow();
+        window.Initialize(new ToastConfig
+        {
+            AutoHide = true,
+            Duration = 0,
+            FadeDuration = 0
+        });
+        bool closed = false;
+        window.Closed += (_, _) => closed = true;
+
+        window.Show();
+
+        try
+        {
+            Assert.That(closed, Is.True);
+        }
+        finally
+        {
+            if (!closed)
+            {
+                window.Close();
+            }
+        }
     }
 }

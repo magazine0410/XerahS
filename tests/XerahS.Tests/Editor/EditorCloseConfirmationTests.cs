@@ -25,6 +25,7 @@
 
 using Avalonia.Controls;
 using Avalonia.Headless.NUnit;
+using Avalonia.Threading;
 using NUnit.Framework;
 using ShareX.ImageEditor.Core.ImageEffects.Filters;
 using ShareX.ImageEditor.Hosting;
@@ -80,6 +81,31 @@ public class EditorCloseConfirmationTests
             Assert.That(viewModel.IsModalOpen, Is.True);
             Assert.That(initialModal, Is.Not.Null);
             Assert.That(viewModel.ModalContent, Is.SameAs(initialModal));
+        });
+    }
+
+    [TestCase(null, false)]
+    [TestCase("/tmp/saved.png", true)]
+    public void ExitConfirmationSave_ClosesOnlyWhenTheSaveSucceeded(string? savedPath, bool expectedClosed)
+    {
+        var viewModel = new MainViewModel(new ImageEditorOptions
+        {
+            ShowExitConfirmation = true
+        })
+        {
+            IsDirty = true
+        };
+        bool closed = false;
+        viewModel.CloseRequested += (_, _) => closed = true;
+        viewModel.SaveRequested += () => Task.FromResult(savedPath);
+
+        viewModel.RequestClose();
+        ((ConfirmationDialogViewModel)viewModel.ModalContent!).YesCommand.Execute(null);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(closed, Is.EqualTo(expectedClosed));
+            Assert.That(viewModel.IsModalOpen, Is.False);
         });
     }
 
@@ -209,6 +235,73 @@ public class EditorCloseConfirmationTests
                 window.Close();
             }
         }
+    }
+
+    [AvaloniaTest]
+    public void ExitConfirmationSave_KeepsHostEditorOpen_WhenTheXerahSSaveHandlerFails()
+    {
+        var viewModel = new MainViewModel(new ImageEditorOptions
+        {
+            ShowExitConfirmation = true
+        });
+        string path = Path.Combine(Path.GetTempPath(), $"{Guid.NewGuid():N}.png");
+        var window = new HostEditorWindow
+        {
+            Width = 1200,
+            Height = 800,
+            DataContext = viewModel
+        };
+        bool closed = false;
+
+        // No snapshot and no preview image, so the XerahS handler reports a failed save.
+        MainViewModelHelper.WireSaveRequested(viewModel, () => null, () => window);
+
+        try
+        {
+            window.Show();
+            // EditorView subscribes to the view model when it loads, and with no image it opens the start screen.
+            Dispatcher.UIThread.RunJobs();
+            viewModel.CloseModalCommand.Execute(null);
+            viewModel.ImageFilePath = path;
+            viewModel.IsDirty = true;
+            viewModel.CloseRequested += (_, _) => closed = true;
+
+            viewModel.RequestClose();
+            ((ConfirmationDialogViewModel)viewModel.ModalContent!).YesCommand.Execute(null);
+
+            Assert.Multiple(() =>
+            {
+                Assert.That(closed, Is.False);
+                Assert.That(viewModel.IsDirty, Is.True);
+                Assert.That(viewModel.IsModalOpen, Is.False);
+            });
+        }
+        finally
+        {
+            File.Delete(path);
+            viewModel.IsDirty = false;
+            viewModel.RequestClose();
+
+            if (window.IsVisible)
+            {
+                window.Close();
+            }
+        }
+    }
+
+    [Test]
+    public void WiringXerahSSaveHandlers_ReplacesTheEditorViewHandlers()
+    {
+        var viewModel = new MainViewModel(new ImageEditorOptions());
+
+        MainViewModelHelper.WireSaveRequested(viewModel);
+        MainViewModelHelper.WireSaveAsRequested(viewModel);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(viewModel.HasHostSaveHandler, Is.True);
+            Assert.That(viewModel.HasHostSaveAsHandler, Is.True);
+        });
     }
 
     [AvaloniaTest]

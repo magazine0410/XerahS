@@ -120,9 +120,10 @@ namespace XerahS.Core.Managers
                 return;
             }
 
+            // Counted before the task is queued, so StopAsync also waits for a file whose task has not started.
+            Interlocked.Increment(ref _activeProcessingCount);
             _ = Task.Run(async () =>
             {
-                Interlocked.Increment(ref _activeProcessingCount);
                 try
                 {
                     await ProcessFileAsync(settings, fullPath);

@@ -69,6 +69,8 @@ public static class MainViewModelHelper
     /// </summary>
     public static void WireSaveRequested(MainViewModel viewModel, Func<SKBitmap?>? getEditedSnapshot = null, Func<Window?>? getWindow = null)
     {
+        // Without this, EditorView's own handler also runs and saves the image a second time.
+        viewModel.HasHostSaveHandler = true;
         viewModel.SaveRequested += () => HandleSaveRequestedAsync(viewModel, getEditedSnapshot, getWindow);
     }
 
@@ -77,6 +79,8 @@ public static class MainViewModelHelper
     /// </summary>
     public static void WireSaveAsRequested(MainViewModel viewModel, Func<SKBitmap?>? getEditedSnapshot = null, Func<Window?>? getWindow = null)
     {
+        // Without this, EditorView's own handler also runs and opens a second save dialog.
+        viewModel.HasHostSaveAsHandler = true;
         viewModel.SaveAsRequested += () => HandleSaveAsRequestedAsync(viewModel, getEditedSnapshot, getWindow);
     }
 

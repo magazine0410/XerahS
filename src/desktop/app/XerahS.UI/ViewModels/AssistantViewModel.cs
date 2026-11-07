@@ -37,6 +37,7 @@ public partial class AssistantViewModel : ViewModelBase
 {
     private readonly IAssistantService _assistantService;
     private CancellationTokenSource? _requestCts;
+    private int _latestRequest;
     private DateTimeOffset _lastEscClearAt = DateTimeOffset.MinValue;
 
     [ObservableProperty]
@@ -177,6 +178,8 @@ public partial class AssistantViewModel : ViewModelBase
 
     private async Task RunAsync(Task<AssistantResponse> task)
     {
+        // Only the latest request updates the view; an older one can still end after a newer one has started.
+        int request = ++_latestRequest;
         IsBusy = true;
         StatusText = "Processing...";
         DebugHelper.WriteLine("[AssistantViewModel] RunAsync started.");
@@ -185,16 +188,25 @@ public partial class AssistantViewModel : ViewModelBase
         {
             AssistantResponse response = await task;
             DebugHelper.WriteLine($"[AssistantViewModel] RunAsync received response kind={response.Kind}, items={response.Items.Count}, actions={response.Actions.Count}, pendingConfirmation={response.PendingConfirmation != null}.");
-            ApplyResponse(response);
+            if (request == _latestRequest)
+            {
+                ApplyResponse(response);
+            }
         }
         catch (OperationCanceledException)
         {
             DebugHelper.WriteLine("[AssistantViewModel] RunAsync cancelled.");
-            StatusText = "Action cancelled. You can retry if needed.";
+            if (request == _latestRequest)
+            {
+                StatusText = "Action cancelled. You can retry if needed.";
+            }
         }
         finally
         {
-            IsBusy = false;
+            if (request == _latestRequest)
+            {
+                IsBusy = false;
+            }
             DebugHelper.WriteLine("[AssistantViewModel] RunAsync finished.");
         }
     }

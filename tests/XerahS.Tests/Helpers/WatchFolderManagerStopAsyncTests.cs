@@ -25,6 +25,7 @@
 
 using System.Reflection;
 using NUnit.Framework;
+using XerahS.Core;
 using XerahS.Core.Managers;
 
 namespace XerahS.Tests.Helpers;
@@ -71,6 +72,47 @@ public class WatchFolderManagerStopAsyncTests
         finally
         {
             activeCountField.SetValue(manager, originalValue);
+        }
+    }
+
+    [Test]
+    public async Task OnFileDetected_CountsTheFileBeforeItsTaskStarts()
+    {
+        WatchFolderManager manager = WatchFolderManager.Instance;
+        FieldInfo activeCountField = GetActiveCountField();
+        FieldInfo acceptNewFilesField = typeof(WatchFolderManager).GetField("_acceptNewFiles", BindingFlags.Instance | BindingFlags.NonPublic)
+            ?? throw new InvalidOperationException("Could not find WatchFolderManager accept field.");
+        MethodInfo onFileDetected = typeof(WatchFolderManager).GetMethod("OnFileDetected", BindingFlags.Instance | BindingFlags.NonPublic)
+            ?? throw new InvalidOperationException("Could not find WatchFolderManager.OnFileDetected.");
+        int originalCount = (int)(activeCountField.GetValue(manager) ?? 0);
+        object? originalAccept = acceptNewFilesField.GetValue(manager);
+
+        // An empty file never reads as ready, so its task keeps polling until the file is deleted.
+        string path = Path.Combine(Path.GetTempPath(), $"{Guid.NewGuid():N}.png");
+        await File.WriteAllBytesAsync(path, []);
+
+        try
+        {
+            activeCountField.SetValue(manager, 0);
+            acceptNewFilesField.SetValue(manager, true);
+
+            onFileDetected.Invoke(manager, [new WatchFolderSettings { Enabled = true }, path]);
+            int countAfterDetection = (int)(activeCountField.GetValue(manager) ?? 0);
+
+            File.Delete(path);
+            bool drained = await manager.StopAsync(TimeSpan.FromSeconds(5));
+
+            Assert.Multiple(() =>
+            {
+                Assert.That(countAfterDetection, Is.EqualTo(1));
+                Assert.That(drained, Is.True);
+            });
+        }
+        finally
+        {
+            File.Delete(path);
+            activeCountField.SetValue(manager, originalCount);
+            acceptNewFilesField.SetValue(manager, originalAccept);
         }
     }
 
