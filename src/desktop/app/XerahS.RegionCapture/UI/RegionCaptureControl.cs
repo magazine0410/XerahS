@@ -92,8 +92,14 @@ public sealed class RegionCaptureControl : UserControl
     private IPen? _crosshairLinePen;
     private IPen? _crosshairPen;
 
-    private static readonly IPen SelectionPen = new Pen(Brushes.White, 2);
-    private static readonly IPen SelectionShadowPen = new Pen(new SolidColorBrush(Color.FromArgb(100, 0, 0, 0)), 4);
+    // Selection border: a 1px light blue dashed line on a 3px dark band, so it stays visible on light blue
+    // backgrounds. The dashes move 1px per tick of the marching-ants timer.
+    private static readonly IBrush SelectionBrush = new SolidColorBrush(Color.FromRgb(135, 206, 250));
+    private static readonly IPen SelectionOutlinePen = new Pen(new SolidColorBrush(Color.FromArgb(180, 0, 0, 0)), 3);
+    private const double SelectionDashLength = 4;
+    private static readonly TimeSpan SelectionDashInterval = TimeSpan.FromMilliseconds(200);
+    private readonly DispatcherTimer _selectionDashTimer;
+    private int _selectionDashOffset;
     private static readonly IPen WindowSnapPen = new Pen(new SolidColorBrush(Color.FromArgb(220, 0, 174, 255)), 3);
     private static readonly IPen WindowSnapShadowPen = new Pen(new SolidColorBrush(Color.FromArgb(80, 0, 174, 255)), 6);
     private static readonly IBrush InfoBackgroundBrush = new SolidColorBrush(Color.FromArgb(220, 30, 30, 30));
@@ -132,6 +138,7 @@ public sealed class RegionCaptureControl : UserControl
 
             _isInactiveMonitor = value;
             UpdateMagnifierHud();
+            UpdateSelectionDashTimer();
             InvalidateVisual();
         }
     }
@@ -199,6 +206,13 @@ public sealed class RegionCaptureControl : UserControl
         {
             HasPendingSelection = state == CaptureState.Selected;
             UpdatePointerCursor();
+            UpdateSelectionDashTimer();
+            InvalidateVisual();
+        };
+        _selectionDashTimer = new DispatcherTimer { Interval = SelectionDashInterval };
+        _selectionDashTimer.Tick += (_, _) =>
+        {
+            _selectionDashOffset = (_selectionDashOffset + 1) % (int)(SelectionDashLength * 2);
             InvalidateVisual();
         };
         _stateMachine.SelectionChanged += OnSelectionChanged;
@@ -449,6 +463,24 @@ public sealed class RegionCaptureControl : UserControl
             XerahS.Common.DebugHelper.WriteLine($"[RegionCapture] Milestone: overlay control attached to visual tree (+{elapsedMs:F0} ms)");
         }
         UpdateMagnifierHud();
+        UpdateSelectionDashTimer();
+    }
+
+    protected override void OnDetachedFromVisualTree(Avalonia.VisualTreeAttachmentEventArgs e)
+    {
+        _selectionDashTimer.Stop();
+        base.OnDetachedFromVisualTree(e);
+    }
+
+    private void UpdateSelectionDashTimer()
+    {
+        bool hasSelection = (_state == CaptureState.Dragging || _state == CaptureState.Selected)
+            && !_isInactiveMonitor
+            && VisualRoot is not null;
+        if (hasSelection)
+            _selectionDashTimer.Start();
+        else
+            _selectionDashTimer.Stop();
     }
 
     protected override void OnPointerMoved(PointerEventArgs e)
@@ -855,9 +887,14 @@ public sealed class RegionCaptureControl : UserControl
             // Draw the selection/snap border with shadow effect
             if (_state == CaptureState.Dragging || _state == CaptureState.Selected)
             {
-                // Shadow first, then border
-                context.DrawRectangle(null, SelectionShadowPen, rect);
-                context.DrawRectangle(null, SelectionPen, rect);
+                // Dark band first, then the moving light blue dashes centered on it
+                var borderRect = rect.Inflate(0.5);
+                context.DrawRectangle(null, SelectionOutlinePen, borderRect);
+                var dashPen = new Pen(SelectionBrush, 1)
+                {
+                    DashStyle = new DashStyle(new[] { SelectionDashLength, SelectionDashLength }, -_selectionDashOffset)
+                };
+                context.DrawRectangle(null, dashPen, borderRect);
 
                 // Draw resize handles at corners
                 DrawResizeHandles(context, rect);
@@ -972,7 +1009,7 @@ public sealed class RegionCaptureControl : UserControl
     private void DrawResizeHandles(DrawingContext context, Rect rect)
     {
         // Use lighter/smaller handles in ruler mode to reduce visual clutter
-        var handleSize = _useLightResizeNodes ? 6.0 : 8.0;
+        var handleSize = _useLightResizeNodes ? 5.0 : 7.0;
         IBrush handleBrush = _useLightResizeNodes
             ? new SolidColorBrush(Color.FromArgb(180, 255, 255, 255))  // Semi-transparent white
             : Brushes.White;

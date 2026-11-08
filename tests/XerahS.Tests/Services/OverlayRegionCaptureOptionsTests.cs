@@ -132,7 +132,7 @@ public class OverlayRegionCaptureOptionsTests
             Assert.That(options.ActiveMonitorMode, Is.False);
             Assert.That(options.DimOpacity, Is.EqualTo(0.2));
             Assert.That(options.QuickCrop, Is.True);
-            Assert.That(options.ShowCenterCrosshair, Is.True);
+            Assert.That(options.ShowCenterCrosshair, Is.False);
             Assert.That(options.EnableAnnotations, Is.True);
             Assert.That(options.RightClickAction, Is.EqualTo(OverlayAction.RemoveShapeCancelCapture));
             Assert.That(options.MiddleClickAction, Is.EqualTo(OverlayAction.SwapToolType));

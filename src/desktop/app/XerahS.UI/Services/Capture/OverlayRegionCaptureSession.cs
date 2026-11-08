@@ -188,7 +188,7 @@ internal static class OverlayRegionCaptureSession
             ActiveMonitorMode = regionOptions?.ActiveMonitorMode ?? false,
             EnableAnnotations = advancedSettings?.RegionCaptureDisableAnnotation != true,
             DimOpacity = regionOptions?.UseDimming == false ? 0 : Math.Clamp(regionOptions?.BackgroundDimStrength ?? 20, 0, 100) / 100d,
-            ShowCenterCrosshair = regionOptions?.ShowCenterCrosshair ?? true,
+            ShowCenterCrosshair = regionOptions?.ShowCenterCrosshair ?? false,
             RightClickAction = MapCaptureAction(regionOptions?.RegionCaptureActionRightClick ?? Core.RegionCaptureAction.RemoveShapeCancelCapture),
             MiddleClickAction = MapCaptureAction(regionOptions?.RegionCaptureActionMiddleClick ?? Core.RegionCaptureAction.SwapToolType),
             X1ClickAction = MapCaptureAction(regionOptions?.RegionCaptureActionX1Click ?? Core.RegionCaptureAction.CaptureFullscreen),

@@ -70,7 +70,7 @@ public sealed record RegionCaptureOptions
 {
     public bool ActiveMonitorMode { get; init; }
     public bool EnableAnnotations { get; init; } = true;
-    public bool ShowCenterCrosshair { get; init; } = true;
+    public bool ShowCenterCrosshair { get; init; } = false;
 
     public RegionCaptureAction RightClickAction { get; init; } = RegionCaptureAction.RemoveShapeCancelCapture;
     public RegionCaptureAction MiddleClickAction { get; init; } = RegionCaptureAction.SwapToolType;
@@ -156,16 +156,16 @@ public sealed record RegionCaptureOptions
     public bool ShowCursor { get; init; } = false;
 
     /// <summary>
-    /// Color of the crosshair (near cursor, 32px). Default: Cyan (0xFF00C8FF)
+    /// Color of the crosshair (near cursor, 32px). Default: Bright grey (0xFFD0D0D0)
     /// Format: ARGB (Alpha, Red, Green, Blue)
     /// </summary>
-    public uint CrosshairColor { get; init; } = 0xDC00C8FF; // Semi-transparent cyan
+    public uint CrosshairColor { get; init; } = 0xFFD0D0D0; // Bright grey
 
     /// <summary>
-    /// Color of the full-screen crosshair lines. Default: High-visibility yellow (0xC8FFFF00)
+    /// Color of the full-screen crosshair lines. Default: Bright grey (0xFFD0D0D0)
     /// Format: ARGB (Alpha, Red, Green, Blue)
     /// </summary>
-    public uint CrosshairLineColor { get; init; } = 0xC8FFFF00; // Semi-transparent yellow
+    public uint CrosshairLineColor { get; init; } = 0xFFD0D0D0; // Bright grey
 
     /// <summary>
     /// Background image for magnifier pixel sampling. When provided, the magnifier
