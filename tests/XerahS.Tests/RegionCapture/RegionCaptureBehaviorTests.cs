@@ -29,6 +29,7 @@ using Avalonia.Headless;
 using Avalonia.Headless.NUnit;
 using Avalonia.Input;
 using Avalonia.Media;
+using Avalonia.VisualTree;
 using NUnit.Framework;
 using ShareX.ImageEditor.Core.Annotations;
 using ShareX.ImageEditor.Presentation.Controls;
@@ -572,5 +573,41 @@ public class RegionCaptureBehaviorTests
         second.ActivateLastAnnotationTool();
         Assert.That(first.IsRegionToolActive, Is.False);
         Assert.That(first.ActiveTool, Is.EqualTo(EditorTool.Ellipse));
+    }
+
+    [AvaloniaTest]
+    public void Toolbar_HidesWhileSelectionDragIsNearIt()
+    {
+        var (window, _) = Open(new RegionCaptureOptions { QuickCrop = false });
+        try
+        {
+            var toolbar = window.FindControl<AnnotationToolbar>("AnnotationToolbarControl")!;
+            var panel = toolbar.GetVisualDescendants().OfType<Border>().First();
+            var onToolbar = panel.TranslatePoint(new Point(panel.Bounds.Width / 2, panel.Bounds.Height / 2), window)!.Value;
+            var nearToolbar = new Point(onToolbar.X, onToolbar.Y + panel.Bounds.Height / 2 + 20);
+
+            window.MouseMove(nearToolbar);
+            Assert.That(toolbar.Opacity, Is.EqualTo(1), "hovering without a drag");
+
+            window.MouseDown(Start, MouseButton.Left);
+            window.MouseMove(Inside, RawInputModifiers.LeftMouseButton);
+            Assert.That(toolbar.Opacity, Is.EqualTo(1), "drag away from the toolbar");
+
+            window.MouseMove(nearToolbar, RawInputModifiers.LeftMouseButton);
+            Assert.That(toolbar.Opacity, Is.EqualTo(0), "drag near the toolbar");
+            Assert.That(toolbar.IsHitTestVisible, Is.False);
+
+            window.MouseMove(onToolbar, RawInputModifiers.LeftMouseButton);
+            Assert.That(toolbar.Opacity, Is.EqualTo(0), "drag over the toolbar");
+
+            window.MouseMove(Inside, RawInputModifiers.LeftMouseButton);
+            Assert.That(toolbar.Opacity, Is.EqualTo(1), "drag moved away again");
+
+            window.MouseMove(onToolbar, RawInputModifiers.LeftMouseButton);
+            window.MouseUp(onToolbar, MouseButton.Left);
+            Assert.That(toolbar.Opacity, Is.EqualTo(1), "drag ended under the toolbar");
+            Assert.That(toolbar.IsHitTestVisible, Is.True);
+        }
+        finally { window.Close(); }
     }
 }

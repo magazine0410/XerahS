@@ -217,6 +217,10 @@ public partial class OverlayWindow : Window
         AddHandler(PointerMovedEvent, OnCapturePointerMoved, Avalonia.Interactivity.RoutingStrategies.Tunnel);
         AddHandler(PointerReleasedEvent, OnCapturePointerReleased, Avalonia.Interactivity.RoutingStrategies.Tunnel);
 
+        // Bubble handlers run after the capture control has applied the event to the selection state.
+        AddHandler(PointerMovedEvent, OnToolbarAutoHidePointerEvent, Avalonia.Interactivity.RoutingStrategies.Bubble, handledEventsToo: true);
+        AddHandler(PointerReleasedEvent, OnToolbarAutoHidePointerEvent, Avalonia.Interactivity.RoutingStrategies.Bubble, handledEventsToo: true);
+
         // Ensure window can receive keyboard input
         Focusable = true;
         ApplySelectionCursorPolicy();

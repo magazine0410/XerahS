@@ -23,14 +23,74 @@
 
 #endregion License Information (GPL v3)
 
+using Avalonia;
 using Avalonia.Controls;
+using Avalonia.Input;
 using Avalonia.Media;
+using Avalonia.VisualTree;
 using ShareX.ImageEditor.Presentation.Controls;
 
 namespace XerahS.RegionCapture.UI;
 
 public partial class OverlayWindow
 {
+    /// <summary>
+    /// Distance in device-independent pixels from the toolbar at which a selection drag hides it.
+    /// </summary>
+    private const double ToolbarAutoHideDistance = 30;
+
+    private void OnToolbarAutoHidePointerEvent(object? sender, PointerEventArgs e) =>
+        UpdateToolbarAutoHide(e.GetPosition(this));
+
+    /// <summary>
+    /// Hides the annotation toolbar while a region is created, moved, or resized with the pointer
+    /// close to it, so the area under the toolbar can be selected. The toolbar keeps its layout
+    /// and its Tab visibility; only opacity and hit testing change.
+    /// </summary>
+    private void UpdateToolbarAutoHide(Point pointer)
+    {
+        var toolbar = this.FindControl<AnnotationToolbar>("AnnotationToolbarControl");
+        if (toolbar == null)
+            return;
+
+        bool hide = _captureControl.IsDraggingSelection && IsNearToolbar(toolbar, pointer);
+        toolbar.Opacity = hide ? 0 : 1;
+        toolbar.IsHitTestVisible = !hide;
+    }
+
+    private bool IsNearToolbar(AnnotationToolbar toolbar, Point pointer)
+    {
+        if (!toolbar.IsVisible)
+            return false;
+
+        // The toolbar control spans the overlay's width; only its bordered panels are drawn.
+        var panels = new List<Border>();
+        CollectToolbarPanels(toolbar, panels);
+        foreach (var panel in panels)
+        {
+            if (panel.TransformToVisual(this) is { } transform &&
+                new Rect(panel.Bounds.Size).TransformToAABB(transform).Inflate(ToolbarAutoHideDistance).Contains(pointer))
+            {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static void CollectToolbarPanels(Visual visual, List<Border> panels)
+    {
+        foreach (var child in visual.GetVisualChildren())
+        {
+            if (!child.IsVisible)
+                continue;
+
+            if (child is Border border)
+                panels.Add(border);
+            else
+                CollectToolbarPanels(child, panels);
+        }
+    }
+
     private void WireUpToolbarEvents()
     {
         var toolbar = this.FindControl<AnnotationToolbar>("AnnotationToolbarControl");
