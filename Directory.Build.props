@@ -7,7 +7,9 @@
     <Company>ShareX Team</Company>
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
     <BuildInParallel>false</BuildInParallel>
-    <UseSharedCompilation>false</UseSharedCompilation>
+    <!-- The compiler server stays off on Windows and macOS (file locks on Windows). On Linux the SDK default (on) applies:
+         a full rebuild of XerahS.sln takes about 20 s with it and 52 s without. -->
+    <UseSharedCompilation Condition="!$([MSBuild]::IsOSPlatform('Linux'))">false</UseSharedCompilation>
     <!-- Compile/test lanes stay side-effect free. Product lanes opt in explicitly. -->
     <AssembleProduct Condition="'$(AssembleProduct)' == ''">false</AssembleProduct>
     <BuildWebUI Condition="'$(BuildWebUI)' == ''">$(AssembleProduct)</BuildWebUI>

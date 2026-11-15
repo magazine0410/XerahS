@@ -105,9 +105,7 @@ restore_scoped_intermediate_assets() {
 dotnet_publish_serial() {
     dotnet publish "$@" \
         "${DOTNET_RESTORE_SOURCE_ARGS[@]}" \
-        --disable-build-servers \
         -p:nodeReuse=false \
-        -p:UseSharedCompilation=false \
         -p:BuildInParallel=false \
         -m:1
 }
