@@ -65,7 +65,7 @@ public class TestProjectBuildPropertiesTests
     public void DesktopProductProjects_DevStagingTargets_RequireProductAssembly(string relativeProjectPath)
     {
         XDocument project = LoadRepositoryXml(relativeProjectPath);
-        string[] targetNames = ["BuildWatchFolderDaemonForDev", "CopyVideoEditorWebUiForDev", "BuildPlugins"];
+        string[] targetNames = ["BuildWatchFolderDaemonForDev", "BuildPlugins"];
 
         foreach (string targetName in targetNames)
         {
@@ -103,15 +103,15 @@ public class TestProjectBuildPropertiesTests
     }
 
     [Test]
-    public void XerahSTests_AppAndCliProjectReferences_DisableAppDrivenPluginBuild()
+    public void XerahSTests_AppAndCliProjectReferences_HaveNoAdditionalProperties()
     {
         string testProjectPath = Path.GetFullPath(Path.Combine(TestContext.CurrentContext.TestDirectory,
             "../../../../../tests/XerahS.Tests/XerahS.Tests.csproj"));
 
         XDocument project = XDocument.Load(testProjectPath);
 
-        AssertProjectReferenceDisablesAppDrivenPluginBuild(project, "XerahS.App.csproj");
-        AssertProjectReferenceDisablesAppDrivenPluginBuild(project, "XerahS.CLI.csproj");
+        AssertProjectReferenceHasNoAdditionalProperties(project, "XerahS.App.csproj");
+        AssertProjectReferenceHasNoAdditionalProperties(project, "XerahS.CLI.csproj");
     }
 
     [Test]
@@ -177,19 +177,14 @@ public class TestProjectBuildPropertiesTests
         });
     }
 
-    private static void AssertProjectReferenceDisablesAppDrivenPluginBuild(XDocument project, string projectFileName)
+    // Extra global properties on these references made a second configuration of UI, Core and RegionCapture that
+    // built into the same obj folders in parallel (AVLN9999 "file is being used by another process").
+    private static void AssertProjectReferenceHasNoAdditionalProperties(XDocument project, string projectFileName)
     {
         XElement projectReference = project.Descendants("ProjectReference")
             .Single(element => ((string?)element.Attribute("Include"))?.EndsWith(projectFileName, StringComparison.OrdinalIgnoreCase) == true);
 
-        string? additionalProperties = (string?)projectReference.Attribute("AdditionalProperties");
-
-        Assert.Multiple(() =>
-        {
-            Assert.That(additionalProperties, Does.Contain("AssembleProduct=false"));
-            Assert.That(additionalProperties, Does.Contain("EnableAppDrivenPluginBuild=false"));
-            Assert.That(additionalProperties, Does.Contain("SkipBundlePlugins=true"));
-        });
+        Assert.That((string?)projectReference.Attribute("AdditionalProperties"), Is.Null, projectFileName);
     }
 
     private static XDocument LoadRepositoryXml(string relativePath) =>
