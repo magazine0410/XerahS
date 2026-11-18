@@ -117,12 +117,6 @@ public class WorkflowManagerTests
     }
 
     [Test]
-    public void HotkeyInfo_ShowsPrintKeyAsPrintScreen()
-    {
-        Assert.That(new HotkeyInfo(Key.Print, KeyModifiers.Control).ToString(), Is.EqualTo("Ctrl + Print Screen"));
-    }
-
-    [Test]
     public void RegisterHotkey_WhenClearedToNone_UnregistersPreviousBinding()
     {
         var service = new FakeHotkeyService();

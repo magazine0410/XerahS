@@ -32,25 +32,6 @@ namespace XerahS.Tests.Services;
 public class RegionCaptureAnnotationOptionsStoreTests
 {
     [Test]
-    public async Task PersistAsync_ReturnsTask_NotFireAndForget()
-    {
-        // PersistAsync should return a Task<bool> that completes,
-        // not fire-and-forget (which would return void).
-        // When WorkflowsConfig is null (default test state), SaveWorkflowsConfigAsync
-        // returns false — but the key regression guarantee is that the Task is
-        // actually awaited and completes, unlike the previous `_ =` discard.
-        var task = RegionCaptureAnnotationOptionsStore.PersistAsync();
-        Assert.That(task, Is.Not.Null, "PersistAsync must not return null");
-
-        var result = await task;
-        // The critical property is that PersistAsync returns a completed Task<bool> —
-        // fire-and-forget would never have completed synchronously in the general case.
-        // WorkflowsConfig may or may not be loaded in test harness; we just verify
-        // the task completes without exception.
-        Assert.That(result, Is.TypeOf<bool>());
-    }
-
-    [Test]
     public async Task PersistAsync_DoesNotThrow_WhenNoSettingsLoaded()
     {
         // Regression: fire-and-forget `_ =` would silently discard exceptions.

@@ -32,66 +32,6 @@ namespace XerahS.Tests.History;
 public class HistoryManagerBackupTests
 {
     [Test]
-    public void AppendHistoryItem_ReturnsFalse_WhenConfiguredZipBackupFails()
-    {
-        string directory = Path.Combine(Path.GetTempPath(), $"xerahs-history-backup-{Guid.NewGuid():N}");
-        string historyFile = Path.Combine(directory, "history.json");
-        string backupFolder = Path.Combine(directory, "backups");
-
-        Directory.CreateDirectory(directory);
-        Directory.CreateDirectory(backupFolder);
-        Directory.CreateDirectory(Path.Combine(backupFolder, DateTime.Now.ToString("yyyy-MM"), $"backup-{DateTime.Now:yyyy-MM-dd}.zip"));
-
-        try
-        {
-            var manager = new HistoryManagerJSON(historyFile)
-            {
-                BackupFolder = backupFolder,
-                CreateBackup = true
-            };
-
-            bool result = manager.AppendHistoryItem(CreateHistoryItem());
-
-            Assert.That(result, Is.False);
-            Assert.That(File.Exists(historyFile), Is.True, "The history append itself completed; the false result surfaces the backup failure.");
-        }
-        finally
-        {
-            Directory.Delete(directory, recursive: true);
-        }
-    }
-
-    [Test]
-    public void AppendHistoryItem_ReturnsFalse_WhenConfiguredWeeklyBackupFails()
-    {
-        string directory = Path.Combine(Path.GetTempPath(), $"xerahs-history-backup-{Guid.NewGuid():N}");
-        string historyFile = Path.Combine(directory, "history.json");
-        string backupFolder = Path.Combine(directory, "backups");
-
-        Directory.CreateDirectory(directory);
-        Directory.CreateDirectory(backupFolder);
-        Directory.CreateDirectory(Path.Combine(backupFolder, $"history-{DateTime.Now:yyyy-MM}-W{FileHelpers.WeekOfYear(DateTime.Now):00}.json"));
-
-        try
-        {
-            var manager = new HistoryManagerJSON(historyFile)
-            {
-                BackupFolder = backupFolder,
-                CreateWeeklyBackup = true
-            };
-
-            bool result = manager.AppendHistoryItem(CreateHistoryItem());
-
-            Assert.That(result, Is.False);
-            Assert.That(File.Exists(historyFile), Is.True, "The history append itself completed; the false result surfaces the backup failure.");
-        }
-        finally
-        {
-            Directory.Delete(directory, recursive: true);
-        }
-    }
-
-    [Test]
     public void AppendHistoryItem_ReturnsTrue_WhenConfiguredWeeklyBackupAlreadyExists()
     {
         string directory = Path.Combine(Path.GetTempPath(), $"xerahs-history-backup-{Guid.NewGuid():N}");

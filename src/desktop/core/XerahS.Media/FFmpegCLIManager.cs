@@ -358,11 +358,6 @@ namespace XerahS.Media
             return devices;
         }
 
-internal static class TestAccessor
-    {
-        internal static string EscapeConcatFilePath(string path) => FFmpegCLIManager.EscapeConcatFilePath(path);
-    }
-
     private static string EscapeConcatFilePath(string path)
     {
         return path.Replace("'", "'\\''");

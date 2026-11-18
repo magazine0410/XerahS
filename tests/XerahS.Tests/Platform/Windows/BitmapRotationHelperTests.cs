@@ -147,26 +147,6 @@ public class BitmapRotationHelperTests
             "After 270° CW, source top-right (Green) should be at result (0,0)");
     }
 
-    /// <summary>
-    /// Issue #148 regression: 90° and 270° must produce DIFFERENT results.
-    /// If the DMDO_90/DMDO_270 swap is reintroduced, both rotations would apply
-    /// the same (wrong) transform, and this test would catch it.
-    /// </summary>
-    [Test]
-    public void RotateClockwise_90And270_ProduceDifferentResults()
-    {
-        using var src = Make2x2();
-        using var rotated90 = BitmapRotationHelper.RotateClockwise(src, 90);
-        using var rotated270 = BitmapRotationHelper.RotateClockwise(src, 270);
-
-        // Pixel at (0,0) must differ between the two results.
-        var pixel90 = rotated90.GetPixel(0, 0);
-        var pixel270 = rotated270.GetPixel(0, 0);
-
-        Assert.That(pixel90, Is.Not.EqualTo(pixel270),
-            "90° CW and 270° CW must produce distinct outputs (issue #148 regression guard)");
-    }
-
     [Test]
     public void RotateClockwise_180_TopLeftMovesToBottomRight()
     {

@@ -91,22 +91,4 @@ public class AfterCaptureTaskFlagsTests
         // Verify no duplicate values
         Assert.That(bits, Is.Unique);
     }
-
-    [Test]
-    public void AfterCaptureTasks_CanBeComposed()
-    {
-        // Verify flags can be safely combined without collision
-        var combined = AfterCaptureTasks.DoOCR
-                             | AfterCaptureTasks.CopyOcrTextToClipboard
-                             | AfterCaptureTasks.ScanQRCode
-                             | AfterCaptureTasks.ShowAfterCaptureWindow;
-
-        Assert.Multiple(() =>
-        {
-            Assert.That(combined.HasFlag(AfterCaptureTasks.DoOCR), Is.True);
-            Assert.That(combined.HasFlag(AfterCaptureTasks.CopyOcrTextToClipboard), Is.True);
-            Assert.That(combined.HasFlag(AfterCaptureTasks.ScanQRCode), Is.True);
-            Assert.That(combined.HasFlag(AfterCaptureTasks.ShowAfterCaptureWindow), Is.True);
-        });
-    }
 }

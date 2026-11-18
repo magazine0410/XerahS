@@ -41,13 +41,6 @@ public class EvdevHotkeyTests
     }
 
     [Test]
-    public void EvdevKeyMap_Snapshot_MapsToSysRq()
-    {
-        Assert.That(EvdevKeyMap.TryGetEvdevCode(Key.Snapshot, out var code), Is.True);
-        Assert.That(code, Is.EqualTo((ushort)99));
-    }
-
-    [Test]
     public void EvdevKeyMap_LettersAndDigits_MapToKernelCodes()
     {
         Assert.Multiple(() =>

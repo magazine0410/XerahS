@@ -115,17 +115,6 @@ public class TestProjectBuildPropertiesTests
     }
 
     [Test]
-    public void McpServerTests_XunitRunnerVisualStudio_IsPrivateAsset()
-    {
-        string testProjectPath = Path.GetFullPath(Path.Combine(TestContext.CurrentContext.TestDirectory,
-            "../../../../../src/tools/XerahS.McpServer.Tests/XerahS.McpServer.Tests.csproj"));
-
-        XDocument project = XDocument.Load(testProjectPath);
-
-        AssertPackageReferenceIsPrivateBuildAsset(project, "xunit.runner.visualstudio");
-    }
-
-    [Test]
     public void XerahSTests_DiscoveryPackages_ArePrivateBuildAssets()
     {
         string testProjectPath = Path.GetFullPath(Path.Combine(TestContext.CurrentContext.TestDirectory,

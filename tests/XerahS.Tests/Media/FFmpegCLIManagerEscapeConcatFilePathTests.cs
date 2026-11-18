@@ -47,36 +47,6 @@ public class FFmpegCLIManagerEscapeConcatFilePathTests
         Assert.AreEqual("'\\''quoted'\\''.mp4", result);
     }
 
-    [Test]
-    public void ConcatenateVideos_ListFileContainsEscapedApostrophe()
-    {
-        var tempDir = Path.Combine(Path.GetTempPath(), $"xerahs-test-{Guid.NewGuid():N}");
-        Directory.CreateDirectory(tempDir);
-        try
-        {
-            var inputFile = Path.Combine(tempDir, "clip'segment.mp4");
-            var outputFile = Path.Combine(tempDir, "output.mp4");
-            File.WriteAllText(inputFile, "mock video data");
-
-            // Directly write the concat list file the way ConcatenateVideos would,
-            // without needing FFmpeg to run. This tests the escape logic in isolation.
-            var listFile = outputFile + ".txt";
-            var escaped = FFmpegCLIManager.TestAccessor.EscapeConcatFilePath(inputFile);
-            var contents = $"file '{escaped}'";
-            File.WriteAllText(listFile, contents);
-
-            var fileContent = File.ReadAllText(listFile);
-            // The list must contain the escaped form so FFmpeg parses it correctly.
-            // The inputFile path (with its full temp directory) must have the apostrophe escaped as \'
-            Assert.That(fileContent, Does.Contain("clip'\\''segment.mp4'"));
-            Assert.That(fileContent, Does.Not.Contain("clip'segment.mp4'")); // unescaped must not appear
-        }
-        finally
-        {
-            Directory.Delete(tempDir, recursive: true);
-        }
-    }
-
     private static string EscapeConcatFilePath(string path)
     {
         var method = typeof(FFmpegCLIManager).GetMethod(

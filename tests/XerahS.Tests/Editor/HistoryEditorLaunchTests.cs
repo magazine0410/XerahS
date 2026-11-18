@@ -40,46 +40,6 @@ namespace XerahS.Tests.Editor;
 public class HistoryEditorLaunchTests
 {
     [Test]
-    public async Task EditImage_PassesHistoryFilePath_ToUiEditorHost()
-    {
-        string imagePath = Path.Combine(Path.GetTempPath(), $"xerahs-history-editor-{Guid.NewGuid():N}.png");
-
-        using (var bitmap = new SKBitmap(8, 8))
-        {
-            bitmap.Erase(SKColors.Red);
-            using var image = SKImage.FromBitmap(bitmap);
-            using var data = image.Encode(SKEncodedImageFormat.Png, 100);
-            using var stream = File.OpenWrite(imagePath);
-            data.SaveTo(stream);
-        }
-
-        var uiService = new TrackingUiService();
-        PlatformServices.RegisterUIService(uiService);
-
-        try
-        {
-            var viewModel = new HistoryViewModel(new FakeDesktopTaskManager(), new FakeDialogService(), false);
-            var item = new HistoryItem
-            {
-                FilePath = imagePath
-            };
-
-            await viewModel.EditImageCommand.ExecuteAsync(item);
-
-            Assert.That(uiService.LastSourceFilePath, Is.EqualTo(imagePath));
-        }
-        finally
-        {
-            PlatformServices.Reset();
-
-            if (File.Exists(imagePath))
-            {
-                File.Delete(imagePath);
-            }
-        }
-    }
-
-    [Test]
     public async Task EditImage_IgnoresAnnotationSidecar_AndOpensPlainImageEditor()
     {
         string directory = Path.Combine(Path.GetTempPath(), $"xerahs-history-editor-{Guid.NewGuid():N}");

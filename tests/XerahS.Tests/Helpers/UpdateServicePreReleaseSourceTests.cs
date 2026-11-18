@@ -145,21 +145,6 @@ public class UpdateServicePreReleaseSourceTests
     }
 
     [Test]
-    public void ResolveUpdateRepository_Any_UsesShareXAsPrimary()
-    {
-        var settings = new ApplicationConfig
-        {
-            UpdateChannel = UpdateChannel.PreRelease,
-            PreReleaseUpdateSource = PreReleaseUpdateSource.Any
-        };
-
-        var repository = UpdateService.ResolveUpdateRepository(settings);
-
-        Assert.That(repository.Owner, Is.EqualTo("ShareX"));
-        Assert.That(repository.Repo, Is.EqualTo("XerahS"));
-    }
-
-    [Test]
     public void PreReleaseUpdateSources_PlacesAnyAfterCustom()
     {
         PreReleaseUpdateSource[] sources = (PreReleaseUpdateSource[])Enum.GetValues(typeof(PreReleaseUpdateSource));

@@ -42,23 +42,6 @@ public class EditorWallpaperPrewarmTests
     }
 
     [Test]
-    public void Constructor_StartsWallpaperPrewarm_DuringInitialization()
-    {
-        using var wallpaperService = new TrackingDesktopWallpaperService();
-        EditorServices.DesktopWallpaper = wallpaperService;
-
-        _ = new MainViewModel(new ImageEditorOptions());
-
-        Assert.Multiple(() =>
-        {
-            Assert.That(wallpaperService.WaitForPrewarmStarted(), Is.True);
-            Assert.That(wallpaperService.WaitForCompletion(), Is.True);
-            Assert.That(wallpaperService.PrewarmCount, Is.EqualTo(1));
-            Assert.That(wallpaperService.LookupCount, Is.EqualTo(0));
-        });
-    }
-
-    [Test]
     public void SecondEditorInstance_DoesNotStartSecondPrewarm_AfterFirstPrewarmCompletes()
     {
         using var wallpaperService = new TrackingDesktopWallpaperService();

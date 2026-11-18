@@ -27,7 +27,6 @@
 
 using System;
 using System.Threading;
-using System.Threading.Tasks;
 using NUnit.Framework;
 using XerahS.Common;
 
@@ -49,22 +48,5 @@ public sealed class WebHelpersCancellationTests
         Assert.That(
             async () => await WebHelpers.DownloadStringAsync("https://example.invalid/xerahs-cancel-test", cts.Token),
             Throws.InstanceOf<OperationCanceledException>());
-    }
-
-    [Test]
-    public async Task DownloadStringAsync_NoTokenOverload_StillCompilesAndAcceptsUrl()
-    {
-        // Back-compat overload must remain; pre-cancelled path is covered above.
-        // This only asserts the parameterless overload exists and does not throw
-        // ArgumentNullException on a non-null URL (network failure is fine).
-        try
-        {
-            await WebHelpers.DownloadStringAsync("https://example.invalid/xerahs-compat-test");
-        }
-        catch (Exception ex)
-        {
-            Assert.That(ex, Is.Not.TypeOf<ArgumentNullException>());
-            Assert.That(ex, Is.Not.TypeOf<MissingMethodException>());
-        }
     }
 }

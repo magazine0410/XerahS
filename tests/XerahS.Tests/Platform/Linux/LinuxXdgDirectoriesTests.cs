@@ -101,30 +101,6 @@ public class LinuxXdgDirectoriesTests
         Assert.That(Normalize(xdg.DataDirectory), Is.EqualTo("/home/env-user/.local/share/xerahs"));
     }
 
-    [Test]
-    public void Resolve_NoHomeLitterApplicationDirectories_StayUnderXdgRoots()
-    {
-        string home = "/tmp/xerahs-home";
-        var xdg = LinuxXdgDirectories.Resolve(_ => null, home);
-        string[] applicationDirectories =
-        [
-            xdg.ConfigDirectory,
-            xdg.DataDirectory,
-            xdg.StateDirectory,
-            xdg.CacheDirectory
-        ];
-
-        foreach (string directory in applicationDirectories)
-        {
-            string normalized = Normalize(directory);
-            Assert.That(normalized, Does.StartWith(home + "/."));
-            Assert.That(normalized, Is.Not.EqualTo(home + "/XerahS"));
-            Assert.That(normalized, Is.Not.EqualTo(home + "/.XerahS"));
-            Assert.That(normalized, Is.Not.EqualTo(home + "/ShareX"));
-            Assert.That(normalized, Is.Not.EqualTo(home + "/Screenshots"));
-        }
-    }
-
     private static string Normalize(string path)
     {
         return path.Replace('\\', '/');

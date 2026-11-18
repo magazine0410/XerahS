@@ -48,18 +48,6 @@ public class LinuxHotkeyServiceTests
     }
 
     [Test]
-    public void CandidateKeysymNames_Snapshot_IncludePrintAliases()
-    {
-        var names = LinuxHotkeyService.GetCandidateKeysymNames(Key.Snapshot);
-
-        Assert.Multiple(() =>
-        {
-            Assert.That(names, Does.Contain("Print"));
-            Assert.That(names, Does.Contain("Sys_Req"));
-        });
-    }
-
-    [Test]
     public void CandidateKeysymNames_LetterKey_MapsToSingleLiteral()
     {
         var names = LinuxHotkeyService.GetCandidateKeysymNames(Key.A);

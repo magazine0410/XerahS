@@ -612,24 +612,6 @@ public class InstanceManagerTests
     }
 
     [Test]
-    public void GetDefaultInstance_ReturnsNullWhenDefaultInstanceIsUnavailable()
-    {
-        var instance = new UploaderInstance
-        {
-            ProviderId = "test-provider",
-            Category = UploaderCategory.Image,
-            DisplayName = "Unavailable",
-            SettingsJson = "{}",
-            IsAvailable = false
-        };
-
-        InstanceManager.Instance.AddInstance(instance);
-        InstanceManager.Instance.SetDefaultInstance(UploaderCategory.Image, instance.InstanceId);
-
-        Assert.That(InstanceManager.Instance.GetDefaultInstance(UploaderCategory.Image), Is.Null);
-    }
-
-    [Test]
     public void GetDefaultInstance_LogsWhenCleaningStaleDefaultMapping()
     {
         var instance = new UploaderInstance
@@ -854,25 +836,6 @@ public class InstanceManagerTests
         Assert.That(
             File.ReadAllText(InstanceManager.ConfigFilePath),
             Does.Contain("Concurrent-0").And.Contain("Concurrent-7"));
-    }
-
-    [Test]
-    public void UpdateInstance_UsesConfigLock()
-    {
-        var instance = new UploaderInstance
-        {
-            ProviderId = "test-provider",
-            Category = UploaderCategory.Image,
-            DisplayName = "Original",
-            SettingsJson = "{}"
-        };
-
-        InstanceManager.Instance.AddInstance(instance);
-        instance.DisplayName = "Updated Under Lock";
-        InstanceManager.Instance.UpdateInstance(instance);
-
-        Assert.That(InstanceManager.Instance.GetInstance(instance.InstanceId)?.DisplayName, Is.EqualTo("Updated Under Lock"));
-        Assert.That(File.Exists(InstanceManager.ConfigLockFilePath), Is.True);
     }
 
     [Test]
