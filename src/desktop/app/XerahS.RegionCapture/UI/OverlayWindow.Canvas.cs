@@ -42,20 +42,17 @@ public partial class OverlayWindow
     {
         if (_annotationCanvas == null || !_options.EnableAnnotations) return;
 
-        // Commit any pending inline text edit. The click that commits text should not also
-        // start a new annotation.
-        if (_inlineTextBox != null)
-        {
-            CommitInlineText();
-            e.Handled = true;
-            return;
-        }
-
         var point = e.GetPosition(_annotationCanvas);
         var props = e.GetCurrentPoint(_annotationCanvas).Properties;
         var skPoint = new SKPoint((float)point.X, (float)point.Y);
 
         if (props.PointerUpdateKind != PointerUpdateKind.LeftButtonPressed) return;
+
+        if (e.ClickCount == 2 && TryReopenText(skPoint))
+        {
+            e.Handled = true;
+            return;
+        }
 
         // Select tool still routes to EditorCore so existing annotations can be selected/moved/resized.
         if (_viewModel.ActiveTool == EditorTool.Select)
@@ -109,6 +106,7 @@ public partial class OverlayWindow
 
             _currentAnnotation = _viewModel.EditorCore.Annotations[_viewModel.EditorCore.Annotations.Count - 1];
             _isDrawing = true;
+            UpdateAnnotationHandles();
 
             ApplyToolbarDefaultsToAnnotation(_currentAnnotation);
 
@@ -385,9 +383,9 @@ public partial class OverlayWindow
 
     /// <summary>
     /// Updates the AnnotationCanvas hit testing based on active tool and CTRL modifier.
-    /// Select tool: hit testing OFF (allow RegionCaptureControl to handle mouse)
-    /// Drawing tools + CTRL: hit testing OFF (CTRL allows region selection)
-    /// Drawing tools (no CTRL): hit testing ON (canvas handles drawing)
+    /// CTRL held or region tool active: hit testing OFF (RegionCaptureControl handles the mouse)
+    /// Select tool without annotations: hit testing OFF (nothing to select)
+    /// Select tool with annotations, or a drawing tool: hit testing ON (canvas handles the mouse)
     /// </summary>
     private bool UpdateAnnotationCanvasHitTesting()
     {
@@ -411,6 +409,7 @@ public partial class OverlayWindow
         if (_captureControl.IsAnnotationMode != isAnnotationMode)
         {
             _captureControl.IsAnnotationMode = isAnnotationMode;
+            UpdateAnnotationHandles();
             return true;
         }
 

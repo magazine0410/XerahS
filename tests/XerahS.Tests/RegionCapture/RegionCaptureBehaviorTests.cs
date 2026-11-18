@@ -33,6 +33,7 @@ using Avalonia.VisualTree;
 using NUnit.Framework;
 using ShareX.ImageEditor.Core.Annotations;
 using ShareX.ImageEditor.Presentation.Controls;
+using ShareX.ImageEditor.Presentation.ViewModels;
 using SkiaSharp;
 using XerahS.RegionCapture;
 using XerahS.RegionCapture.Models;
@@ -87,10 +88,398 @@ public class RegionCaptureBehaviorTests
         window.MouseUp(end, MouseButton.Left);
     }
 
-    private static void PressKey(Window window, Key key)
+    private static void PressKey(Window window, Key key, RawInputModifiers modifiers = RawInputModifiers.None)
     {
-        window.KeyPress(key, RawInputModifiers.None, PhysicalKey.None, null);
-        window.KeyRelease(key, RawInputModifiers.None, PhysicalKey.None, null);
+        window.KeyPress(key, modifiers, PhysicalKey.None, null);
+        window.KeyRelease(key, modifiers, PhysicalKey.None, null);
+    }
+
+    // Annotation visuals are rebuilt in a posted dispatcher job.
+    private static void RunJobs() => global::Avalonia.Threading.Dispatcher.UIThread.RunJobs();
+
+    // The overlay refocuses itself three times after opening, waiting 50, 200 and 500 ms in turn,
+    // and each wait only starts once the dispatcher has run the retry before it. Tests that depend
+    // on which control has keyboard focus let all three finish first.
+    private static void LetFocusRetriesFinish()
+    {
+        foreach (int delayMs in new[] { 50, 200, 500 })
+        {
+            Thread.Sleep(delayMs + 50);
+            RunJobs();
+        }
+    }
+
+    private static Point ToolButtonCenter(Window window, EditorTool tool)
+    {
+        var toolbar = window.FindControl<AnnotationToolbar>("AnnotationToolbarControl")!;
+        var button = toolbar.GetVisualDescendants().OfType<Button>()
+            .First(b => b.Tag is ToolbarCustomizationItemViewModel item && item.Tool == tool);
+        return button.TranslatePoint(new Point(button.Bounds.Width / 2, button.Bounds.Height / 2), window)!.Value;
+    }
+
+    [AvaloniaTest]
+    public void Enter_FinishesCaptureRightAfterToolbarButtonClick()
+    {
+        var (window, completion) = Open();
+        try
+        {
+            LetFocusRetriesFinish();
+            var vm = (RegionCaptureAnnotationViewModel)window.DataContext!;
+
+            Click(window, ToolButtonCenter(window, EditorTool.Rectangle), MouseButton.Left);
+            Assert.That(vm.ActiveTool, Is.EqualTo(EditorTool.Rectangle));
+
+            PressKey(window, Key.Enter);
+            Assert.That(completion.Task.IsCompletedSuccessfully, Is.True);
+        }
+        finally { window.Close(); }
+    }
+
+    [AvaloniaTest]
+    public void Enter_FinishesCaptureAfterUsingToolbarDropdown()
+    {
+        var (window, completion) = Open();
+        try
+        {
+            LetFocusRetriesFinish();
+            var vm = (RegionCaptureAnnotationViewModel)window.DataContext!;
+            vm.SelectToolCommand.Execute(EditorTool.Rectangle);
+            RunJobs();
+
+            var toolbar = window.FindControl<AnnotationToolbar>("AnnotationToolbarControl")!;
+            var dropdown = toolbar.GetVisualDescendants().OfType<WidthPickerDropdown>().First(d => d.IsEffectivelyVisible);
+            var button = dropdown.FindControl<Button>("DropdownButton")!;
+            var popup = dropdown.FindControl<global::Avalonia.Controls.Primitives.Popup>("WidthPopup")!;
+            Click(window, button.TranslatePoint(new Point(button.Bounds.Width / 2, button.Bounds.Height / 2), window)!.Value, MouseButton.Left);
+            RunJobs();
+            Assert.That(popup.IsOpen, Is.True);
+
+            var option = popup.Child!.GetVisualDescendants().OfType<Button>().First(b => Equals(b.CommandParameter, 8));
+            option.RaiseEvent(new global::Avalonia.Interactivity.RoutedEventArgs(Button.ClickEvent));
+            RunJobs();
+            Assert.That(popup.IsOpen, Is.False);
+            Assert.That(vm.StrokeWidth, Is.EqualTo(8));
+
+            PressKey(window, Key.Enter);
+            Assert.That(completion.Task.IsCompletedSuccessfully, Is.True);
+        }
+        finally { window.Close(); }
+    }
+
+    [AvaloniaTest]
+    public void DeleteKey_RemovesSelectedAnnotation_AndShiftDeleteRemovesAll_OnlyInAnnotationMode()
+    {
+        var (window, completion) = Open();
+        try
+        {
+            var vm = (RegionCaptureAnnotationViewModel)window.DataContext!;
+            var nodeCanvas = window.FindControl<Canvas>("AnnotationHandleCanvas")!;
+            vm.SelectToolCommand.Execute(EditorTool.Rectangle);
+            Drag(window, new Point(100, 200), new Point(200, 260));
+            Drag(window, new Point(300, 300), new Point(400, 360));
+            RunJobs();
+            var first = vm.EditorCore.Annotations[0];
+            Assert.That(nodeCanvas.Children, Is.Not.Empty);
+
+            // The shape drawn last is selected.
+            PressKey(window, Key.Delete);
+            RunJobs();
+            Assert.That(vm.EditorCore.Annotations, Is.EqualTo(new[] { first }));
+            Assert.That(nodeCanvas.Children, Is.Empty, "after Delete");
+
+            // Nothing is selected now, so Delete has nothing to remove.
+            PressKey(window, Key.Delete);
+            RunJobs();
+            Assert.That(vm.EditorCore.Annotations, Has.Count.EqualTo(1));
+
+            Drag(window, new Point(300, 300), new Point(400, 360));
+            Click(window, new Point(500, 420), MouseButton.Middle);
+            Assert.That(vm.IsRegionToolActive, Is.True);
+            PressKey(window, Key.Delete);
+            PressKey(window, Key.Delete, RawInputModifiers.Shift);
+            RunJobs();
+            Assert.That(vm.EditorCore.Annotations, Has.Count.EqualTo(2), "region mode");
+
+            Click(window, new Point(500, 420), MouseButton.Middle);
+            RunJobs();
+            Assert.That(nodeCanvas.Children, Is.Not.Empty);
+            PressKey(window, Key.Delete, RawInputModifiers.Shift);
+            RunJobs();
+            Assert.That(vm.EditorCore.Annotations, Is.Empty);
+            Assert.That(nodeCanvas.Children, Is.Empty, "after Shift+Delete");
+
+            // The nodes also go when the selected shape is undone or removed with a right click.
+            Drag(window, Start, End);
+            RunJobs();
+            Assert.That(nodeCanvas.Children, Is.Not.Empty);
+            PressKey(window, Key.Z, RawInputModifiers.Control);
+            RunJobs();
+            Assert.That(vm.EditorCore.Annotations, Is.Empty);
+            Assert.That(nodeCanvas.Children, Is.Empty, "after undo");
+
+            Drag(window, Start, End);
+            RunJobs();
+            Assert.That(nodeCanvas.Children, Is.Not.Empty);
+            Click(window, new Point(100, 280), MouseButton.Right);
+            RunJobs();
+            Assert.That(vm.EditorCore.Annotations, Is.Empty);
+            Assert.That(nodeCanvas.Children, Is.Empty, "after right-click removal");
+            Assert.That(completion.Task.IsCompleted, Is.False);
+        }
+        finally { window.Close(); }
+    }
+
+    [AvaloniaTest]
+    public void SelectedAnnotation_ShowsGrabbableNodes_OnlyInAnnotationMode_AndNotInTheCapture()
+    {
+        var (window, completion) = Open();
+        try
+        {
+            var vm = (RegionCaptureAnnotationViewModel)window.DataContext!;
+            var nodeCanvas = window.FindControl<Canvas>("AnnotationHandleCanvas")!;
+            List<Point> NodeCenters() => nodeCanvas.Children.OfType<Border>()
+                .Select(n => new Point(Canvas.GetLeft(n) + n.Width / 2, Canvas.GetTop(n) + n.Height / 2)).ToList();
+
+            Assert.That(nodeCanvas.Children, Is.Empty);
+            vm.SelectToolCommand.Execute(EditorTool.Rectangle);
+            Drag(window, Start, End);
+            RunJobs();
+
+            // Eight resize nodes and the rotation node, 30 above the top edge.
+            Assert.That(NodeCenters(), Has.Count.EqualTo(9));
+            Assert.That(NodeCenters(), Does.Contain(Start).And.Contain(End).And.Contain(new Point(200, 170)));
+
+            // The whole drawn node can be grabbed: 6 px from its centre is inside the 15 px node.
+            Drag(window, new Point(End.X + 6, End.Y + 6), new Point(340, 400));
+            RunJobs();
+            Assert.That(vm.EditorCore.Annotations, Has.Count.EqualTo(1));
+            Assert.That(vm.EditorCore.Annotations[0].GetBounds(), Is.EqualTo(new SKRect(100, 200, 340, 400)));
+            Assert.That(NodeCenters(), Does.Contain(new Point(340, 400)).And.Contain(new Point(220, 170)));
+
+            Click(window, new Point(500, 420), MouseButton.Middle);
+            Assert.That(vm.IsRegionToolActive, Is.True);
+            Assert.That(nodeCanvas.Children, Is.Empty, "region mode");
+            Click(window, new Point(500, 420), MouseButton.Middle);
+            Assert.That(NodeCenters(), Has.Count.EqualTo(9));
+
+            PressKey(window, Key.Enter);
+            Assert.That(completion.Task.IsCompletedSuccessfully, Is.True);
+            using var layer = completion.Task.Result!.Value.AnnotationLayer!;
+            Assert.That(layer.GetPixel(100, 300).Alpha, Is.GreaterThan(0), "rectangle border");
+            Assert.That(layer.GetPixel(220, 170).Alpha, Is.EqualTo(0), "rotation node");
+            Assert.That(layer.GetPixel(220, 185).Alpha, Is.EqualTo(0), "rotation line");
+            Assert.That(layer.GetPixel(346, 406).Alpha, Is.EqualTo(0), "corner node");
+        }
+        finally { window.Close(); }
+    }
+
+    [AvaloniaTest]
+    public void DoubleClick_ReopensText_EscapeKeepsIt_AndCommitKeepsItsBounds()
+    {
+        var (window, completion) = Open();
+        try
+        {
+            LetFocusRetriesFinish();
+            var vm = (RegionCaptureAnnotationViewModel)window.DataContext!;
+            var canvas = window.FindControl<Canvas>("AnnotationCanvas")!;
+            var nodeCanvas = window.FindControl<Canvas>("AnnotationHandleCanvas")!;
+            TextBox? Editor() => canvas.Children.OfType<TextBox>().SingleOrDefault();
+            void DoubleClick(Point point)
+            {
+                Click(window, point, MouseButton.Left);
+                Click(window, point, MouseButton.Left);
+                RunJobs();
+            }
+
+            vm.SelectToolCommand.Execute(EditorTool.Text);
+            Drag(window, Start, new Point(300, 260));
+            RunJobs();
+            Editor()!.Text = "note";
+            PressKey(window, Key.Enter);
+            RunJobs();
+            var text = vm.EditorCore.Annotations.OfType<TextAnnotation>().Single();
+            var bounds = text.GetBounds();
+            Assert.That(nodeCanvas.Children, Is.Not.Empty);
+
+            // With the Text tool still active, the text just written is the selected annotation.
+            DoubleClick(new Point(150, 220));
+            Assert.That(Editor()?.Text, Is.EqualTo("note"));
+            Assert.That(nodeCanvas.Children, Is.Empty, "nodes are hidden under the text box");
+            Editor()!.Text = "discarded";
+            PressKey(window, Key.Escape);
+            RunJobs();
+            Assert.That(Editor(), Is.Null);
+            Assert.That(vm.EditorCore.Annotations, Is.EqualTo(new[] { text }));
+            Assert.That(text.Text, Is.EqualTo("note"));
+
+            // With the Select tool, any text reopens, selected or not.
+            vm.SelectToolCommand.Execute(EditorTool.Rectangle);
+            Drag(window, new Point(400, 300), new Point(480, 380));
+            vm.SelectToolCommand.Execute(EditorTool.Select);
+            DoubleClick(new Point(250, 240));
+            Assert.That(Editor()?.Text, Is.EqualTo("note"));
+            Editor()!.Text = "changed";
+            PressKey(window, Key.Enter);
+            RunJobs();
+
+            Assert.That(Editor(), Is.Null);
+            Assert.That(text.Text, Is.EqualTo("changed"));
+            Assert.That(text.GetBounds(), Is.EqualTo(bounds));
+            Assert.That(vm.EditorCore.Annotations, Has.Count.EqualTo(2));
+            Assert.That(completion.Task.IsCompleted, Is.False);
+        }
+        finally { window.Close(); }
+    }
+
+    [AvaloniaTest]
+    public void DeleteKey_InRegionMode_ClearsTheSelectedRegion_AndKeepsAnnotations()
+    {
+        var (window, completion) = Open();
+        try
+        {
+            var vm = (RegionCaptureAnnotationViewModel)window.DataContext!;
+            var capture = window.GetVisualDescendants().OfType<RegionCaptureControl>().Single();
+            vm.SelectToolCommand.Execute(EditorTool.Rectangle);
+            Drag(window, new Point(400, 300), new Point(480, 380));
+            Click(window, new Point(500, 420), MouseButton.Middle);
+            Assert.That(vm.IsRegionToolActive, Is.True);
+
+            // With an annotation present, the region waits for Enter.
+            Drag(window, Start, End);
+            Assert.That(capture.HasPendingSelection, Is.True);
+
+            PressKey(window, Key.Delete);
+            RunJobs();
+            Assert.That(capture.HasPendingSelection, Is.False);
+            Assert.That(vm.EditorCore.Annotations, Has.Count.EqualTo(1));
+            Assert.That(completion.Task.IsCompleted, Is.False);
+
+            // Without a region, Enter captures the whole monitor.
+            PressKey(window, Key.Enter);
+            Assert.That(completion.Task.Result!.Value.Region, Is.EqualTo(MonitorBounds));
+        }
+        finally { window.Close(); }
+    }
+
+    [AvaloniaTest]
+    public void SelectedFreehandStroke_ShowsDashedOutline_OnlyInAnnotationMode()
+    {
+        var (window, _) = Open();
+        try
+        {
+            var vm = (RegionCaptureAnnotationViewModel)window.DataContext!;
+            var nodeCanvas = window.FindControl<Canvas>("AnnotationHandleCanvas")!;
+            vm.SelectToolCommand.Execute(EditorTool.Freehand);
+            Drag(window, Start, End);
+            RunJobs();
+            var stroke = vm.EditorCore.Annotations.OfType<FreehandAnnotation>().Single();
+            Assert.That(nodeCanvas.Children, Is.Empty, "a freehand stroke is not selected after drawing");
+
+            vm.SelectToolCommand.Execute(EditorTool.Select);
+            Click(window, Inside, MouseButton.Left);
+            RunJobs();
+            Assert.That(vm.EditorCore.SelectedAnnotation, Is.SameAs(stroke));
+            var outlines = nodeCanvas.Children.OfType<global::Avalonia.Controls.Shapes.Polyline>().ToList();
+            Assert.That(nodeCanvas.Children, Has.Count.EqualTo(2));
+            Assert.That(outlines.Select(o => o.Stroke), Is.EqualTo(new[] { Brushes.Black, Brushes.White }));
+            Assert.That(outlines[0].Points, Is.EqualTo(stroke.Points.Select(p => new Point(p.X, p.Y))));
+
+            // The outline follows the stroke when it is moved.
+            Drag(window, Inside, new Point(Inside.X + 40, Inside.Y + 20));
+            RunJobs();
+            outlines = nodeCanvas.Children.OfType<global::Avalonia.Controls.Shapes.Polyline>().ToList();
+            Assert.That(outlines[0].Points[0], Is.EqualTo(new Point(Start.X + 40, Start.Y + 20)));
+
+            Click(window, new Point(500, 420), MouseButton.Middle);
+            Assert.That(nodeCanvas.Children, Is.Empty, "region mode");
+        }
+        finally { window.Close(); }
+    }
+
+    [AvaloniaTest]
+    public void LeftClickAwayFromTextBox_CommitsTheText_WithoutStartingAnotherAnnotation()
+    {
+        var (window, completion) = Open();
+        try
+        {
+            LetFocusRetriesFinish();
+            var vm = (RegionCaptureAnnotationViewModel)window.DataContext!;
+            var canvas = window.FindControl<Canvas>("AnnotationCanvas")!;
+            var emptySpot = new Point(500, 420);
+            TextBox? Editor() => canvas.Children.OfType<TextBox>().SingleOrDefault();
+
+            // New text, with the text box holding keyboard focus as it does while typing.
+            vm.SelectToolCommand.Execute(EditorTool.Text);
+            Drag(window, Start, new Point(300, 260));
+            RunJobs();
+            Assert.That(Editor()!.IsFocused, Is.True);
+            Editor()!.Text = "note";
+            Click(window, emptySpot, MouseButton.Left);
+            RunJobs();
+            Assert.That(Editor(), Is.Null);
+            var text = (TextAnnotation)vm.EditorCore.Annotations.Single();
+            Assert.That(text.Text, Is.EqualTo("note"));
+
+            // Reopened text.
+            Click(window, new Point(150, 220), MouseButton.Left);
+            Click(window, new Point(150, 220), MouseButton.Left);
+            RunJobs();
+            Editor()!.Text = "changed";
+            Click(window, emptySpot, MouseButton.Left);
+            RunJobs();
+            Assert.That(Editor(), Is.Null);
+            Assert.That(vm.EditorCore.Annotations, Is.EqualTo(new[] { text }));
+            Assert.That(text.Text, Is.EqualTo("changed"));
+            Assert.That(completion.Task.IsCompleted, Is.False);
+
+            // The keyboard still reaches the overlay after the text box is gone.
+            PressKey(window, Key.Enter);
+            Assert.That(completion.Task.IsCompletedSuccessfully, Is.True);
+        }
+        finally { window.Close(); }
+    }
+
+    [AvaloniaTest]
+    public void ClicksInsideOpenTextBox_StayInTheTextBox()
+    {
+        var (window, completion) = Open();
+        try
+        {
+            LetFocusRetriesFinish();
+            var vm = (RegionCaptureAnnotationViewModel)window.DataContext!;
+            var canvas = window.FindControl<Canvas>("AnnotationCanvas")!;
+            var inside = new Point(150, 225);
+            void ClickAndDoubleClickInside(string state)
+            {
+                var bounds = vm.EditorCore.Annotations.Single().GetBounds();
+                for (int i = 0; i < 3; i++)
+                {
+                    Click(window, inside, MouseButton.Left);
+                    RunJobs();
+                }
+                Assert.That(canvas.Children.OfType<TextBox>().ToList(), Has.Count.EqualTo(1), state);
+                Assert.That(vm.EditorCore.Annotations, Has.Count.EqualTo(1), state);
+                Assert.That(vm.EditorCore.Annotations[0].GetBounds(), Is.EqualTo(bounds), state);
+            }
+
+            vm.SelectToolCommand.Execute(EditorTool.Text);
+            Drag(window, Start, new Point(300, 260));
+            RunJobs();
+            ClickAndDoubleClickInside("new, empty");
+            canvas.Children.OfType<TextBox>().Single().Text = "note";
+            ClickAndDoubleClickInside("new, with text");
+            PressKey(window, Key.Enter);
+            RunJobs();
+            Assert.That(canvas.Children.OfType<TextBox>(), Is.Empty);
+
+            // Reopened at another point, so that these two clicks do not count on from the ones above.
+            Click(window, new Point(250, 240), MouseButton.Left);
+            Click(window, new Point(250, 240), MouseButton.Left);
+            RunJobs();
+            ClickAndDoubleClickInside("reopened");
+            Assert.That(completion.Task.IsCompleted, Is.False);
+        }
+        finally { window.Close(); }
     }
 
     [AvaloniaTest]

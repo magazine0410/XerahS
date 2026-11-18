@@ -326,13 +326,30 @@ public sealed class SelectionStateMachine
         if (!IsCreatingSelection && !_selectionRect.Contains(point))
             return false;
 
+        ClearSelection();
+        return true;
+    }
+
+    /// <summary>
+    /// Clears the selected region, wherever the pointer is.
+    /// </summary>
+    public bool TryClearSelection()
+    {
+        if (_currentState != CaptureState.Selected)
+            return false;
+
+        ClearSelection();
+        return true;
+    }
+
+    private void ClearSelection()
+    {
         _interaction = InteractionKind.None;
         _resizeHandle = SelectionHandle.None;
         _hoveredWindow = null;
         ResetCreationModifiers();
         SetSelectionRect(PixelRect.Empty);
         TransitionTo(CaptureState.Hovering);
-        return true;
     }
 
     /// <summary>

@@ -86,7 +86,19 @@ public partial class OverlayWindow
         if (HandleMonitorStatePointerEvent(e))
             return;
 
-        var button = GetCaptureMouseButton(e.GetCurrentPoint(this).Properties.PointerUpdateKind);
+        var updateKind = e.GetCurrentPoint(this).Properties.PointerUpdateKind;
+
+        // A left click outside the inline text box only commits the text. It is handled here, in the
+        // tunnel phase: once the press reaches its target it has moved keyboard focus off the text
+        // box, which commits the text, and the annotation canvas would start a new annotation.
+        if (updateKind == PointerUpdateKind.LeftButtonPressed && _inlineTextBox != null && IsCaptureSurface(e.Source))
+        {
+            CommitInlineText();
+            e.Handled = true;
+            return;
+        }
+
+        var button = GetCaptureMouseButton(updateKind);
         if (button == MouseButton.None || !IsCaptureSurface(e.Source))
             return;
 

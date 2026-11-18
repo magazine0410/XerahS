@@ -26,9 +26,15 @@
         </Panel>
 
         <!-- XIP-0023: Annotation Canvas Layer for drawing shapes -->
-        <!-- IsHitTestVisible is set dynamically based on active tool (false for Select, true for drawing tools) -->
+        <!-- IsHitTestVisible is set dynamically: true in annotation mode, false in region mode
+             (see UpdateAnnotationCanvasHitTesting) -->
         <Canvas x:Name="AnnotationCanvas"
                 Background="Transparent"
+                IsHitTestVisible="False"/>
+
+        <!-- Resize and rotation nodes of the selected annotation. They are on a layer of their own
+             because the whole AnnotationCanvas is rendered into the capture. -->
+        <Canvas x:Name="AnnotationHandleCanvas"
                 IsHitTestVisible="False"/>
 
         <!-- XIP-0023: Annotation Toolbar for Overlay mode -->

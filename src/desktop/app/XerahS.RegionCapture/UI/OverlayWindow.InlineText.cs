@@ -40,6 +40,34 @@ public partial class OverlayWindow
     // Inline text editing state
     private TextBox? _inlineTextBox;
     private Annotation? _editingAnnotation;
+    // The text being edited was reopened with a double click, so Escape keeps the annotation.
+    private bool _editingReopenedText;
+
+    /// <summary>
+    /// Reopens the text of the text or speech balloon annotation at the point, as a double click
+    /// does in the image editor. With a drawing tool active only the selected annotation reopens,
+    /// because the first click on any other one already started a new shape.
+    /// </summary>
+    private bool TryReopenText(SKPoint point)
+    {
+        var editorCore = _viewModel.EditorCore;
+        Annotation? hit = null;
+        for (int i = editorCore.Annotations.Count - 1; i >= 0 && hit == null; i--)
+        {
+            if (editorCore.Annotations[i].HitTest(point))
+                hit = editorCore.Annotations[i];
+        }
+
+        if (hit is not TextAnnotation && hit is not SpeechBalloonAnnotation)
+            return false;
+
+        if (_viewModel.ActiveTool != EditorTool.Select && !ReferenceEquals(hit, editorCore.SelectedAnnotation))
+            return false;
+
+        _editingReopenedText = true;
+        OnEditAnnotationRequested(hit);
+        return true;
+    }
 
     /// <summary>
     /// Handles EditorCore's EditAnnotationRequested event for Text and SpeechBalloon tools.
@@ -133,6 +161,13 @@ public partial class OverlayWindow
 
         var text = _inlineTextBox.Text ?? "";
 
+        if (_editingReopenedText)
+        {
+            // A reopened annotation keeps the bounds it had.
+            SetInlineText(text);
+            return;
+        }
+
         // Persist final bounds from the inline editor so finalized text remains visible.
         var left = Canvas.GetLeft(_inlineTextBox);
         if (double.IsNaN(left))
@@ -161,6 +196,11 @@ public partial class OverlayWindow
         _editingAnnotation.StartPoint = new SKPoint((float)left, (float)top);
         _editingAnnotation.EndPoint = new SKPoint((float)(left + width), (float)(top + height));
 
+        SetInlineText(text);
+    }
+
+    private void SetInlineText(string text)
+    {
         if (_editingAnnotation is TextAnnotation textAnn)
             textAnn.Text = text;
         else if (_editingAnnotation is SpeechBalloonAnnotation balloonAnn)
@@ -172,7 +212,7 @@ public partial class OverlayWindow
 
     private void CancelInlineText()
     {
-        if (_editingAnnotation != null)
+        if (_editingAnnotation != null && !_editingReopenedText)
         {
             // Remove the annotation since user cancelled text input
             _viewModel.EditorCore.RemoveAnnotation(_editingAnnotation);
@@ -193,6 +233,7 @@ public partial class OverlayWindow
             _inlineTextBox = null;
         }
         _editingAnnotation = null;
+        _editingReopenedText = false;
     }
 
     private static Color GetInlineTextColor(Annotation annotation)

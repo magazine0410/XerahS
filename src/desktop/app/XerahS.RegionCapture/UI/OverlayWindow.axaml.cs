@@ -33,8 +33,10 @@ using Avalonia.Markup.Xaml.Styling;
 using Avalonia.Media;
 using Avalonia.Media.Imaging;
 using Avalonia.Threading;
+using Avalonia.VisualTree;
 using ShareX.ImageEditor.Core.Annotations;
 using ShareX.ImageEditor.Core.Editor;
+using ShareX.ImageEditor.Presentation.Controls;
 using ShareX.ImageEditor.Presentation.Rendering;
 using ShareX.ImageEditor.Presentation.Theming;
 using SkiaSharp;
@@ -73,6 +75,7 @@ public partial class OverlayWindow : Window
     private readonly RegionCaptureOptions _options = new();
     private readonly PixelRect _captureBounds;
     private Canvas? _annotationCanvas;
+    private Canvas? _annotationHandleCanvas;
     private AvPixelPoint _targetPosition;
     private double _targetWidth;
     private double _targetHeight;
@@ -199,6 +202,11 @@ public partial class OverlayWindow : Window
             _annotationCanvas.PointerReleased += OnAnnotationCanvasPointerReleased;
             _annotationCanvas.PointerWheelChanged += OnAnnotationCanvasPointerWheelChanged;
         }
+
+        _annotationHandleCanvas = this.FindControl<Canvas>("AnnotationHandleCanvas");
+
+        // A clicked toolbar button keeps keyboard focus and would take Enter as another click.
+        AddHandler(KeyDownEvent, OnPreviewKeyDown, RoutingStrategies.Tunnel);
 
         // Subscribe to ActiveTool changes to toggle canvas hit testing
         _viewModel.PropertyChanged += OnViewModelPropertyChanged;
@@ -465,6 +473,27 @@ public partial class OverlayWindow : Window
 
     #region Keyboard Input
 
+    private void OnPreviewKeyDown(object? sender, KeyEventArgs e)
+    {
+        if (e.Key != Key.Enter || _monitorState == OverlayMonitorState.Inactive ||
+            e.Source is not Button button || button.FindAncestorOfType<AnnotationToolbar>() == null)
+        {
+            return;
+        }
+
+        ConfirmCaptureFromKeyboard();
+        e.Handled = true;
+    }
+
+    private void ConfirmCaptureFromKeyboard()
+    {
+        if (_captureControl.TryConfirmCurrentSelection() || _completionSource.Task.IsCompleted)
+            return;
+
+        // XIP-0023: ENTER confirms capture with annotations
+        ConfirmCaptureWithAnnotations();
+    }
+
     protected override void OnKeyDown(KeyEventArgs e)
     {
         base.OnKeyDown(e);
@@ -506,15 +535,23 @@ public partial class OverlayWindow : Window
         }
         else if (e.Key == Key.Enter)
         {
-            if (_captureControl.TryConfirmCurrentSelection() || _completionSource.Task.IsCompleted)
-            {
-                e.Handled = true;
-                return;
-            }
-
-            // XIP-0023: ENTER confirms capture with annotations
-            ConfirmCaptureWithAnnotations();
+            ConfirmCaptureFromKeyboard();
             e.Handled = true;
+        }
+        else if (e.Key == Key.Delete && _options.EnableAnnotations && _captureControl.IsAnnotationMode)
+        {
+            // As in the image editor: Delete removes the selected annotation, Shift+Delete removes all.
+            if (e.KeyModifiers.HasFlag(KeyModifiers.Shift))
+                _viewModel.ClearAnnotationsCommand.Execute(null);
+            else
+                _viewModel.DeleteSelectedCommand.Execute(null);
+            e.Handled = true;
+        }
+        else if (e.Key == Key.Delete)
+        {
+            // As in ShareX: with the region tool, Delete clears the selected region.
+            if (_captureControl.TryClearSelection())
+                e.Handled = true;
         }
         // Tool shortcuts (only when no modifiers)
         else if (_options.EnableAnnotations && e.KeyModifiers == KeyModifiers.None)

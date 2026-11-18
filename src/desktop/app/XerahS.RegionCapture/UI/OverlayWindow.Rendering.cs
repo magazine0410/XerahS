@@ -26,13 +26,18 @@
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Controls.Shapes;
+using Avalonia.Input;
+using Avalonia.Media;
 using Avalonia.Threading;
 using ShareX.ImageEditor.Core.Annotations;
+using ShareX.ImageEditor.Core.Editor;
+using ShareX.ImageEditor.Presentation.Controls;
 using ShareX.ImageEditor.Presentation.Rendering;
 using SkiaSharp;
 using System;
 using System.Diagnostics;
 using System.Collections.Generic;
+using System.Linq;
 using XerahS.Common;
 using XerahS.RegionCapture.Services;
 using PixelRect = XerahS.RegionCapture.Models.PixelRect;
@@ -149,7 +154,64 @@ public partial class OverlayWindow
             _annotationCanvas.Children.Add(_inlineTextBox);
         }
 
+        UpdateAnnotationHandles();
         _lastRebuildTicks = Stopwatch.GetTimestamp();
+    }
+
+    /// <summary>
+    /// Draws the resize and rotation nodes of the selected annotation at the positions EditorCore
+    /// hit tests, with the image editor's node visuals.
+    /// </summary>
+    private void UpdateAnnotationHandles()
+    {
+        if (_annotationHandleCanvas == null) return;
+
+        _annotationHandleCanvas.Children.Clear();
+
+        // The nodes can only be grabbed in annotation mode. The inline text box covers them, and
+        // they would be in the way of a shape that is being drawn.
+        if (!_captureControl.IsAnnotationMode || _inlineTextBox != null || _isDrawing) return;
+
+        // A freehand stroke has no nodes. As in the image editor, a dashed line along it shows
+        // that it is selected.
+        if (_viewModel.EditorCore.SelectedAnnotation is FreehandAnnotation freehand)
+        {
+            AddDashedOutline(() => new Polyline
+            {
+                Points = freehand.Points.Select(p => new Avalonia.Point(p.X, p.Y)).ToList()
+            });
+        }
+
+        var handles = _viewModel.EditorCore.GetSelectedAnnotationHandles();
+        foreach (var (type, position) in handles)
+        {
+            if (type == EditorCore.HandleType.Rotate)
+            {
+                SKPoint topMiddle = handles.First(h => h.Type == EditorCore.HandleType.TopMiddle).Position;
+                AddDashedOutline(() => new Line
+                {
+                    StartPoint = new Avalonia.Point(topMiddle.X, topMiddle.Y),
+                    EndPoint = new Avalonia.Point(position.X, position.Y)
+                });
+            }
+
+            _annotationHandleCanvas.Children.Add(
+                SelectionResizeNode.Create(position.X, position.Y, type, Cursor.Default));
+        }
+    }
+
+    /// <summary>Adds the shape twice, dashed black and white, so it shows on any background.</summary>
+    private void AddDashedOutline(Func<Shape> createShape)
+    {
+        foreach (var (stroke, dashOffset) in new[] { (Brushes.Black, 0.0), (Brushes.White, 3.0) })
+        {
+            Shape shape = createShape();
+            shape.Stroke = stroke;
+            shape.StrokeThickness = 1;
+            shape.StrokeDashArray = [3, 3];
+            shape.StrokeDashOffset = dashOffset;
+            _annotationHandleCanvas!.Children.Add(shape);
+        }
     }
 
     private bool ShouldThrottleSelectionRebuild()

@@ -367,7 +367,16 @@ public sealed class RegionCaptureControl : UserControl
 
     internal bool TryClearSelectionAt(Point localPoint)
     {
-        bool cleared = _stateMachine.TryClearSelection(LocalToPhysical(localPoint));
+        return OnSelectionCleared(_stateMachine.TryClearSelection(LocalToPhysical(localPoint)));
+    }
+
+    internal bool TryClearSelection()
+    {
+        return OnSelectionCleared(_stateMachine.TryClearSelection());
+    }
+
+    private bool OnSelectionCleared(bool cleared)
+    {
         if (cleared)
         {
             HasPendingSelection = false;
