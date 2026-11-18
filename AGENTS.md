@@ -8,6 +8,7 @@ XerahS is the Avalonia implementation of ShareX.
 - Keep `TreatWarningsAsErrors` enabled. Preserve each project's platform conditions: Windows-specific targets use `net10.0-windows10.0.26100.0`; cross-platform targets use `net10.0`.
 - Keep `SkiaSharp` and all `SkiaSharp.NativeAssets.*` packages on the same version in root `Directory.Packages.props`. Use central package management; do not restore legacy project-local pins.
 - In Windows PowerShell, use separate commands or `if ($?) { ... }` for conditional sequencing; do not use `&&`.
+- On this Fedora machine, the toolbox `dev` has the packages for building `native/omasnap`: `qt6-qtbase-devel`, `layer-shell-qt-devel`, `wayland-devel`, `wayland-protocols-devel`, `libdeflate-devel`, `gcc-c++`, `cmake`, `ninja-build` and `pkgconf-pkg-config`. Run commands in it with `toolbox run -c dev <command>`. The .NET SDK is not installed there. The Android build needs JDK 21 (`java-21-openjdk-devel`), which Fedora 44 does not package, so it is not in the toolbox either.
 
 ## ShareX parity
 
