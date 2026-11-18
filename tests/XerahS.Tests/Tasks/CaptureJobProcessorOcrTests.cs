@@ -198,6 +198,9 @@ public sealed class CaptureJobProcessorOcrTests
     public async Task ProcessAsync_CopyOcrTextToClipboard_WithoutDoOcr_DoesNotOverwriteClipboard()
     {
         using var bitmap = new SKBitmap(8, 8);
+        // An OCR service is registered so that OCR would produce text if it ran.
+        var ocr = new RecordingOcrService();
+        PlatformServices.Ocr = ocr;
         var clipboard = new RecordingClipboardService { Text = "existing" };
         PlatformServices.Clipboard = clipboard;
 
@@ -213,6 +216,7 @@ public sealed class CaptureJobProcessorOcrTests
         bool shouldContinue = await processor.ProcessAsync(info, CancellationToken.None);
 
         Assert.That(shouldContinue, Is.True);
+        Assert.That(ocr.LastOptions, Is.Null);
         Assert.That(info.Metadata.OcrText, Is.Null);
         Assert.That(clipboard.Text, Is.EqualTo("existing"));
     }

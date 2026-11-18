@@ -49,7 +49,7 @@ public class LinuxCliToolRunnerTests
         var exitCode = LinuxCliToolRunner.TestAccessor
             .RunForTestAsync(
                 "/bin/sh",
-                $"-c \"yes x 2>&1 | head -c {payloadBytes} >/dev/null; exit 0\"",
+                $"-c \"yes x | head -c {payloadBytes} 1>&2; exit 0\"",
                 timeoutMs)
             .GetAwaiter()
             .GetResult();
@@ -80,7 +80,7 @@ public class LinuxCliToolRunnerTests
         var exitCode = LinuxCliToolRunner.TestAccessor
             .RunForTestAsync(
                 "/bin/sh",
-                $"-c \"yes x 2>&1 | head -c {payloadBytes} >/dev/null; exit 7\"",
+                $"-c \"yes x | head -c {payloadBytes} 1>&2; exit 7\"",
                 timeoutMs)
             .GetAwaiter()
             .GetResult();

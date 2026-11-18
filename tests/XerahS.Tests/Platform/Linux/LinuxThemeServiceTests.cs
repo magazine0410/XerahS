@@ -52,7 +52,7 @@ public class LinuxThemeServiceTests
         var (output, exitCode) = LinuxThemeService.TestAccessor
             .RunGsettingsCapture(
                 "/bin/sh",
-                $"-c \"yes x 2>&1 | head -c {payloadBytes} >/dev/null; echo done; exit 0\"",
+                $"-c \"yes x | head -c {payloadBytes} 1>&2; echo done; exit 0\"",
                 timeoutMs);
         var elapsedMs = (DateTime.UtcNow - startUtc).TotalMilliseconds;
 

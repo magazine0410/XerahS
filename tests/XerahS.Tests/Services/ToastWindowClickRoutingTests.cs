@@ -188,6 +188,8 @@ public class ToastWindowClickRoutingTests
         };
 
         var viewModel = new ToastViewModel(config);
+        bool closeRequested = false;
+        viewModel.CloseRequested += (_, _) => closeRequested = true;
 
         // Open menu before duration fires
         viewModel.OnMenuOpened();
@@ -209,7 +211,8 @@ public class ToastWindowClickRoutingTests
         Assert.Multiple(() =>
         {
             Assert.That(exception, Is.Null);
-            Assert.That(config.AutoHide, Is.True);
+            // StartFade requests the close at once on Linux and starts the fade timer elsewhere.
+            Assert.That(closeRequested || viewModel.IsFadeTimerRunning, Is.True);
         });
     }
 
@@ -307,6 +310,7 @@ public class ToastWindowClickRoutingTests
         });
     }
 
+    [Test]
     public void BuildMarkdownImage_UsesMarkdownImageSyntax_WithEscapedAltText()
     {
         var markdown = ToastViewModel.BuildMarkdownImage("https://example.com/capture.png", "Latest [Capture]");
