@@ -290,9 +290,10 @@ public class UpdateService : IDisposable
 
     private async Task HandleUpdateAcceptedAsync(UpdateChecker updateChecker)
     {
-        if (updateChecker.IsPortable)
+        if (updateChecker.IsPortable ||
+            (OperatingSystem.IsLinux() && !DownloaderWindowViewModel.IsInstallableLinuxPackage(updateChecker.FileName)))
         {
-            // For portable builds, open the download URL in browser
+            // For portable builds, and Linux downloads that are not .rpm or .deb packages, open the download URL in browser
             if (!string.IsNullOrEmpty(updateChecker.DownloadURL))
             {
                 URLHelpers.OpenURL(updateChecker.DownloadURL);

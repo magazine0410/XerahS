@@ -161,6 +161,12 @@ public partial class DownloaderWindowViewModel : ViewModelBase, IDisposable
         // Small delay to allow UI to update
         await Task.Delay(500);
 
+        if (OperatingSystem.IsLinux())
+        {
+            await InstallLinuxPackageAsync();
+            return;
+        }
+
         try
         {
             var startInfo = new ProcessStartInfo
@@ -182,6 +188,92 @@ public partial class DownloaderWindowViewModel : ViewModelBase, IDisposable
             DebugHelper.WriteException(ex, "Failed to launch installer");
             CanCancel = true;
         }
+    }
+
+    /// <summary>
+    /// True when <paramref name="fileName"/> is a package that <see cref="InstallLinuxPackageAsync"/> can install.
+    /// </summary>
+    public static bool IsInstallableLinuxPackage(string fileName)
+    {
+        return GetLinuxPackageManager(fileName) != null;
+    }
+
+    private static string? GetLinuxPackageManager(string fileName)
+    {
+        if (fileName.EndsWith(".rpm", StringComparison.OrdinalIgnoreCase))
+        {
+            return "dnf";
+        }
+
+        if (fileName.EndsWith(".deb", StringComparison.OrdinalIgnoreCase))
+        {
+            return "apt-get";
+        }
+
+        return null;
+    }
+
+    /// <summary>
+    /// Installs the downloaded .rpm or .deb through the system package manager, with polkit asking
+    /// for the password. The app is closed only after the package manager reports success.
+    /// </summary>
+    private async Task InstallLinuxPackageAsync()
+    {
+        string? packageManager = GetLinuxPackageManager(DownloadLocation);
+        if (packageManager == null)
+        {
+            StatusText = $"{FileName} cannot be installed automatically.";
+            CanCancel = true;
+            return;
+        }
+
+        StatusText = "Installing update. Enter your password if asked...";
+
+        try
+        {
+            var startInfo = new ProcessStartInfo("pkexec")
+            {
+                UseShellExecute = false
+            };
+            startInfo.ArgumentList.Add(packageManager);
+            startInfo.ArgumentList.Add("install");
+            startInfo.ArgumentList.Add("-y");
+            startInfo.ArgumentList.Add(DownloadLocation);
+
+            using Process? process = Process.Start(startInfo);
+            if (process == null)
+            {
+                StatusText = "Failed to start the package manager.";
+                CanCancel = true;
+                return;
+            }
+
+            await process.WaitForExitAsync();
+
+            if (process.ExitCode == 0)
+            {
+                DialogResult = true;
+                RequestClose?.Invoke(true);
+                return;
+            }
+
+            // pkexec exits with 126 when the password dialog is dismissed, and with 127 when
+            // authorization fails or the package manager is not installed.
+            StatusText = process.ExitCode switch
+            {
+                126 => "Installation canceled.",
+                127 => $"Installation was not authorized, or {packageManager} is not installed.",
+                _ => $"Installation failed: {packageManager} exited with code {process.ExitCode}."
+            };
+            DebugHelper.WriteLine($"Update install with pkexec {packageManager} exited with code {process.ExitCode}.");
+        }
+        catch (Exception ex)
+        {
+            StatusText = $"Failed to start installer: {ex.Message}";
+            DebugHelper.WriteException(ex, "Failed to launch package manager");
+        }
+
+        CanCancel = true;
     }
 
     [RelayCommand]

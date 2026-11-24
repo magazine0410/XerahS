@@ -50,8 +50,6 @@ public class GitHubUpdateCheckerAssetSelectionTests
 
     [TestCase("windows", Architecture.X64, "XerahS-1.2.3-win-x64.exe")]
     [TestCase("windows", Architecture.Arm64, "XerahS-1.2.3-win-arm64.exe")]
-    [TestCase("linux", Architecture.X64, "XerahS-1.2.3-linux-x64.deb")]
-    [TestCase("linux", Architecture.Arm64, "XerahS-1.2.3-linux-arm64.deb")]
     [TestCase("macos", Architecture.X64, "XerahS-1.2.3-mac-x64.tar.gz")]
     [TestCase("macos", Architecture.Arm64, "XerahS-1.2.3-mac-arm64.tar.gz")]
     public void UpdateReleaseInfo_SelectsAssetForEachRuntimeCombination(string runtimePlatform, Architecture architecture, string expectedAsset)
@@ -62,6 +60,46 @@ public class GitHubUpdateCheckerAssetSelectionTests
 
         Assert.That(resolved, Is.True);
         Assert.That(checker.FileName, Is.EqualTo(expectedAsset));
+    }
+
+    [TestCase("rpm", Architecture.X64, "XerahS-1.2.3-linux-x64.rpm")]
+    [TestCase("rpm", Architecture.Arm64, "XerahS-1.2.3-linux-arm64.rpm")]
+    [TestCase("deb", Architecture.X64, "XerahS-1.2.3-linux-x64.deb")]
+    [TestCase("deb", Architecture.Arm64, "XerahS-1.2.3-linux-arm64.deb")]
+    [TestCase("unknown", Architecture.X64, "XerahS-1.2.3-linux-x64.tar.gz")]
+    public void UpdateReleaseInfo_OnLinux_SelectsAssetForInstalledPackageFormat(string packageFormat, Architecture architecture, string expectedAsset)
+    {
+        var checker = new TestGitHubUpdateChecker("linux", architecture, packageFormat);
+
+        Assert.That(checker.TryResolveAssets(AllReleaseAssets, isPortable: false), Is.True);
+        Assert.That(checker.FileName, Is.EqualTo(expectedAsset));
+    }
+
+    // The v0.36.0 release has no tarball, which made an rpm installation pick the .deb.
+    [TestCase("rpm", "XerahS-0.36.0-linux-x64.rpm")]
+    [TestCase("deb", "XerahS-0.36.0-linux-x64.deb")]
+    [TestCase("unknown", "XerahS-0.36.0-linux-x64.AppImage")]
+    public void UpdateReleaseInfo_OnLinux_WithoutTarball_SelectsAssetForInstalledPackageFormat(string packageFormat, string expectedAsset)
+    {
+        var checker = new TestGitHubUpdateChecker("linux", Architecture.X64, packageFormat);
+        string[] assets =
+        [
+            "XerahS-0.36.0-linux-x64.AppImage",
+            "XerahS-0.36.0-linux-x64.deb",
+            "XerahS-0.36.0-linux-x64.rpm"
+        ];
+
+        Assert.That(checker.TryResolveAssets(assets, isPortable: false), Is.True);
+        Assert.That(checker.FileName, Is.EqualTo(expectedAsset));
+    }
+
+    [Test]
+    public void UpdateReleaseInfo_OnLinuxRpmInstall_DoesNotOfferDeb()
+    {
+        var checker = new TestGitHubUpdateChecker("linux", Architecture.X64, "rpm");
+
+        Assert.That(checker.TryResolveAssets(["XerahS-1.2.3-linux-x64.deb"], isPortable: false), Is.False);
+        Assert.That(checker.DownloadURL, Is.Null);
     }
 
     [Test]
@@ -164,10 +202,11 @@ public class GitHubUpdateCheckerAssetSelectionTests
         Assert.That(checker.FileName, Is.EqualTo(asset));
     }
 
-    private sealed class TestGitHubUpdateChecker(string runtimePlatform, Architecture architecture) : GitHubUpdateChecker("ShareX", "XerahS")
+    private sealed class TestGitHubUpdateChecker(string runtimePlatform, Architecture architecture, string linuxPackageFormat = "unknown") : GitHubUpdateChecker("ShareX", "XerahS")
     {
         private readonly string _runtimePlatform = runtimePlatform;
         private readonly Architecture _architecture = architecture;
+        private readonly string _linuxPackageFormat = linuxPackageFormat;
 
         protected override Architecture GetProcessArchitecture()
         {
@@ -182,6 +221,16 @@ public class GitHubUpdateCheckerAssetSelectionTests
                 "linux" => RuntimePlatform.Linux,
                 "macos" => RuntimePlatform.MacOS,
                 _ => RuntimePlatform.Unknown
+            };
+        }
+
+        protected override LinuxPackageFormat GetLinuxPackageFormat()
+        {
+            return _linuxPackageFormat switch
+            {
+                "rpm" => LinuxPackageFormat.Rpm,
+                "deb" => LinuxPackageFormat.Deb,
+                _ => LinuxPackageFormat.Unknown
             };
         }
 

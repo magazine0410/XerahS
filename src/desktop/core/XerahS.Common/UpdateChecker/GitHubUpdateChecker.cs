@@ -23,6 +23,7 @@
 
 #endregion License Information (GPL v3)
 
+using System.Diagnostics;
 using System.Net;
 using System.Net.Http.Headers;
 using System.Runtime.InteropServices;
@@ -46,6 +47,16 @@ namespace XerahS.Common
             MacOS,
             Linux
         }
+
+        protected enum LinuxPackageFormat
+        {
+            Unknown,
+            Rpm,
+            Deb
+        }
+
+        private static readonly Lazy<LinuxPackageFormat> InstalledLinuxPackageFormat =
+            new(() => DetectLinuxPackageFormat(Environment.ProcessPath));
 
         public string Owner { get; protected set; }
         public string Repo { get; protected set; }
@@ -258,7 +269,10 @@ namespace XerahS.Common
                 {
                     RuntimePlatform runtimePlatform = GetRuntimePlatform();
                     string archToken = GetArchitectureToken(GetProcessArchitecture());
-                    string[] preferredSuffixes = GetPreferredAssetSuffixes(runtimePlatform, archToken, isPortable);
+                    LinuxPackageFormat linuxPackageFormat = runtimePlatform == RuntimePlatform.Linux && !isPortable
+                        ? GetLinuxPackageFormat()
+                        : LinuxPackageFormat.Unknown;
+                    string[] preferredSuffixes = GetPreferredAssetSuffixes(runtimePlatform, archToken, isPortable, linuxPackageFormat);
 
                     GitHubAsset? asset = FindAssetBySuffixes(release.assets, preferredSuffixes);
 
@@ -306,6 +320,72 @@ namespace XerahS.Common
             return RuntimePlatform.Unknown;
         }
 
+        /// <summary>
+        /// The package format of the running installation: the package manager that owns the
+        /// executable. A build that no package manager owns (tarball, AppImage, dev build) is Unknown.
+        /// </summary>
+        protected virtual LinuxPackageFormat GetLinuxPackageFormat()
+        {
+            return InstalledLinuxPackageFormat.Value;
+        }
+
+        private static LinuxPackageFormat DetectLinuxPackageFormat(string? executablePath)
+        {
+            if (string.IsNullOrEmpty(executablePath))
+            {
+                return LinuxPackageFormat.Unknown;
+            }
+
+            if (RunsSuccessfully("rpm", "-qf", executablePath))
+            {
+                return LinuxPackageFormat.Rpm;
+            }
+
+            if (RunsSuccessfully("dpkg", "-S", executablePath))
+            {
+                return LinuxPackageFormat.Deb;
+            }
+
+            return LinuxPackageFormat.Unknown;
+        }
+
+        private static bool RunsSuccessfully(string command, params string[] arguments)
+        {
+            try
+            {
+                var startInfo = new ProcessStartInfo(command)
+                {
+                    UseShellExecute = false,
+                    RedirectStandardOutput = true,
+                    RedirectStandardError = true
+                };
+
+                foreach (string argument in arguments)
+                {
+                    startInfo.ArgumentList.Add(argument);
+                }
+
+                using Process? process = Process.Start(startInfo);
+                if (process == null)
+                {
+                    return false;
+                }
+
+                if (!process.WaitForExit(5000))
+                {
+                    process.Kill();
+                    return false;
+                }
+
+                return process.ExitCode == 0;
+            }
+            catch (Exception)
+            {
+                // The package manager is not installed.
+                return false;
+            }
+        }
+
         private static string GetArchitectureToken(Architecture architecture)
         {
             return architecture switch
@@ -316,7 +396,7 @@ namespace XerahS.Common
             };
         }
 
-        private static string[] GetPreferredAssetSuffixes(RuntimePlatform runtimePlatform, string archToken, bool isPortable)
+        private static string[] GetPreferredAssetSuffixes(RuntimePlatform runtimePlatform, string archToken, bool isPortable, LinuxPackageFormat linuxPackageFormat)
         {
             return runtimePlatform switch
             {
@@ -331,9 +411,13 @@ namespace XerahS.Common
                     $"-mac-{archToken}.zip",
                     $"-macos-{archToken}.zip"
                 ],
-                RuntimePlatform.Linux => isPortable
-                    ? [ $"-linux-{archToken}.tar.gz", $"-linux-{archToken}.AppImage" ]
-                    : [ $"-linux-{archToken}.deb", $"-linux-{archToken}.tar.gz", $"-linux-{archToken}.rpm" ],
+                // Offer a package only to an installation that the matching package manager owns.
+                RuntimePlatform.Linux => linuxPackageFormat switch
+                {
+                    LinuxPackageFormat.Rpm => [ $"-linux-{archToken}.rpm" ],
+                    LinuxPackageFormat.Deb => [ $"-linux-{archToken}.deb" ],
+                    _ => [ $"-linux-{archToken}.tar.gz", $"-linux-{archToken}.AppImage" ]
+                },
                 _ => []
             };
         }
