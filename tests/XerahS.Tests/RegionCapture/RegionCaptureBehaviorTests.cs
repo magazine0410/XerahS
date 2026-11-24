@@ -42,6 +42,7 @@ using XerahS.RegionCapture.Models;
 using XerahS.RegionCapture.Services;
 using XerahS.RegionCapture.UI;
 using XerahS.RegionCapture.ViewModels;
+using AnnotationBorderStyle = ShareX.ImageEditor.Core.Annotations.BorderStyle;
 using CaptureMonitor = XerahS.RegionCapture.Models.MonitorInfo;
 using CaptureRect = XerahS.RegionCapture.Models.PixelRect;
 
@@ -640,6 +641,297 @@ public class RegionCaptureBehaviorTests
             PressKey(window, Key.Enter);
             Assert.That(completion.Task.IsCompletedSuccessfully, Is.True);
             completion.Task.Result!.Value.AnnotationLayer?.Dispose();
+        }
+        finally { window.Close(); }
+    }
+
+    [AvaloniaTest]
+    public void ClickWithoutDrag_LeavesNoShape_ExceptWithStepAndFreehand()
+    {
+        var (window, _) = Open();
+        try
+        {
+            var vm = (RegionCaptureAnnotationViewModel)window.DataContext!;
+            var canvas = window.FindControl<Canvas>("AnnotationCanvas")!;
+            var nodeCanvas = window.FindControl<Canvas>("AnnotationHandleCanvas")!;
+            EditorTool[] sizedTools =
+            [
+                EditorTool.Rectangle, EditorTool.Ellipse, EditorTool.Line, EditorTool.Arrow,
+                EditorTool.SpeechBalloon, EditorTool.Highlight, EditorTool.SmartEraser, EditorTool.Blur,
+                EditorTool.Pixelate, EditorTool.Magnify, EditorTool.Spotlight
+            ];
+
+            for (int i = 0; i < sizedTools.Length; i++)
+            {
+                // A different point for each tool, so that the clicks do not add up to double clicks.
+                var point = new Point(100 + i * 30, 220);
+                vm.SelectToolCommand.Execute(sizedTools[i]);
+                Click(window, point, MouseButton.Left);
+                RunJobs();
+                // A drag shorter than 5 px in both directions is discarded as well.
+                Drag(window, new Point(point.X, 300), new Point(point.X + 4, 304));
+                RunJobs();
+
+                Assert.That(vm.EditorCore.Annotations, Is.Empty, sizedTools[i].ToString());
+                Assert.That(vm.HasAnnotations, Is.False, sizedTools[i].ToString());
+                Assert.That(vm.CanUndo, Is.False, sizedTools[i].ToString());
+                Assert.That(nodeCanvas.Children, Is.Empty, sizedTools[i].ToString());
+                Assert.That(canvas.Children.OfType<TextBox>(), Is.Empty, sizedTools[i].ToString());
+            }
+
+            // Nothing was added, so the Select tool is still region mode.
+            vm.SelectToolCommand.Execute(EditorTool.Select);
+            Assert.That(canvas.IsHitTestVisible, Is.False);
+
+            // 5 px in one direction is enough.
+            vm.SelectToolCommand.Execute(EditorTool.Line);
+            Drag(window, new Point(100, 400), new Point(105, 400));
+            RunJobs();
+            Assert.That(vm.EditorCore.Annotations, Has.Count.EqualTo(1));
+
+            // A step is placed with a click, and a freehand click leaves a dot, as in the image editor.
+            vm.SelectToolCommand.Execute(EditorTool.Step);
+            Click(window, new Point(300, 400), MouseButton.Left);
+            vm.SelectToolCommand.Execute(EditorTool.Freehand);
+            Click(window, new Point(400, 400), MouseButton.Left);
+            RunJobs();
+            Assert.That(vm.EditorCore.Annotations.Select(a => a.ToolType),
+                Is.EqualTo(new[] { EditorTool.Line, EditorTool.Step, EditorTool.Freehand }));
+        }
+        finally { window.Close(); }
+    }
+
+    [AvaloniaTest]
+    public void DrawingTool_MovesOnlyShapesOfItsOwnType_AndDrawsOverTheOthers()
+    {
+        var (window, _) = Open();
+        try
+        {
+            var vm = (RegionCaptureAnnotationViewModel)window.DataContext!;
+            var nodeCanvas = window.FindControl<Canvas>("AnnotationHandleCanvas")!;
+            List<Point> NodeCenters() => nodeCanvas.Children.OfType<Border>()
+                .Select(n => new Point(Canvas.GetLeft(n) + n.Width / 2, Canvas.GetTop(n) + n.Height / 2)).ToList();
+
+            vm.SelectToolCommand.Execute(EditorTool.Blur);
+            Drag(window, new Point(100, 200), new Point(200, 260));
+            RunJobs();
+            var blur = vm.EditorCore.Annotations.Single();
+            Assert.That(vm.EditorCore.SelectedAnnotation, Is.SameAs(blur));
+
+            // Another tool draws right next to the selected shape: 8 px below it, between two nodes.
+            vm.SelectToolCommand.Execute(EditorTool.Pixelate);
+            Drag(window, new Point(125, 268), new Point(180, 330));
+            RunJobs();
+            Assert.That(vm.EditorCore.Annotations, Has.Count.EqualTo(2));
+            var pixelate = vm.EditorCore.Annotations[1];
+            Assert.That(pixelate, Is.InstanceOf<PixelateAnnotation>());
+            Assert.That(pixelate.GetBounds(), Is.EqualTo(new SKRect(125, 268, 180, 330)));
+            Assert.That(blur.GetBounds(), Is.EqualTo(new SKRect(100, 200, 200, 260)));
+            Assert.That(vm.EditorCore.SelectedAnnotation, Is.SameAs(pixelate));
+
+            // And inside the selected shape.
+            vm.SelectToolCommand.Execute(EditorTool.Rectangle);
+            Drag(window, new Point(140, 285), new Point(170, 315));
+            RunJobs();
+            Assert.That(vm.EditorCore.Annotations, Has.Count.EqualTo(3));
+            var rectangle = vm.EditorCore.Annotations[2];
+            Assert.That(rectangle.GetBounds(), Is.EqualTo(new SKRect(140, 285, 170, 315)));
+            Assert.That(pixelate.GetBounds(), Is.EqualTo(new SKRect(125, 268, 180, 330)));
+
+            // The tool moves a shape of its own type instead of drawing inside it.
+            Drag(window, new Point(155, 300), new Point(355, 300));
+            RunJobs();
+            Assert.That(vm.EditorCore.Annotations, Has.Count.EqualTo(3));
+            Assert.That(rectangle.GetBounds(), Is.EqualTo(new SKRect(340, 285, 370, 315)));
+
+            // Also when that shape is not the selected one: the press selects it, and the nodes follow.
+            Drag(window, new Point(450, 200), new Point(550, 260));
+            RunJobs();
+            var second = vm.EditorCore.Annotations[3];
+            Assert.That(vm.EditorCore.SelectedAnnotation, Is.SameAs(second));
+            window.MouseDown(new Point(355, 300), MouseButton.Left);
+            RunJobs();
+            Assert.That(vm.EditorCore.SelectedAnnotation, Is.SameAs(rectangle));
+            Assert.That(vm.SelectedAnnotation, Is.SameAs(rectangle));
+            Assert.That(NodeCenters(), Does.Contain(new Point(340, 285)).And.Contain(new Point(370, 315)));
+            window.MouseMove(new Point(355, 350), RawInputModifiers.LeftMouseButton);
+            window.MouseUp(new Point(355, 350), MouseButton.Left);
+            RunJobs();
+            Assert.That(vm.EditorCore.Annotations, Has.Count.EqualTo(4));
+            Assert.That(rectangle.GetBounds(), Is.EqualTo(new SKRect(340, 335, 370, 365)));
+            Assert.That(second.GetBounds(), Is.EqualTo(new SKRect(450, 200, 550, 260)));
+            Assert.That(NodeCenters(), Does.Contain(new Point(340, 335)).And.Contain(new Point(370, 365)));
+
+            // The nodes of the selected shape can be grabbed with any tool.
+            vm.SelectToolCommand.Execute(EditorTool.Arrow);
+            Drag(window, new Point(374, 369), new Point(420, 420));
+            RunJobs();
+            Assert.That(vm.EditorCore.Annotations, Has.Count.EqualTo(4));
+            Assert.That(rectangle.GetBounds(), Is.EqualTo(new SKRect(340, 335, 420, 420)));
+
+            // A freehand stroke always starts a new stroke, also on top of another one.
+            vm.SelectToolCommand.Execute(EditorTool.Freehand);
+            Drag(window, new Point(100, 420), new Point(200, 420));
+            Drag(window, new Point(150, 420), new Point(150, 460));
+            RunJobs();
+            Assert.That(vm.EditorCore.Annotations.OfType<FreehandAnnotation>().Count(), Is.EqualTo(2));
+        }
+        finally { window.Close(); }
+    }
+
+    [AvaloniaTest]
+    public void ToolbarOptions_SetBeforeDrawing_ReachTheNewShape()
+    {
+        var (window, _) = Open();
+        try
+        {
+            var vm = (RegionCaptureAnnotationViewModel)window.DataContext!;
+            T Draw<T>(Point start) where T : Annotation
+            {
+                Drag(window, start, new Point(start.X + 60, start.Y + 40));
+                RunJobs();
+                return (T)vm.EditorCore.Annotations[^1];
+            }
+
+            vm.SelectToolCommand.Execute(EditorTool.Rectangle);
+            vm.SelectedBorderStyle = AnnotationBorderStyle.Dash;
+            vm.ShadowEnabled = true;
+            vm.ShadowColor = "#FF112233";
+            vm.ShadowBlurRadius = 9;
+            vm.ShadowOpacity = 0.25;
+            vm.ShadowOffsetX = 7;
+            vm.ShadowOffsetY = 11;
+            var rectangle = Draw<RectangleAnnotation>(new Point(20, 200));
+            Assert.That(rectangle.BorderStyle, Is.EqualTo(AnnotationBorderStyle.Dash));
+            Assert.That(rectangle.ShadowEnabled, Is.True);
+            Assert.That(rectangle.ShadowColor, Is.EqualTo("#FF112233"));
+            Assert.That(rectangle.ShadowBlurRadius, Is.EqualTo(9));
+            Assert.That(rectangle.ShadowOpacity, Is.EqualTo(0.25));
+            Assert.That(rectangle.ShadowOffsetX, Is.EqualTo(7));
+            Assert.That(rectangle.ShadowOffsetY, Is.EqualTo(11));
+
+            vm.SelectToolCommand.Execute(EditorTool.Ellipse);
+            Assert.That(Draw<EllipseAnnotation>(new Point(120, 200)).BorderStyle, Is.EqualTo(AnnotationBorderStyle.Dash));
+            vm.SelectToolCommand.Execute(EditorTool.Line);
+            Assert.That(Draw<LineAnnotation>(new Point(220, 200)).BorderStyle, Is.EqualTo(AnnotationBorderStyle.Dash));
+            vm.SelectToolCommand.Execute(EditorTool.Freehand);
+            Assert.That(Draw<FreehandAnnotation>(new Point(320, 200)).BorderStyle, Is.EqualTo(AnnotationBorderStyle.Dash));
+
+            vm.SelectToolCommand.Execute(EditorTool.Arrow);
+            vm.SelectedArrowStyle = ArrowStyle.Double;
+            Assert.That(Draw<ArrowAnnotation>(new Point(420, 200)).Style, Is.EqualTo(ArrowStyle.Double));
+
+            vm.SelectToolCommand.Execute(EditorTool.Step);
+            vm.SelectedStepType = StepType.UppercaseRoman;
+            vm.TextBold = false;
+            vm.SpeechBalloonTail = false;
+            Click(window, new Point(560, 220), MouseButton.Left);
+            RunJobs();
+            var step = (NumberAnnotation)vm.EditorCore.Annotations[^1];
+            Assert.That(step.StepType, Is.EqualTo(StepType.UppercaseRoman));
+            Assert.That(step.IsBold, Is.False);
+            Assert.That(step.TailEnabled, Is.False);
+
+            vm.SelectToolCommand.Execute(EditorTool.Magnify);
+            vm.EffectEllipse = true;
+            Assert.That(Draw<MagnifyAnnotation>(new Point(20, 270)).IsEllipse, Is.True);
+
+            vm.SelectToolCommand.Execute(EditorTool.Spotlight);
+            vm.EffectEllipse = true;
+            vm.SpotlightBlur = 12;
+            var spotlight = Draw<SpotlightAnnotation>(new Point(120, 270));
+            Assert.That(spotlight.IsEllipse, Is.True);
+            Assert.That(spotlight.BlurAmount, Is.EqualTo(12));
+
+            vm.SelectToolCommand.Execute(EditorTool.SpeechBalloon);
+            vm.SelectedFontFamily = "Consolas";
+            vm.SelectedTextHorizontalAlignment = TextHorizontalAlignment.Right;
+            vm.TextBold = true;
+            vm.TextItalic = true;
+            vm.SpeechBalloonTail = false;
+            var balloon = Draw<SpeechBalloonAnnotation>(new Point(220, 270));
+            Assert.That(balloon.FontFamily, Is.EqualTo("Consolas"));
+            Assert.That(balloon.HorizontalAlignment, Is.EqualTo(TextHorizontalAlignment.Right));
+            Assert.That(balloon.IsBold, Is.True);
+            Assert.That(balloon.IsItalic, Is.True);
+            Assert.That(balloon.TailEnabled, Is.False);
+            // The text box wraps the text as the balloon will, so it is bold and italic too.
+            var balloonEditor = window.FindControl<Canvas>("AnnotationCanvas")!.Children.OfType<TextBox>().Single();
+            Assert.That(balloonEditor.FontWeight, Is.EqualTo(FontWeight.Bold));
+            Assert.That(balloonEditor.FontStyle, Is.EqualTo(FontStyle.Italic));
+            // The balloon's text box is open; a click away from it closes it.
+            Click(window, new Point(600, 440), MouseButton.Left);
+            RunJobs();
+
+            vm.SelectToolCommand.Execute(EditorTool.Text);
+            vm.SelectedFontFamily = "Arial";
+            vm.SelectedTextHorizontalAlignment = TextHorizontalAlignment.Left;
+            var text = Draw<TextAnnotation>(new Point(500, 350));
+            Assert.That(text.FontFamily, Is.EqualTo("Arial"));
+            Assert.That(text.HorizontalAlignment, Is.EqualTo(TextHorizontalAlignment.Left));
+        }
+        finally { window.Close(); }
+    }
+
+    [AvaloniaTest]
+    public void SelectedStep_HasNoResizeNodes_ShowsADashedCircle_AndIsSizedByTheFontSize()
+    {
+        var (window, completion) = Open();
+        try
+        {
+            var vm = (RegionCaptureAnnotationViewModel)window.DataContext!;
+            var nodeCanvas = window.FindControl<Canvas>("AnnotationHandleCanvas")!;
+            var center = new Point(300, 240);
+            vm.SelectToolCommand.Execute(EditorTool.Step);
+            Click(window, center, MouseButton.Left);
+            RunJobs();
+            var step = (NumberAnnotation)vm.EditorCore.Annotations.Single();
+            float radius = step.Radius;
+            Assert.That(vm.EditorCore.SelectedAnnotation, Is.SameAs(step));
+
+            // As in the image editor: a dashed circle 2 px outside the step, and no resize nodes.
+            void AssertOutline(Point expectedCenter, float expectedRadius)
+            {
+                var outlines = nodeCanvas.Children.OfType<global::Avalonia.Controls.Shapes.Ellipse>().ToList();
+                Assert.That(nodeCanvas.Children, Has.Count.EqualTo(2));
+                Assert.That(outlines.Select(o => o.Stroke), Is.EqualTo(new[] { Brushes.Black, Brushes.White }));
+                Assert.That(Canvas.GetLeft(outlines[0]), Is.EqualTo(expectedCenter.X - expectedRadius - 2).Within(0.01));
+                Assert.That(Canvas.GetTop(outlines[0]), Is.EqualTo(expectedCenter.Y - expectedRadius - 2).Within(0.01));
+                Assert.That(outlines[0].Width, Is.EqualTo(expectedRadius * 2 + 4).Within(0.01));
+                Assert.That(outlines[0].Height, Is.EqualTo(expectedRadius * 2 + 4).Within(0.01));
+            }
+            AssertOutline(center, radius);
+
+            // A drag from the corner of its box, where a resize node used to be, moves the step by
+            // the drag and leaves its size alone.
+            vm.SelectToolCommand.Execute(EditorTool.Select);
+            Drag(window, new Point(center.X + radius, center.Y + radius), new Point(center.X + radius + 40, center.Y + radius + 30));
+            RunJobs();
+            Assert.That(step.StartPoint, Is.EqualTo(new SKPoint(340, 270)));
+            Assert.That(step.Radius, Is.EqualTo(radius));
+            AssertOutline(new Point(340, 270), radius);
+
+            // The font size is what sizes a step.
+            vm.FontSize = step.FontSize * 2;
+            RunJobs();
+            Assert.That(step.Radius, Is.GreaterThan(radius * 1.5f));
+            AssertOutline(new Point(340, 270), step.Radius);
+
+            // Without its border the step ends at its radius, so in the capture the dashed circle
+            // would be the only thing 2 px outside it.
+            vm.StrokeWidth = 0;
+            Assert.That(step.StrokeWidth, Is.EqualTo(0));
+
+            Click(window, new Point(500, 420), MouseButton.Middle);
+            Assert.That(nodeCanvas.Children, Is.Empty, "region mode");
+            Click(window, new Point(500, 420), MouseButton.Middle);
+            AssertOutline(new Point(340, 270), step.Radius);
+
+            PressKey(window, Key.Enter);
+            Assert.That(completion.Task.IsCompletedSuccessfully, Is.True);
+            using var layer = completion.Task.Result!.Value.AnnotationLayer!;
+            Assert.That(layer.GetPixel(340, 270).Alpha, Is.GreaterThan(0), "step");
+            Assert.That(layer.GetPixel((int)(340 - step.Radius - 2), 270).Alpha, Is.EqualTo(0), "dashed circle");
         }
         finally { window.Close(); }
     }

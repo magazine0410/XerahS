@@ -88,6 +88,7 @@ public partial class OverlayWindow
 
         // Delegate to EditorCore for annotation creation and initialization.
         int countBefore = _viewModel.EditorCore.Annotations.Count;
+        var selectedBeforePress = _viewModel.EditorCore.SelectedAnnotation;
         _suppressInvalidateRequested = true;
         try
         {
@@ -125,6 +126,12 @@ public partial class OverlayWindow
             {
                 _annotationCanvas.Children.Add(_currentShape);
             }
+        }
+        else if (!ReferenceEquals(selectedBeforePress, _viewModel.EditorCore.SelectedAnnotation))
+        {
+            // The tool grabbed a shape of its own type that was not the selected one.
+            SyncAnnotationState();
+            RebuildAnnotationCanvas();
         }
 
         e.Pointer.Capture(_annotationCanvas);
@@ -327,15 +334,26 @@ public partial class OverlayWindow
         return null;
     }
 
+    /// <summary>
+    /// Gives a new annotation the toolbar's options, the ones the image editor sets when it creates
+    /// the annotation (EditorInputController.OnCanvasPointerPressed).
+    /// </summary>
     private void ApplyToolbarDefaultsToAnnotation(Annotation annotation)
     {
         annotation.FillColor = _viewModel.FillColor;
         annotation.ShadowEnabled = _viewModel.ShadowEnabled;
+        annotation.ShadowColor = _viewModel.ShadowColor;
+        annotation.ShadowBlurRadius = _viewModel.ShadowBlurRadius;
+        annotation.ShadowOpacity = _viewModel.ShadowOpacity;
+        annotation.ShadowOffsetX = _viewModel.ShadowOffsetX;
+        annotation.ShadowOffsetY = _viewModel.ShadowOffsetY;
 
         switch (annotation)
         {
             case TextAnnotation textAnnotation:
                 textAnnotation.FontSize = _viewModel.FontSize;
+                textAnnotation.FontFamily = _viewModel.SelectedFontFamily;
+                textAnnotation.HorizontalAlignment = _viewModel.SelectedTextHorizontalAlignment;
                 textAnnotation.TextColor = _viewModel.GetResolvedTextColor();
                 textAnnotation.IsBold = _viewModel.TextBold;
                 textAnnotation.IsItalic = _viewModel.TextItalic;
@@ -344,12 +362,20 @@ public partial class OverlayWindow
                 numberAnnotation.FontSize = _viewModel.FontSize;
                 numberAnnotation.FillColor = _viewModel.FillColor;
                 numberAnnotation.TextColor = _viewModel.TextColor;
+                numberAnnotation.IsBold = _viewModel.TextBold;
+                numberAnnotation.StepType = _viewModel.SelectedStepType;
+                numberAnnotation.TailEnabled = _viewModel.SpeechBalloonTail;
                 break;
             case SpeechBalloonAnnotation speechBalloonAnnotation:
                 speechBalloonAnnotation.FontSize = _viewModel.FontSize;
+                speechBalloonAnnotation.FontFamily = _viewModel.SelectedFontFamily;
+                speechBalloonAnnotation.HorizontalAlignment = _viewModel.SelectedTextHorizontalAlignment;
                 speechBalloonAnnotation.FillColor = _viewModel.FillColor;
                 speechBalloonAnnotation.TextColor = _viewModel.TextColor;
+                speechBalloonAnnotation.IsBold = _viewModel.TextBold;
+                speechBalloonAnnotation.IsItalic = _viewModel.TextItalic;
                 speechBalloonAnnotation.CornerRadius = _viewModel.CornerRadius;
+                speechBalloonAnnotation.TailEnabled = _viewModel.SpeechBalloonTail;
                 break;
             case SmartEraserAnnotation smartEraserAnnotation:
                 smartEraserAnnotation.StrokeWidth = 0;
@@ -368,6 +394,19 @@ public partial class OverlayWindow
                 break;
             case RectangleAnnotation rectangleAnnotation when rectangleAnnotation is not SmartEraserAnnotation:
                 rectangleAnnotation.CornerRadius = _viewModel.CornerRadius;
+                rectangleAnnotation.BorderStyle = _viewModel.SelectedBorderStyle;
+                break;
+            case EllipseAnnotation ellipseAnnotation:
+                ellipseAnnotation.BorderStyle = _viewModel.SelectedBorderStyle;
+                break;
+            case LineAnnotation lineAnnotation:
+                lineAnnotation.BorderStyle = _viewModel.SelectedBorderStyle;
+                break;
+            case FreehandAnnotation freehandAnnotation:
+                freehandAnnotation.BorderStyle = _viewModel.SelectedBorderStyle;
+                break;
+            case ArrowAnnotation arrowAnnotation:
+                arrowAnnotation.Style = _viewModel.SelectedArrowStyle;
                 break;
             case HighlightAnnotation highlightAnnotation:
                 highlightAnnotation.FillColor = _viewModel.FillColor;
@@ -375,6 +414,12 @@ public partial class OverlayWindow
             case SpotlightAnnotation spotlightAnnotation:
                 spotlightAnnotation.CanvasSize = new SKSize((float)Math.Max(1, Width), (float)Math.Max(1, Height));
                 spotlightAnnotation.DarkenOpacity = _viewModel.GetSpotlightDarkenOpacity();
+                spotlightAnnotation.BlurAmount = _viewModel.SpotlightBlur;
+                spotlightAnnotation.IsEllipse = _viewModel.EffectEllipse;
+                break;
+            case MagnifyAnnotation magnifyAnnotation:
+                magnifyAnnotation.Amount = _viewModel.EffectStrength;
+                magnifyAnnotation.IsEllipse = _viewModel.EffectEllipse;
                 break;
             case BaseEffectAnnotation effectAnnotation:
                 effectAnnotation.Amount = _viewModel.EffectStrength;

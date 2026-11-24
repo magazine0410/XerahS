@@ -46,7 +46,7 @@ public partial class OverlayWindow
     /// <summary>
     /// Reopens the text of the text or speech balloon annotation at the point, as a double click
     /// does in the image editor. With a drawing tool active only the selected annotation reopens,
-    /// because the first click on any other one already started a new shape.
+    /// because the first click on one that the tool does not grab already started a new shape.
     /// </summary>
     private bool TryReopenText(SKPoint point)
     {
@@ -94,8 +94,8 @@ public partial class OverlayWindow
             Width = Math.Max(200, bounds.Width),
             Height = Math.Max(40, bounds.Height),
             FontSize = fontSize,
-            FontWeight = annotation is TextAnnotation text && text.IsBold ? FontWeight.Bold : FontWeight.Normal,
-            FontStyle = annotation is TextAnnotation italicText && italicText.IsItalic ? FontStyle.Italic : FontStyle.Normal,
+            FontWeight = annotation is TextAnnotation { IsBold: true } or SpeechBalloonAnnotation { IsBold: true } ? FontWeight.Bold : FontWeight.Normal,
+            FontStyle = annotation is TextAnnotation { IsItalic: true } or SpeechBalloonAnnotation { IsItalic: true } ? FontStyle.Italic : FontStyle.Normal,
             Foreground = new SolidColorBrush(GetInlineTextColor(annotation)),
             Background = new SolidColorBrush(Color.FromArgb(220, 255, 255, 255)),
             BorderBrush = new SolidColorBrush(Colors.DodgerBlue),

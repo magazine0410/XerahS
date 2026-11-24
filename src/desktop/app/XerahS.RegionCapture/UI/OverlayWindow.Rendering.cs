@@ -226,6 +226,19 @@ public partial class OverlayWindow
                 Points = freehand.Points.Select(p => new Avalonia.Point(p.X, p.Y)).ToList()
             });
         }
+        // Nor has a step: its size follows its font size. The image editor draws a dashed circle
+        // 2 px outside it.
+        else if (_viewModel.EditorCore.SelectedAnnotation is NumberAnnotation step)
+        {
+            SKRect bounds = step.GetBounds();
+            AddDashedOutline(() =>
+            {
+                var circle = new Ellipse { Width = bounds.Width + 4, Height = bounds.Height + 4 };
+                Canvas.SetLeft(circle, bounds.Left - 2);
+                Canvas.SetTop(circle, bounds.Top - 2);
+                return circle;
+            });
+        }
 
         var handles = _viewModel.EditorCore.GetSelectedAnnotationHandles();
         foreach (var (type, position) in handles)
