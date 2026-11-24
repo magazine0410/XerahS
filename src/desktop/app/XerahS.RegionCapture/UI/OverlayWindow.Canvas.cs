@@ -165,6 +165,11 @@ public partial class OverlayWindow
             {
                 UpdatePreviewFromAnnotation(_currentShape, _currentAnnotation);
             }
+
+            if (_currentAnnotation is SpotlightAnnotation)
+            {
+                UpdateSpotlightOverlay();
+            }
             return;
         }
 

@@ -200,9 +200,20 @@ public partial class RegionCaptureAnnotationViewModel : ObservableObject, IAnnot
         }
     }
 
+    /// <summary>Raised when the Emoji button is used; the overlay shows the emoji picker.</summary>
+    public event Action? EmojiPickerRequested;
+
     [RelayCommand]
     private void SelectTool(EditorTool tool)
     {
+        // As in the image editor, Emoji is not a drawing tool: its button opens the emoji picker,
+        // and the tool in use stays as it was until an emoji is picked.
+        if (tool == EditorTool.Emoji)
+        {
+            EmojiPickerRequested?.Invoke();
+            return;
+        }
+
         IsRegionToolActive = false;
         ActiveTool = tool;
     }
@@ -1814,7 +1825,7 @@ public partial class RegionCaptureAnnotationViewModel : ObservableObject, IAnnot
         // Region capture only needs drawing tools. File / Background / Effects are editor chrome.
         foreach (ToolbarCustomizationItemViewModel item in ToolbarCustomizationItemViewModel.CreateDefaultItems())
         {
-            if (!item.Tool.HasValue)
+            if (!item.Tool.HasValue || !IsOfferedInRegionCapture(item.Tool.Value))
             {
                 continue;
             }
@@ -1823,6 +1834,16 @@ public partial class RegionCaptureAnnotationViewModel : ObservableObject, IAnnot
             _visibleToolbarItems.Add(item);
         }
     }
+
+    /// <summary>
+    /// Tools the overlay leaves out of its toolbar.
+    /// Crop and Cut out change the image, and here there is only the screen; ShareX leaves them out
+    /// of its region capture toolbar too. A Cursor stamp needs a cursor image, which only the image
+    /// editor creates, and only on Windows. Image needs a file dialog, which would open as a
+    /// window of its own under the topmost overlay.
+    /// </summary>
+    private static bool IsOfferedInRegionCapture(EditorTool tool) =>
+        tool is not (EditorTool.Crop or EditorTool.CutOut or EditorTool.Cursor or EditorTool.Image);
 
     private void UpdateVisibleToolbarActiveStates()
     {

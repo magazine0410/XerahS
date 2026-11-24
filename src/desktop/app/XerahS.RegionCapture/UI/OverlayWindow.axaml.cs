@@ -76,6 +76,7 @@ public partial class OverlayWindow : Window
     private readonly PixelRect _captureBounds;
     private Canvas? _annotationCanvas;
     private Canvas? _annotationHandleCanvas;
+    private SpotlightOverlayControl? _spotlightOverlay;
     private AvPixelPoint _targetPosition;
     private double _targetWidth;
     private double _targetHeight;
@@ -159,6 +160,7 @@ public partial class OverlayWindow : Window
 
         // Wire up EditorCore events
         _viewModel.EditorCore.EditAnnotationRequested += OnEditAnnotationRequested;
+        _viewModel.EmojiPickerRequested += OnEmojiPickerRequested;
 
         InitializeComponent();
         Title = PlatformWindowTitles.RegionCaptureOverlay;
@@ -246,6 +248,7 @@ public partial class OverlayWindow : Window
         _annotationToolCoordinator?.Unregister(_viewModel);
         _windowClosed = true;
         UpdateCursorConfinement();
+        _spotlightOverlay?.Dispose();
         base.OnClosed(e);
     }
 
@@ -500,6 +503,17 @@ public partial class OverlayWindow : Window
 
         if (HandleInactiveMonitorKey(e))
             return;
+
+        // The emoji picker takes the keyboard: letters go to its search box, Escape closes it.
+        if (_emojiPicker != null)
+        {
+            if (e.Key == Key.Escape)
+            {
+                CloseEmojiPicker();
+                e.Handled = true;
+            }
+            return;
+        }
 
         // If inline text editing is active, let the TextBox handle keys
         if (_inlineTextBox != null)

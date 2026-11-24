@@ -47,5 +47,12 @@
                                     MaxWidth="{Binding Bounds.Width, ElementName=OverlayRoot}"
                                     Margin="0,50,0,0"
                                     IsVisible="True"/>
+
+        <!-- Dialogs shown inside the overlay (the emoji picker). A window of its own would take the
+             pointer from the overlay's surface, as tooltips would. Filled while a dialog is open. -->
+        <Panel x:Name="ModalLayer"
+               Background="#66000000"
+               Cursor="Arrow"
+               IsVisible="False"/>
     </Grid>
 </Window>

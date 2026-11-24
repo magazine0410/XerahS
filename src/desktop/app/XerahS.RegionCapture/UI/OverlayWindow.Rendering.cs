@@ -154,8 +154,53 @@ public partial class OverlayWindow
             _annotationCanvas.Children.Add(_inlineTextBox);
         }
 
+        UpdateSpotlightOverlay();
         UpdateAnnotationHandles();
         _lastRebuildTicks = Stopwatch.GetTimestamp();
+    }
+
+    /// <summary>
+    /// Draws the Spotlight annotations: SpotlightControl draws nothing itself, and the image editor
+    /// darkens (and blurs) everything outside the spotlights with one SpotlightOverlayControl.
+    /// The control is in the annotation canvas only while a spotlight exists, under the shapes,
+    /// so it is rendered into the capture and a capture without annotations still has no layer.
+    /// </summary>
+    private void UpdateSpotlightOverlay()
+    {
+        if (_annotationCanvas == null) return;
+
+        // A spotlight without an area (a click without a drag) would darken the whole screen.
+        var spotlights = _viewModel.EditorCore.Annotations
+            .OfType<SpotlightAnnotation>()
+            .Where(spotlight => spotlight.GetBounds() is { Width: >= 1, Height: >= 1 })
+            .ToList();
+
+        if (spotlights.Count == 0)
+        {
+            if (_spotlightOverlay != null)
+            {
+                _annotationCanvas.Children.Remove(_spotlightOverlay);
+                _spotlightOverlay.Dispose();
+                _spotlightOverlay = null;
+            }
+
+            return;
+        }
+
+        if (_spotlightOverlay == null)
+        {
+            _spotlightOverlay = new SpotlightOverlayControl { IsHitTestVisible = false, ZIndex = -1 };
+            _annotationCanvas.Children.Add(_spotlightOverlay);
+        }
+
+        // A canvas does not size its children, and a control without a size is not rendered.
+        _spotlightOverlay.Width = Width;
+        _spotlightOverlay.Height = Height;
+        _spotlightOverlay.UpdateSpotlights(
+            spotlights,
+            _viewModel.EditorCore.SourceImage,
+            (int)Math.Ceiling(Width),
+            (int)Math.Ceiling(Height));
     }
 
     /// <summary>

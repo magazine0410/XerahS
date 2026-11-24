@@ -92,18 +92,16 @@ public class RegionCaptureUiSmokeTests
             EditorTool.Text,
             EditorTool.SpeechBalloon,
             EditorTool.Step,
-            EditorTool.Image,
             EditorTool.Emoji,
-            EditorTool.Cursor,
             EditorTool.Highlight,
             EditorTool.SmartEraser,
             EditorTool.Blur,
             EditorTool.Pixelate,
             EditorTool.Magnify,
-            EditorTool.Spotlight,
-            EditorTool.Crop,
-            EditorTool.CutOut
+            EditorTool.Spotlight
         };
+
+        // Not offered in region capture: Crop and Cut out (as in ShareX), Cursor and Image.
 
         var viewModel = new RegionCaptureAnnotationViewModel();
 

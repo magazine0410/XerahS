@@ -33,7 +33,9 @@ using Avalonia.VisualTree;
 using NUnit.Framework;
 using ShareX.ImageEditor.Core.Annotations;
 using ShareX.ImageEditor.Presentation.Controls;
+using ShareX.ImageEditor.Presentation.Emoji;
 using ShareX.ImageEditor.Presentation.ViewModels;
+using ShareX.ImageEditor.Presentation.Views;
 using SkiaSharp;
 using XerahS.RegionCapture;
 using XerahS.RegionCapture.Models;
@@ -478,6 +480,166 @@ public class RegionCaptureBehaviorTests
             RunJobs();
             ClickAndDoubleClickInside("reopened");
             Assert.That(completion.Task.IsCompleted, Is.False);
+        }
+        finally { window.Close(); }
+    }
+
+    [AvaloniaTest]
+    public void Spotlight_DarkensEverythingOutsideItsBox_InThePreviewAndTheCapture()
+    {
+        var (window, completion) = Open();
+        try
+        {
+            var vm = (RegionCaptureAnnotationViewModel)window.DataContext!;
+            var canvas = window.FindControl<Canvas>("AnnotationCanvas")!;
+            vm.SelectToolCommand.Execute(EditorTool.Spotlight);
+
+            // The darkening shows while the box is dragged, not only after the release.
+            window.MouseDown(Start, MouseButton.Left);
+            window.MouseMove(Inside, RawInputModifiers.LeftMouseButton);
+            Assert.That(canvas.Children.OfType<SpotlightOverlayControl>().Single().IsVisible, Is.True);
+            window.MouseMove(End, RawInputModifiers.LeftMouseButton);
+            window.MouseUp(End, MouseButton.Left);
+            RunJobs();
+            Assert.That(canvas.Children.OfType<SpotlightOverlayControl>().ToList(), Has.Count.EqualTo(1));
+
+            // It follows the box when the box is moved.
+            Drag(window, Inside, new Point(Inside.X + 200, Inside.Y + 40));
+            RunJobs();
+            var spotlight = vm.EditorCore.Annotations.OfType<SpotlightAnnotation>().Single();
+            Assert.That(spotlight.GetBounds(), Is.EqualTo(new SKRect(300, 240, 500, 400)));
+
+            PressKey(window, Key.Enter);
+            using var layer = completion.Task.Result!.Value.AnnotationLayer!;
+            byte darkening = spotlight.DarkenOpacity;
+            Assert.That(darkening, Is.GreaterThan(0));
+            Assert.That(layer.GetPixel(50, 50).Alpha, Is.EqualTo(darkening).Within(1), "far from the box");
+            Assert.That(layer.GetPixel(200, 280).Alpha, Is.EqualTo(darkening).Within(1), "where the box was before the move");
+            Assert.That(layer.GetPixel(400, 320).Alpha, Is.EqualTo(0), "inside the box");
+        }
+        finally { window.Close(); }
+    }
+
+    [AvaloniaTest]
+    public void Spotlight_Blur_ReplacesTheSurroundingsWithTheBlurredScreen()
+    {
+        var background = new SKBitmap(640, 480, SKColorType.Bgra8888, SKAlphaType.Premul);
+        background.Erase(SKColors.SteelBlue);
+        var (window, completion) = Open(new RegionCaptureOptions { BackgroundImage = background });
+        try
+        {
+            var vm = (RegionCaptureAnnotationViewModel)window.DataContext!;
+            vm.SelectToolCommand.Execute(EditorTool.Spotlight);
+            Drag(window, Start, End);
+            RunJobs();
+
+            // Blur is an option of the selected spotlight.
+            vm.SelectToolCommand.Execute(EditorTool.Select);
+            vm.SpotlightBlur = 12;
+            RunJobs();
+            var spotlight = vm.EditorCore.Annotations.OfType<SpotlightAnnotation>().Single();
+            Assert.That(spotlight.BlurAmount, Is.EqualTo(12));
+
+            PressKey(window, Key.Enter);
+            using var layer = completion.Task.Result!.Value.AnnotationLayer!;
+            // Outside the box: the blurred screen, darkened, so fully opaque and bluish. Inside: nothing.
+            SKColor outside = layer.GetPixel(500, 420);
+            Assert.That(outside.Alpha, Is.EqualTo(255));
+            Assert.That(outside.Blue, Is.GreaterThan(outside.Red));
+            Assert.That(layer.GetPixel((int)Inside.X, (int)Inside.Y).Alpha, Is.EqualTo(0));
+        }
+        finally { window.Close(); }
+    }
+
+    [AvaloniaTest]
+    public void Spotlight_WithoutAnAreaOrDeleted_DarkensNothing_AndLeavesNoLayer()
+    {
+        var (window, completion) = Open();
+        try
+        {
+            var vm = (RegionCaptureAnnotationViewModel)window.DataContext!;
+            var canvas = window.FindControl<Canvas>("AnnotationCanvas")!;
+            vm.SelectToolCommand.Execute(EditorTool.Spotlight);
+
+            // A click without a drag makes a spotlight without an area, which must not darken the screen.
+            Click(window, new Point(500, 420), MouseButton.Left);
+            RunJobs();
+            Assert.That(canvas.Children.OfType<SpotlightOverlayControl>(), Is.Empty);
+            PressKey(window, Key.Delete);
+            RunJobs();
+
+            Drag(window, Start, End);
+            RunJobs();
+            Assert.That(canvas.Children.OfType<SpotlightOverlayControl>().ToList(), Has.Count.EqualTo(1));
+            PressKey(window, Key.Delete);
+            RunJobs();
+            Assert.That(vm.EditorCore.Annotations, Is.Empty);
+            Assert.That(canvas.Children, Is.Empty, "no spotlight control is left in the canvas");
+
+            PressKey(window, Key.Enter);
+            Assert.That(completion.Task.Result!.Value.AnnotationLayer, Is.Null);
+        }
+        finally { window.Close(); }
+    }
+
+    [AvaloniaTest]
+    public void EmojiButton_OpensThePickerInsideTheOverlay_AndAPickedEmojiBecomesASelectedSticker()
+    {
+        var (window, completion) = Open();
+        try
+        {
+            LetFocusRetriesFinish();
+            var vm = (RegionCaptureAnnotationViewModel)window.DataContext!;
+            var modalLayer = window.FindControl<Panel>("ModalLayer")!;
+            vm.SelectToolCommand.Execute(EditorTool.Rectangle);
+            Assert.That(modalLayer.IsVisible, Is.False);
+
+            vm.SelectToolCommand.Execute(EditorTool.Emoji);
+            RunJobs();
+            var picker = modalLayer.GetVisualDescendants().OfType<EmojiPickerDialogView>().Single();
+            Assert.That(modalLayer.IsVisible, Is.True);
+            // The picker is 760x640; on this 640x480 monitor it is scaled down to fit.
+            window.UpdateLayout();
+            var pickerSize = picker.GetTransformedBounds()!.Value.Clip.Size;
+            Assert.That(pickerSize.Width, Is.LessThanOrEqualTo(640).And.GreaterThan(300));
+            Assert.That(pickerSize.Height, Is.LessThanOrEqualTo(480).And.GreaterThan(300));
+            Assert.That(vm.ActiveTool, Is.EqualTo(EditorTool.Rectangle), "Emoji is not a drawing tool");
+
+            // The picker has the keyboard: a letter is not a tool shortcut, Enter does not finish,
+            // and Escape closes the picker, not the capture.
+            PressKey(window, Key.E);
+            PressKey(window, Key.Enter);
+            Assert.That(vm.ActiveTool, Is.EqualTo(EditorTool.Rectangle));
+            Assert.That(completion.Task.IsCompleted, Is.False);
+            // A click on the dimmed area around the picker draws nothing.
+            Drag(window, new Point(5, 400), new Point(60, 470));
+            Assert.That(vm.EditorCore.Annotations, Is.Empty);
+            PressKey(window, Key.Escape);
+            Assert.That(modalLayer.IsVisible, Is.False);
+            Assert.That(modalLayer.Children, Is.Empty);
+            Assert.That(completion.Task.IsCompleted, Is.False);
+
+            vm.SelectToolCommand.Execute(EditorTool.Emoji);
+            RunJobs();
+            picker = modalLayer.GetVisualDescendants().OfType<EmojiPickerDialogView>().Single();
+            var pickerViewModel = (EmojiPickerDialogViewModel)picker.DataContext!;
+            pickerViewModel.SelectEmojiCommand.Execute(new EmojiCatalogEntry { Unicode = "1F600", Name = "grinning face" });
+            RunJobs();
+
+            Assert.That(modalLayer.IsVisible, Is.False);
+            var sticker = (EmojiAnnotation)vm.EditorCore.Annotations.Single();
+            Assert.That(sticker.UnicodeSequence, Is.EqualTo("1F600"));
+            Assert.That(sticker.GetBounds(), Is.EqualTo(new SKRect(240, 160, 400, 320)), "160 px in the middle of 640x480");
+            Assert.That(vm.EditorCore.SelectedAnnotation, Is.SameAs(sticker));
+            Assert.That(vm.ActiveTool, Is.EqualTo(EditorTool.Select));
+            Assert.That(window.FindControl<Canvas>("AnnotationHandleCanvas")!.Children, Is.Not.Empty);
+
+            // It moves like any other shape, and Enter still finishes the capture.
+            Drag(window, new Point(320, 240), new Point(380, 280));
+            Assert.That(sticker.GetBounds(), Is.EqualTo(new SKRect(300, 200, 460, 360)));
+            PressKey(window, Key.Enter);
+            Assert.That(completion.Task.IsCompletedSuccessfully, Is.True);
+            completion.Task.Result!.Value.AnnotationLayer?.Dispose();
         }
         finally { window.Close(); }
     }
